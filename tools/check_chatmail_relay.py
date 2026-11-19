@@ -24,6 +24,8 @@ class Core:
         self.sequence = 0
 
     def close(self):
+        if self.pipe.stdin.closed:
+            return
         self.pipe.stdin.close()
         try:
             self.pipe.wait(timeout=5)
@@ -138,6 +140,72 @@ def main():
             if not {invite, accept, move, reply}.issubset(records):
                 raise RuntimeError("Match history is incomplete")
         print("Both profiles exchanged match invites and turns and recovered the full history.", flush=True)
+
+        def voice_message(core, chat):
+            ids = core.rpc("get_message_ids", core.account, chat, False, False)
+            rows = core.rpc("get_messages", core.account, ids)
+            for msg in rows.values():
+                if (
+                    msg.get("viewType") == "Call"
+                    and msg.get("fromId") != 1
+                    and msg.get("showPadlock") is True
+                    and msg.get("chatId") == chat
+                ):
+                    return msg["id"]
+            return None
+
+        def voice_state(core, message, state):
+            return core.rpc("call_info", core.account, message)["state"]["kind"] == state
+
+        def event(core, kind, message):
+            # The caller already waited for the state produced in the same RPC event.
+            for _ in range(8):
+                batch = core.rpc("get_next_event_batch")
+                for entry in batch:
+                    record = entry["event"]
+                    if record["kind"] == kind and record.get("msg_id") == message:
+                        return record
+            raise RuntimeError(f"Missing {kind} event")
+
+        offer = "v=0\r\ns=Preview offer\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+        answer = "v=0\r\ns=Preview answer\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+        placed = alice.rpc("place_outgoing_call", alice.account, alice_chat, offer, False)
+        incoming = wait_for("an encrypted voice invitation", lambda: voice_message(bob, bob_chat))
+        offered = event(bob, "IncomingCall", incoming)
+        if offered["chat_id"] != bob_chat or offered["place_call_info"] != offer or offered["has_video"]:
+            raise RuntimeError("Incoming call event did not preserve the offer")
+        bob.rpc("accept_incoming_call", bob.account, incoming, answer)
+        wait_for("a voice answer", lambda: voice_state(alice, placed, "Active"))
+        accepted = event(alice, "OutgoingCallAccepted", placed)
+        if accepted["chat_id"] != alice_chat or accepted["accept_call_info"] != answer:
+            raise RuntimeError("Call acceptance event did not preserve the answer")
+        bob.rpc("end_call", bob.account, incoming)
+        wait_for("remote call closure", lambda: voice_state(alice, placed, "Completed"))
+        event(alice, "CallEnded", placed)
+        print("Verified encrypted voice signaling, acceptance, and remote hangup.", flush=True)
+
+        bob_account = bob.account
+        bob.rpc("stop_io", bob_account)
+        bob.close()
+        offline_text = "Zompado relay smoke check while receiver is stopped"
+        sent = alice.rpc("misc_send_text_message", alice.account, alice_chat, offline_text)
+        wait_for("server acceptance while the receiver is stopped", lambda:
+                 alice.rpc("get_messages", alice.account, [sent])[str(sent)]["state"] >= 26)
+        restarted = Core(executable, Path(root) / "bob")
+        cleanup.callback(restarted.close)
+        restarted.account = bob_account
+        restarted.rpc("start_io", bob_account)
+
+        def fresh_after_restart():
+            ids = restarted.rpc("get_fresh_msgs", bob_account)
+            rows = restarted.rpc("get_messages", bob_account, ids)
+            return any(
+                m.get("text") == offline_text and m.get("showPadlock") is True
+                for m in rows.values()
+            )
+
+        wait_for("fresh messages detected after restarting Chatmail", fresh_after_restart)
+        print("A separately restarted Core found encrypted activity that arrived while it was stopped.", flush=True)
 
 
 if __name__ == "__main__":

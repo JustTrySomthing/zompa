@@ -15,6 +15,7 @@ Both repositories use `main`. Check the latest published APK and the current `up
 | Android source at the tag for a shipped version | [Android releases](https://github.com/JustTrySomthing/zompado/releases) |
 | App updater feed, native Android bridge, and download validation | [update.json](../update.json), [Android sources](../android/app/src/main/java/io/tablecircle/prototype), [install controller](../lib/app_updates.dart), [GitHub distribution code](../lib/github_distribution.dart) |
 | Official .zomp catalog, versioned LÖVE sources, and release assets | [zompado-games](https://github.com/JustTrySomthing/zompado-games) |
+| Voice calls and scheduled Android chat alerts | [Call state and UI](../lib/voice_calls.dart), [Android WebRTC bridge](../android/app/src/main/java/io/tablecircle/prototype/VoicePeer.java), [Chat sync job](../android/app/src/main/java/io/tablecircle/prototype/ChatSyncJob.java) |
 | Manual `.love` staging and Lua template | [Android archive validation](../android/app/src/main/java/io/tablecircle/prototype/LoveImport.java), [Lua SDK](../sdk/README.md) |
 | Board rules and UI | [board.dart](../lib/board.dart), [main.dart](../lib/main.dart) |
 | Implemented features and next milestones | [README](../README.md), [build plan](BUILD-PLAN.md) |
