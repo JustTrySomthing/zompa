@@ -34,6 +34,7 @@ fi
 rustup toolchain install "$rust" --profile minimal --target "$triple"
 export CC_aarch64_linux_android="$linker"
 export AR_aarch64_linux_android="$ndk_bin/llvm-ar"
+export RANLIB_aarch64_linux_android="$ndk_bin/llvm-ranlib"
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$linker"
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"
 (

@@ -1,5 +1,6 @@
 {
   "version": "0.5.5",
   "build": 11,
-  "purpose": "Test QR invites, match chat, Your turn, background alerts, 16 KB native alignment, and manual .love archive staging."
+  "purpose": "Test QR invites, match chat, Your turn, background alerts, 16 KB native alignment, and manual .love archive staging.",
+  "revision": 2
 }
