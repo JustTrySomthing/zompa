@@ -1,5 +1,6 @@
 {
   "version": "0.5.6",
   "build": 12,
-  "purpose": "Test voice calls, microphone routing and Android-scheduled friend alerts after process death."
+  "purpose": "Test voice calls, microphone routing and Android-scheduled friend alerts after process death.",
+  "revision": 2
 }

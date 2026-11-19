@@ -6,6 +6,7 @@ import android.app.job.JobScheduler;
 import android.app.job.JobService;
 import android.content.ComponentName;
 import android.content.Context;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -45,8 +46,13 @@ public final class ChatSyncJob extends JobService {
     static void claimForApp() {
         synchronized (OWNER) {
             appOwnsCore = true;
-            if (jobCore != null) jobCore.destroyForcibly();
+            if (jobCore != null) stopCore(jobCore);
         }
+    }
+
+    private static void stopCore(Process process) {
+        if (Build.VERSION.SDK_INT >= 26) process.destroyForcibly();
+        else process.destroy();
     }
 
     static void releaseFromApp() {
@@ -95,7 +101,7 @@ public final class ChatSyncJob extends JobService {
         void stop() {
             synchronized (OWNER) {
                 stopped = true;
-                if (core != null) core.destroyForcibly();
+                if (core != null) stopCore(core);
             }
             worker.interrupt();
         }
@@ -106,11 +112,25 @@ public final class ChatSyncJob extends JobService {
                 synchronized (OWNER) {
                     if (stopped || appOwnsCore || jobCore != null) return;
                     ProcessBuilder builder = new ProcessBuilder(executable(ChatSyncJob.this).getPath())
-                        .directory(profile).redirectError(new File("/dev/null"));
+                        .directory(profile);
+                    if (Build.VERSION.SDK_INT >= 26) builder.redirectError(new File("/dev/null"));
                     builder.environment().put("DC_ACCOUNTS_PATH", profile.getPath());
                     builder.environment().put("RUST_LOG", "off");
                     core = builder.start();
                     jobCore = core;
+                }
+                if (Build.VERSION.SDK_INT < 26) {
+                    var stderr = core.getErrorStream();
+                    new Thread(() -> {
+                        try (var input = stderr) {
+                            byte[] buffer = new byte[2048];
+                            while (input.read(buffer) != -1) {
+                                // Drain stderr separately so it cannot corrupt JSON-RPC.
+                            }
+                        } catch (IOException ignored) {
+                            // The process has closed the error pipe.
+                        }
+                    }, "zompado-chat-errors").start();
                 }
                 try (Rpc rpc = new Rpc(core)) {
                     JSONArray accounts = (JSONArray) rpc.call("get_all_account_ids");
