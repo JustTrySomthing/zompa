@@ -1,0 +1,111 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'github_distribution.dart';
+
+const installedVersion = '0.2.0';
+const installedBuild = 2;
+
+class AppUpdates extends ChangeNotifier {
+  AppUpdates(this.distribution, this.host, this.data, this.write);
+  final GithubDistribution distribution;
+  final MethodChannel host;
+  final Map<String, dynamic> data;
+  final void Function(String, dynamic) write;
+  AppRelease? available;
+  bool checking = false;
+  bool downloading = false;
+  bool disposed = false;
+  String? status;
+  bool get automatic => data['autoUpdates'] != false;
+
+  Future<void> syncSchedule() async {
+    try {
+      await host.invokeMethod<void>('scheduleUpdates', {'enabled': automatic});
+    } on PlatformException catch (_) {
+      // Foreground checks remain available on devices that can't schedule the job.
+    }
+  }
+
+  void setAutomatic(bool value) {
+    write('autoUpdates', value);
+    syncSchedule();
+    if (!disposed) notifyListeners();
+    if (value) checkIfDue();
+  }
+
+  Future<void> checkIfDue() async {
+    if (!automatic) return;
+    final last = DateTime.tryParse(data['lastUpdateCheck'] as String? ?? '');
+    var cachedBuild = data['lastAvailableBuild'] as int? ?? 0;
+    try {
+      final background =
+          await host.invokeMethod<int>('backgroundUpdateBuild') ?? 0;
+      if (background > cachedBuild) cachedBuild = background;
+    } on PlatformException catch (_) {
+      // Fall back to the timestamp of the last foreground check.
+    }
+    if (!automatic || disposed) return;
+    if (last == null ||
+        DateTime.now().difference(last) >= const Duration(days: 1) ||
+        cachedBuild > (available?.build ?? installedBuild)) {
+      await check(manual: false);
+    }
+  }
+
+  Future<void> check({bool manual = true}) async {
+    if (checking || disposed) return;
+    checking = true;
+    if (manual) status = 'Checking GitHub…';
+    notifyListeners();
+    try {
+      final release = await distribution.appRelease();
+      if (disposed) return;
+      available = release.build > installedBuild ? release : null;
+      write('lastAvailableBuild', available?.build ?? 0);
+      write('lastUpdateCheck', DateTime.now().toUtc().toIso8601String());
+      if (manual)
+        status = available == null
+            ? 'You’re up to date.'
+            : 'Version ${release.version} is available.';
+    } catch (_) {
+      if (manual) status = 'Couldn’t check for updates. Try again.';
+    } finally {
+      checking = false;
+      if (!disposed) notifyListeners();
+    }
+  }
+
+  Future<void> install() async {
+    final release = available;
+    if (downloading || release == null || disposed) return;
+    downloading = true;
+    status = 'Downloading version ${release.version}…';
+    notifyListeners();
+    File? staged;
+    try {
+      staged = await distribution.stageUpdate(release);
+      if (disposed) return;
+      final result = await host.invokeMethod<String>('installUpdate', {
+        'path': staged.path,
+        'build': release.build,
+      });
+      status = result == 'permission'
+          ? 'Allow installs from Table Circle in Android settings, then tap Update again.'
+          : 'Follow the Android installer to complete the update.';
+    } on PlatformException catch (error) {
+      status = error.message ?? 'Android couldn’t open the update.';
+    } catch (_) {
+      status = 'Couldn’t download a verified update. Try again.';
+    } finally {
+      downloading = false;
+      if (!disposed) notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    disposed = true;
+    super.dispose();
+  }
+}
