@@ -1,5 +1,5 @@
 {
-  "version": "0.5.1",
-  "build": 7,
-  "purpose": "Verify first-launch setup, permission controls, and searchable in-app Help."
+  "version": "0.5.2",
+  "build": 8,
+  "purpose": "Verify official game sharing, chat game cards, and verified catalog installs."
 }

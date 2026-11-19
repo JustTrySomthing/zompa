@@ -40,6 +40,7 @@ public final class MainActivity extends FlutterActivity {
                         boolean compatible = Os.sysconf(OsConstants._SC_PAGESIZE) == 4096;
                         result.success(compatible && core.canExecute() ? core.getAbsolutePath() : null);
                         break;
+                    case "shareGameLink":
                     case "shareFriendInvite":
                         String invite = call.argument("invite");
                         if (invite == null || invite.isEmpty()) {
@@ -49,7 +50,8 @@ public final class MainActivity extends FlutterActivity {
                         Intent shareInvite = new Intent(Intent.ACTION_SEND);
                         shareInvite.setType("text/plain");
                         shareInvite.putExtra(Intent.EXTRA_TEXT, invite);
-                        startActivity(Intent.createChooser(shareInvite, "Share friend invite"));
+                        startActivity(Intent.createChooser(shareInvite,
+                            call.method.equals("shareGameLink") ? "Share game" : "Share friend invite"));
                         result.success(null);
                         break;
                     case "setupStatus":

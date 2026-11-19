@@ -64,6 +64,17 @@ class GameRelease {
   final int build;
   final ReleaseAsset asset;
   bool get playable => id == 'drop-four';
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'version': version,
+    'build': build,
+    'format': 'zomp',
+    'url': asset.url.toString(),
+    'sha256': asset.sha,
+    'size': asset.size,
+  };
 }
 
 class AppRelease {
@@ -140,11 +151,14 @@ class GithubDistribution {
     File('${directory.path}/updates/${release.build}.apk'),
   );
 
+  Future<bool> _matchesAsset(ReleaseAsset asset, File file) async =>
+      await file.exists() &&
+      await file.length() == asset.size &&
+      (await sha256.bind(file.openRead()).first).toString() == asset.sha;
+
   Future<File> _download(ReleaseAsset asset, File target) async {
     await target.parent.create(recursive: true);
-    if (await target.exists() &&
-        await target.length() == asset.size &&
-        (await sha256.bind(target.openRead()).first).toString() == asset.sha) {
+    if (await _matchesAsset(asset, target)) {
       return target;
     }
     final client = _client();

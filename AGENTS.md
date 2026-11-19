@@ -2,9 +2,9 @@
 
 ## Product focus
 
-Play and chat with friends.<br>
+Play, share and chat with friends.<br>
 Discover fun and unique games,<br>
-and easily make and share your own.
+or make your own.
 
 Prioritize work that helps people play or chat with friends, discover games, or make and share games. Keep those flows easy to find and use. Leave unrelated features outside the project unless the user explicitly expands its scope. Describe available features on the public README and download page, and document proposed work in the build plan.
 

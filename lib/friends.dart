@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
+import 'game_link.dart';
 
 String _failure(Object error) => switch (error) {
   ChatmailIssue.invite => 'Use the invite link from a friend’s Invite screen.',
@@ -16,10 +17,18 @@ String _failure(Object error) => switch (error) {
 };
 
 class FriendsPane extends StatefulWidget {
-  const FriendsPane({super.key, required this.chatmail, required this.share});
+  const FriendsPane({
+    super.key,
+    required this.chatmail,
+    required this.share,
+    required this.pickGameLink,
+    required this.openGameLink,
+  });
 
   final Chatmail chatmail;
   final Future<void> Function(String) share;
+  final Future<String?> Function() pickGameLink;
+  final Future<void> Function(GameLink) openGameLink;
 
   @override
   State<FriendsPane> createState() => _FriendsPaneState();
@@ -198,6 +207,8 @@ class _FriendsPaneState extends State<FriendsPane> {
           chatmail: widget.chatmail,
           id: chat,
           initialName: name,
+          pickGameLink: widget.pickGameLink,
+          openGameLink: widget.openGameLink,
         ),
       ),
     );
@@ -377,11 +388,15 @@ class FriendConversation extends StatefulWidget {
     required this.chatmail,
     required this.id,
     required this.initialName,
+    required this.pickGameLink,
+    required this.openGameLink,
   });
 
   final Chatmail chatmail;
   final int id;
   final String initialName;
+  final Future<String?> Function() pickGameLink;
+  final Future<void> Function(GameLink) openGameLink;
 
   @override
   State<FriendConversation> createState() => _FriendConversationState();
@@ -396,6 +411,7 @@ class _FriendConversationState extends State<FriendConversation>
   bool _fetching = false;
   bool _fetchAgain = false;
   bool _sending = false;
+  bool _pickingGame = false;
   int _limit = 60;
   String? _loadError;
   String? _sendError;
@@ -457,9 +473,9 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
-  Future<void> _send() async {
+  Future<void> _send({String? gameLink}) async {
     final original = _composer.text;
-    final text = original.trim();
+    final text = gameLink ?? original.trim();
     if (_sending || text.isEmpty || _thread?.canSend != true) return;
     setState(() {
       _sending = true;
@@ -468,7 +484,7 @@ class _FriendConversationState extends State<FriendConversation>
     try {
       await widget.chatmail.send(widget.id, text);
       if (!mounted) return;
-      if (_composer.text == original) _composer.clear();
+      if (gameLink == null && _composer.text == original) _composer.clear();
       await _load();
     } catch (error) {
       if (mounted)
@@ -480,6 +496,36 @@ class _FriendConversationState extends State<FriendConversation>
       if (error is TimeoutException) await _load();
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _sendGame() async {
+    setState(() => _pickingGame = true);
+    try {
+      final link = await widget.pickGameLink();
+      if (!mounted || link == null) return;
+      final send = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Share Drop Four?'),
+          content: const Text(
+            'Your friend will get a game card they can open to install or play Drop Four.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Send game'),
+            ),
+          ],
+        ),
+      );
+      if (mounted && send == true) await _send(gameLink: link);
+    } finally {
+      if (mounted) setState(() => _pickingGame = false);
     }
   }
 
@@ -544,6 +590,7 @@ class _FriendConversationState extends State<FriendConversation>
                             child: Text(text, textAlign: TextAlign.center),
                           );
                         }
+                        final gameLink = GameLink.parse(message.text);
                         return Align(
                           alignment: message.outgoing
                               ? Alignment.centerRight
@@ -565,14 +612,28 @@ class _FriendConversationState extends State<FriendConversation>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                SelectableText(
-                                  text,
-                                  style: TextStyle(
-                                    color: message.outgoing
-                                        ? colors.onSecondaryContainer
-                                        : colors.onSurface,
+                                if (gameLink != null)
+                                  OutlinedButton.icon(
+                                    onPressed: () =>
+                                        widget.openGameLink(gameLink),
+                                    icon: const Icon(
+                                      Icons.sports_esports_outlined,
+                                    ),
+                                    label: Text(
+                                      gameLink.id == 'drop-four'
+                                          ? 'Open Drop Four'
+                                          : 'Open game',
+                                    ),
+                                  )
+                                else
+                                  SelectableText(
+                                    text,
+                                    style: TextStyle(
+                                      color: message.outgoing
+                                          ? colors.onSecondaryContainer
+                                          : colors.onSurface,
+                                    ),
                                   ),
-                                ),
                                 if (message.delivery case final delivery?)
                                   Text(
                                     delivery,
@@ -599,6 +660,11 @@ class _FriendConversationState extends State<FriendConversation>
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    IconButton(
+                      tooltip: 'Share a game',
+                      onPressed: _sending || _pickingGame ? null : _sendGame,
+                      icon: const Icon(Icons.sports_esports_outlined),
+                    ),
                     Expanded(
                       child: TextField(
                         controller: _composer,
@@ -613,7 +679,9 @@ class _FriendConversationState extends State<FriendConversation>
                     ),
                     IconButton(
                       tooltip: 'Send message',
-                      onPressed: _sending ? null : _send,
+                      onPressed: _sending || _pickingGame
+                          ? null
+                          : () => _send(),
                       icon: const Icon(Icons.send),
                     ),
                   ],

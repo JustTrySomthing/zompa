@@ -1,8 +1,8 @@
 # Zompado for Android
 
-Play and chat with friends.<br>
+Play, share and chat with friends.<br>
 Discover fun and unique games,<br>
-and easily make and share your own.
+or make your own.
 
 [Download for Android (ARM64)](https://github.com/JustTrySomthing/zompado/releases/latest) · [Browse the game catalog](https://github.com/JustTrySomthing/zompado-games)
 

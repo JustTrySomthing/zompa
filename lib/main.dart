@@ -10,6 +10,7 @@ import 'board.dart';
 import 'brand.dart';
 import 'app_updates.dart';
 import 'github_distribution.dart';
+import 'game_link.dart';
 import 'chatmail.dart';
 import 'friends.dart';
 import 'setup_help.dart';
@@ -171,6 +172,7 @@ class _HomeState extends State<Home> {
   bool catalog = false;
   bool loadingCatalog = false;
   bool downloadingGame = false;
+  bool openingGameLink = false;
   String? catalogError;
   List<GameRelease> releases = [];
   int get installedBuild => widget.data['dropFourBuild'] as int? ?? 0;
@@ -205,16 +207,22 @@ class _HomeState extends State<Home> {
     }
   }
 
-  Future<void> installGame(GameRelease release) async {
+  Future<bool> installGame(GameRelease release) async {
     final distribution = widget.distribution;
-    if (downloadingGame || !release.playable || distribution == null) return;
+    if (downloadingGame ||
+        !release.playable ||
+        distribution == null ||
+        release.build <= installedBuild)
+      return false;
     setState(() => downloadingGame = true);
     try {
       await distribution.installGame(release);
-      if (!mounted) return;
+      if (!mounted) return false;
+      widget.write('dropFourRelease', release.toJson());
       widget.write('dropFourBuild', release.build);
       widget.write('dropFourVersion', release.version);
       setState(() => catalog = false);
+      return true;
     } catch (_) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -222,8 +230,131 @@ class _HomeState extends State<Home> {
             content: Text('Couldn’t download a verified game. Try again.'),
           ),
         );
+      return false;
     } finally {
       if (mounted) setState(() => downloadingGame = false);
+    }
+  }
+
+  void _gameNotice(String message) {
+    if (mounted)
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<String?> _installedGameLink() async {
+    final distribution = widget.distribution;
+    final build = installedBuild;
+    if (distribution == null || build < 1) {
+      _gameNotice('Install Drop Four from Get Games before sharing it.');
+      return null;
+    }
+    GameRelease? release;
+    final saved = widget.data['dropFourRelease'];
+    if (saved is Map<String, dynamic>) {
+      try {
+        final candidate = GameRelease.fromJson(saved);
+        if (candidate.playable && candidate.build == build) release = candidate;
+      } catch (_) {
+        // Fall back to the official catalog for older installations.
+      }
+    }
+    try {
+      release ??= (await distribution.catalog())
+          .where((game) => game.playable && game.build == build)
+          .firstOrNull;
+      if (release == null) {
+        _gameNotice('Update Drop Four from Get Games before sharing it.');
+        return null;
+      }
+      await distribution.installGame(release);
+      return GameLink.fromRelease(release).toString();
+    } catch (_) {
+      _gameNotice('Couldn’t verify the game for sharing. Try again.');
+      return null;
+    }
+  }
+
+  Future<void> _shareInstalledGame() async {
+    final link = await _installedGameLink();
+    if (link == null || !mounted) return;
+    try {
+      await bridge.invokeMethod<void>('shareGameLink', {'invite': link});
+    } on PlatformException {
+      _gameNotice('Couldn’t open sharing. Try again.');
+    }
+  }
+
+  Future<void> _pasteGameLink() async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => const _GameLinkDialog(),
+    );
+    if (!mounted || text == null) return;
+    final link = GameLink.parse(text);
+    if (link == null) {
+      _gameNotice('Paste a game link shared from Zompado.');
+      return;
+    }
+    await _openGameLink(link);
+  }
+
+  Future<void> _openGameLink(GameLink link) async {
+    if (openingGameLink) return;
+    final distribution = widget.distribution;
+    if (distribution == null) {
+      _gameNotice('Game storage is unavailable. Try reopening the app.');
+      return;
+    }
+    openingGameLink = true;
+    try {
+      final game = (await distribution.catalog())
+          .where(link.matches)
+          .firstOrNull;
+      if (!mounted) return;
+      if (game == null || !game.playable) {
+        _gameNotice('This exact game version isn’t available in Get Games.');
+        return;
+      }
+      if (game.build < installedBuild) {
+        _gameNotice(
+          'You already have a newer version. Open My Games to play it.',
+        );
+        return;
+      }
+      final alreadyInstalled = game.build == installedBuild;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(game.title),
+          content: Text(
+            'Official Zompado game · Version ${game.version}\nSolo or pass and play',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: Text(alreadyInstalled ? 'Play' : 'Install'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+      if (game.build == installedBuild) {
+        selectMode();
+      } else if (await installGame(game) && mounted) {
+        selectMode();
+      }
+    } catch (_) {
+      _gameNotice(
+        'Couldn’t verify this game link. Check your connection and try again.',
+      );
+    } finally {
+      openingGameLink = false;
     }
   }
 
@@ -334,6 +465,12 @@ class _HomeState extends State<Home> {
         actions: [
           if (isGames)
             IconButton(
+              tooltip: 'Open game link',
+              onPressed: _pasteGameLink,
+              icon: const Icon(Icons.link_rounded),
+            ),
+          if (isGames)
+            IconButton(
               tooltip: 'About game imports',
               onPressed: () {
                 showDialog<void>(
@@ -388,6 +525,8 @@ class _HomeState extends State<Home> {
                   )
                 : FriendsPane(
                     chatmail: widget.chatmail!,
+                    pickGameLink: _installedGameLink,
+                    openGameLink: _openGameLink,
                     share: (invite) => bridge.invokeMethod<void>(
                       'shareFriendInvite',
                       {'invite': invite},
@@ -499,7 +638,13 @@ class _HomeState extends State<Home> {
           if (!loadingCatalog && catalogError == null && releases.isEmpty)
             const Text('No games in the catalog yet.'),
         ] else if (installed)
-          gameCard('Drop Four', 'Solo · Pass and play', 'Play', selectMode)
+          gameCard(
+            'Drop Four',
+            'Solo · Pass and play',
+            'Play',
+            selectMode,
+            share: _shareInstalledGame,
+          )
         else
           Card(
             child: Padding(
@@ -533,8 +678,9 @@ class _HomeState extends State<Home> {
     String title,
     String description,
     String button,
-    VoidCallback? action,
-  ) => Card(
+    VoidCallback? action, {
+    VoidCallback? share,
+  }) => Card(
     clipBehavior: Clip.antiAlias,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -560,12 +706,64 @@ class _HomeState extends State<Home> {
                   ],
                 ),
               ),
+              if (share != null)
+                IconButton(
+                  tooltip: 'Share game',
+                  onPressed: share,
+                  icon: const Icon(Icons.share_outlined),
+                ),
               FilledButton(onPressed: action, child: Text(button)),
             ],
           ),
         ),
       ],
     ),
+  );
+}
+
+class _GameLinkDialog extends StatefulWidget {
+  const _GameLinkDialog();
+
+  @override
+  State<_GameLinkDialog> createState() => _GameLinkDialogState();
+}
+
+class _GameLinkDialogState extends State<_GameLinkDialog> {
+  final _input = TextEditingController();
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Open game link'),
+    content: TextField(
+      controller: _input,
+      decoration: const InputDecoration(labelText: 'Zompado game link'),
+      maxLength: 512,
+      onSubmitted: (value) => Navigator.pop(context, value),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      TextButton(
+        onPressed: () async {
+          final data = await Clipboard.getData(Clipboard.kTextPlain);
+          final text = data?.text?.trim();
+          if (mounted && text != null && text.length <= 512) _input.text = text;
+        },
+        child: const Text('Paste'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _input.text),
+        child: const Text('Open'),
+      ),
+    ],
   );
 }
 

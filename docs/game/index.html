@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#091a20">
+  <link rel="icon" href="../brand/icon.svg" type="image/svg+xml">
+  <title>Open a Zompado game</title>
+  <style>
+    :root{color-scheme:dark;background:#091a20;color:#fefefe;font:1rem/1.65 system-ui,sans-serif}
+    body{margin:0}
+    main{max-width:36rem;margin:auto;padding:clamp(2rem,8vw,6rem) 1.25rem}
+    img{width:min(60%,15rem);height:auto}
+    a{color:#5ecffe}
+    input{box-sizing:border-box;width:100%;margin:.5rem 0 1rem;padding:.6rem;font:inherit;border-radius:.4rem}
+    button{background:#5ecffe;color:#091a20;padding:.6rem 1rem;border:0;border-radius:.5rem;font:inherit;font-weight:700}
+  </style>
+</head>
+<body>
+  <main>
+    <a href="../"><img src="../brand/wordmark.png" alt="Zompado"></a>
+    <h1>Open a shared game</h1>
+    <p>Copy this link, then open <strong>Games → Open game link</strong> in Zompado. The app checks the exact version before installing it.</p>
+    <label for="game-link">Game link</label>
+    <input id="game-link" readonly>
+    <button type="button" id="copy">Copy game link</button>
+    <p id="status" role="status"></p>
+    <p><a href="https://github.com/JustTrySomthing/zompado#what-you-can-do-today">Get Zompado for Android</a></p>
+  </main>
+  <script>
+    const link = document.querySelector('#game-link');
+    const status = document.querySelector('#status');
+    link.value = location.href;
+    document.querySelector('#copy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(link.value);
+        status.textContent = 'Game link copied.';
+      } catch {
+        link.select();
+        status.textContent = 'Copy the selected link.';
+      }
+    });
+  </script>
+</body>
+</html>
