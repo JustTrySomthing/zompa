@@ -113,6 +113,32 @@ def main():
         wait_for("the encrypted reply", lambda: bob.has_message(bob_chat, alice_text))
         print("Both profiles exchanged and verified encrypted messages.", flush=True)
 
+        match_id = "085806e1e43b4bbc9e7f0c2a2027b001"
+        marker = "ZOMPADO_MATCH_V1 "
+        def turn(kind, **fields):
+            return marker + json.dumps({"id": match_id, "type": kind, **fields}, separators=(",", ":"))
+
+        invite = turn("invite", game="https://justtrysomthing.github.io/zompado/game/"
+                      "?id=drop-four&build=2&sha=8cf42ab96bec8bf1075e9e744a2dfb475f9147edbd51fd54c7b0b220727186a3")
+        accept = turn("accept")
+        move = turn("move", previous="", column=3)
+        reply = turn("move", previous="3", column=4)
+        for sender, sender_chat, receiver, receiver_chat, record in (
+            (alice, alice_chat, bob, bob_chat, invite),
+            (bob, bob_chat, alice, alice_chat, accept),
+            (alice, alice_chat, bob, bob_chat, move),
+            (bob, bob_chat, alice, alice_chat, reply),
+        ):
+            sender.rpc("misc_send_text_message", sender.account, sender_chat, record)
+            wait_for("an encrypted match update", lambda: receiver.has_message(receiver_chat, record))
+        for core, chat in ((alice, alice_chat), (bob, bob_chat)):
+            ids = core.rpc("search_messages", core.account, match_id, chat)
+            messages = core.rpc("get_messages", core.account, ids)
+            records = {m.get("text") for m in messages.values()}
+            if not {invite, accept, move, reply}.issubset(records):
+                raise RuntimeError("Match history is incomplete")
+        print("Both profiles exchanged match invites and turns and recovered the full history.", flush=True)
+
 
 if __name__ == "__main__":
     try:

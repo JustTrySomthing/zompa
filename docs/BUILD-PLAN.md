@@ -11,8 +11,8 @@
 | Build | Scope |
 |---|---|
 | Public APK | Official `.zomp` downloads, offline Drop Four, and the local chat preview. |
-| Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. Installed Drop Four can be shared by link or sent as a game card in friend chats. Receivers verify the exact catalog version before installing. |
-| Still open | Two-Android-device validation, QR camera scanning, 16 KB Android compatibility for the bundled core, background alerts, calls, remote matches, isolated LÖVE, and manual `.love` import. |
+| Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. Installed Drop Four can be shared by link or sent as a game card in friend chats. Receivers verify the exact catalog version before installing. Online Drop Four adds match invites, alternating turns, and match recovery from the conversation history. |
+| Still open | Two-Android-device validation, QR camera scanning, 16 KB Android compatibility for the bundled core, background alerts, calls, two-phone match validation, docked in-game chat, isolated LÖVE, and manual `.love` import. |
 
 Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. Zompado uses the verified official ARM64 JSON-RPC executable and its published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
 

@@ -262,6 +262,24 @@ class Chatmail {
     );
   }
 
+  Future<List<FriendMessage>> matchHistory(int chat, String id) async {
+    final account = _accountId;
+    final ids = (await _call('search_messages', [account, id, chat]) as List)
+        .cast<int>();
+    final records = <FriendMessage>[];
+    for (var offset = 0; offset < ids.length; offset += 80) {
+      final batch = ids.skip(offset).take(80).toList();
+      final messages = await _call('get_messages', [account, batch]) as Json;
+      records.addAll([
+        for (final id in batch)
+          if (messages['$id'] case final Json message
+              when message['kind'] == 'message')
+            FriendMessage.fromJson(message),
+      ]);
+    }
+    return records;
+  }
+
   Future<void> markSeen(List<int> messages) async {
     if (messages.isNotEmpty)
       await _call('markseen_msgs', [_accountId, messages]);
@@ -306,11 +324,12 @@ class FriendMessage {
       state = message['state'] as int,
       text = (message['text'] as String?) ?? '',
       outgoing = message['fromId'] == 1,
-      info = message['isInfo'] == true;
+      info = message['isInfo'] == true,
+      encrypted = message['showPadlock'] == true;
 
   final int id, state;
   final String text;
-  final bool outgoing, info;
+  final bool outgoing, info, encrypted;
 
   String? get delivery => switch (state) {
     20 => 'Sending',

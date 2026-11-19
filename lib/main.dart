@@ -276,6 +276,38 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<bool> _prepareOnlineGame(GameLink link) async {
+    final distribution = widget.distribution;
+    if (distribution == null) {
+      _gameNotice('Game storage is unavailable. Try reopening the app.');
+      return false;
+    }
+    try {
+      final saved = widget.data['dropFourRelease'];
+      GameRelease? release;
+      if (saved is Map<String, dynamic>) {
+        final installed = GameRelease.fromJson(saved);
+        if (link.matches(installed)) release = installed;
+      }
+      release ??= (await distribution.catalog())
+          .where(link.matches)
+          .firstOrNull;
+      if (!mounted) return false;
+      if (release == null ||
+          !release.playable ||
+          release.build < installedBuild) {
+        _gameNotice('This exact game version isn’t available for this match.');
+        return false;
+      }
+      if (release.build > installedBuild) return await installGame(release);
+      await distribution.installGame(release);
+      return true;
+    } catch (_) {
+      _gameNotice('Couldn’t verify the game for this match.');
+      return false;
+    }
+  }
+
   Future<void> _shareInstalledGame() async {
     final link = await _installedGameLink();
     if (link == null || !mounted) return;
@@ -527,6 +559,7 @@ class _HomeState extends State<Home> {
                     chatmail: widget.chatmail!,
                     pickGameLink: _installedGameLink,
                     openGameLink: _openGameLink,
+                    prepareGame: _prepareOnlineGame,
                     share: (invite) => bridge.invokeMethod<void>(
                       'shareFriendInvite',
                       {'invite': invite},

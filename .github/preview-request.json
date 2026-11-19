@@ -1,5 +1,5 @@
 {
-  "version": "0.5.2",
-  "build": 8,
-  "purpose": "Verify official game sharing, chat game cards, and verified catalog installs."
+  "version": "0.5.3",
+  "build": 9,
+  "purpose": "Verify friend match invites, turn replay, and online Drop Four."
 }

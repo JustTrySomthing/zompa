@@ -254,6 +254,10 @@ const _topics = [
         'Tap Share game on Drop Four in My Games, or tap the game icon in a friend chat. Open a game card from the chat, or paste a shared link under Games → Open game link. Zompado checks the exact version before offering to install it.',
       ),
       (
+        'How do I play Drop Four with a friend online?',
+        'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Tap the same card later to resume.',
+      ),
+      (
         'Can I play with someone next to me?',
         'In Drop Four, choose Pass and play to take turns on one phone. Choose Play solo to play against the computer.',
       ),

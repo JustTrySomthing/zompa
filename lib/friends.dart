@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
 import 'game_link.dart';
+import 'online_match.dart';
+import 'online_match_page.dart';
 
 String _failure(Object error) => switch (error) {
   ChatmailIssue.invite => 'Use the invite link from a friend’s Invite screen.',
@@ -23,12 +25,14 @@ class FriendsPane extends StatefulWidget {
     required this.share,
     required this.pickGameLink,
     required this.openGameLink,
+    required this.prepareGame,
   });
 
   final Chatmail chatmail;
   final Future<void> Function(String) share;
   final Future<String?> Function() pickGameLink;
   final Future<void> Function(GameLink) openGameLink;
+  final Future<bool> Function(GameLink) prepareGame;
 
   @override
   State<FriendsPane> createState() => _FriendsPaneState();
@@ -209,6 +213,7 @@ class _FriendsPaneState extends State<FriendsPane> {
           initialName: name,
           pickGameLink: widget.pickGameLink,
           openGameLink: widget.openGameLink,
+          prepareGame: widget.prepareGame,
         ),
       ),
     );
@@ -390,6 +395,7 @@ class FriendConversation extends StatefulWidget {
     required this.initialName,
     required this.pickGameLink,
     required this.openGameLink,
+    required this.prepareGame,
   });
 
   final Chatmail chatmail;
@@ -397,6 +403,7 @@ class FriendConversation extends StatefulWidget {
   final String initialName;
   final Future<String?> Function() pickGameLink;
   final Future<void> Function(GameLink) openGameLink;
+  final Future<bool> Function(GameLink) prepareGame;
 
   @override
   State<FriendConversation> createState() => _FriendConversationState();
@@ -529,12 +536,75 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
+  Future<void> _inviteMatch() async {
+    if (_pickingGame || _sending || _thread?.canSend != true) return;
+    setState(() => _pickingGame = true);
+    try {
+      final link = await widget.pickGameLink();
+      if (!mounted || link == null) return;
+      final game = GameLink.parse(link);
+      if (game == null) return;
+      final yes = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Invite to Drop Four?'),
+          content: const Text(
+            'Your friend can accept the invite in this chat. You take the first turn.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Send match invite'),
+            ),
+          ],
+        ),
+      );
+      if (mounted && yes == true)
+        await _send(gameLink: MatchEvent.invite(game).wire);
+    } finally {
+      if (mounted) setState(() => _pickingGame = false);
+    }
+  }
+
+  void _openMatch(String id) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => OnlineMatchPage(
+        chatmail: widget.chatmail,
+        chat: widget.id,
+        id: id,
+        prepareGame: widget.prepareGame,
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final thread = _thread;
+    final visible =
+        thread?.messages.where((message) {
+          if (!message.outgoing && !message.encrypted) return true;
+          final event = MatchEvent.parse(message.text);
+          return event == null || event.kind == 'invite';
+        }).toList() ??
+        const <FriendMessage>[];
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(thread?.name ?? widget.initialName)),
+      appBar: AppBar(
+        title: Text(thread?.name ?? widget.initialName),
+        actions: [
+          IconButton(
+            tooltip: 'Invite to a Drop Four match',
+            onPressed: _pickingGame || _sending || thread?.canSend != true
+                ? null
+                : _inviteMatch,
+            icon: const Icon(Icons.sports_esports_outlined),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -556,7 +626,7 @@ class _FriendConversationState extends State<FriendConversation>
                 ),
               ),
             Expanded(
-              child: thread == null || thread.messages.isEmpty
+              child: thread == null || (visible.isEmpty && !thread.hasOlder)
                   ? Center(
                       child: Text(
                         thread?.canSend == true
@@ -567,10 +637,9 @@ class _FriendConversationState extends State<FriendConversation>
                   : ListView.builder(
                       reverse: true,
                       padding: const EdgeInsets.all(12),
-                      itemCount:
-                          thread.messages.length + (thread.hasOlder ? 1 : 0),
+                      itemCount: visible.length + (thread.hasOlder ? 1 : 0),
                       itemBuilder: (context, index) {
-                        if (index == thread.messages.length) {
+                        if (index == visible.length) {
                           return TextButton(
                             onPressed: () {
                               _limit += 60;
@@ -579,8 +648,7 @@ class _FriendConversationState extends State<FriendConversation>
                             child: const Text('Load older messages'),
                           );
                         }
-                        final message =
-                            thread.messages[thread.messages.length - index - 1];
+                        final message = visible[visible.length - index - 1];
                         final text = message.text.isEmpty
                             ? 'Attachment'
                             : message.text;
@@ -590,6 +658,9 @@ class _FriendConversationState extends State<FriendConversation>
                             child: Text(text, textAlign: TextAlign.center),
                           );
                         }
+                        final match = (message.outgoing || message.encrypted)
+                            ? MatchEvent.parse(message.text)
+                            : null;
                         final gameLink = GameLink.parse(message.text);
                         return Align(
                           alignment: message.outgoing
@@ -612,7 +683,15 @@ class _FriendConversationState extends State<FriendConversation>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (gameLink != null)
+                                if (match?.kind == 'invite')
+                                  OutlinedButton.icon(
+                                    onPressed: () => _openMatch(match!.id),
+                                    icon: const Icon(
+                                      Icons.sports_esports_outlined,
+                                    ),
+                                    label: const Text('Open Drop Four match'),
+                                  )
+                                else if (gameLink != null)
                                   OutlinedButton.icon(
                                     onPressed: () =>
                                         widget.openGameLink(gameLink),
