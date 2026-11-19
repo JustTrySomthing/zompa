@@ -7,6 +7,7 @@ import 'chatmail.dart';
 import 'game_link.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
+import 'voice_calls.dart';
 
 String _failure(Object error) => switch (error) {
   ChatmailIssue.invite => 'Use the invite link from a friend’s Invite screen.',
@@ -675,11 +676,20 @@ class _FriendConversationState extends State<FriendConversation>
         const <FriendMessage>[];
     final colors = Theme.of(context).colorScheme;
     final docked = widget.onClose != null;
+    final voice = VoiceScope.of(context);
     final appBar = AppBar(
       automaticallyImplyLeading: !docked,
       primary: !docked,
       title: Text(thread?.name ?? widget.initialName),
       actions: [
+        if (!docked && voice != null)
+          IconButton(
+            tooltip: 'Voice call',
+            icon: const Icon(Icons.call_outlined),
+            onPressed: voice.busy || thread?.canSend != true
+                ? null
+                : () => voice.dial(widget.id, thread!.name),
+          ),
         if (docked)
           IconButton(
             tooltip: 'Close match chat',

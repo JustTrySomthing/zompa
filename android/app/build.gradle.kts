@@ -79,5 +79,6 @@ flutter {
 
 dependencies {
     implementation("androidx.core:core:1.13.1")
+    implementation("io.github.webrtc-sdk:android:150.7871.01")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }

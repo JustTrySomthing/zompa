@@ -18,6 +18,7 @@ import 'setup_help.dart';
 import 'your_turn.dart';
 import 'online_match.dart';
 import 'love_imports.dart';
+import 'voice_calls.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
@@ -30,6 +31,8 @@ void main() {
       'assets/licenses/Chatmail-Core-MPL-2.0.txt',
     );
     yield LicenseEntryWithLineBreaks(const ['Chatmail Core'], license);
+    final rtc = await rootBundle.loadString('assets/licenses/WebRTC-BSD.txt');
+    yield LicenseEntryWithLineBreaks(const ['WebRTC'], rtc);
   });
   runApp(const Zompado());
 }
@@ -48,6 +51,8 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   GithubDistribution? distribution;
   AppUpdates? updates;
   Chatmail? chatmail;
+  VoiceCalls? _voice;
+  int _openChats = 0;
   StreamSubscription<(int, int)>? _incoming;
   bool get _background =>
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.paused ||
@@ -58,6 +63,13 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    bridge.setMethodCallHandler((call) async {
+      if (call.method == 'voiceStatus') {
+        _voice?.mediaEvent(call.arguments);
+      } else if (call.method == 'openChats') {
+        await _openChatsIfRequested();
+      }
+    });
     load();
   }
 
@@ -70,6 +82,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         if (mounted && core != null) {
           final chat = Chatmail(core, Directory('$path/chatmail'));
           chatmail = chat;
+          _voice = VoiceCalls(chat, bridge);
           _incoming = chat.incoming.listen((event) {
             if (_background) unawaited(_chatAlert(chat, event.$1, event.$2));
           });
@@ -84,6 +97,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Could not load local preferences: $e');
     }
+    await _openChatsIfRequested();
     if (!mounted) return;
     final file = storage;
     if (file != null) {
@@ -94,6 +108,15 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       updates!.checkIfDue();
     }
     setState(() => loaded = true);
+  }
+
+  Future<void> _openChatsIfRequested() async {
+    try {
+      final requested = await bridge.invokeMethod<bool>('takeOpenChats');
+      if (mounted && requested == true) setState(() => _openChats++);
+    } catch (_) {
+      // The desktop preview has no Android notification intent.
+    }
   }
 
   Future<void> _chatAlert(Chatmail chatmail, int chat, int id) async {
@@ -114,6 +137,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       if (!mounted || !_background) return;
       await bridge.invokeMethod<void>('showChatNotification', {
         'chat': chat,
+        'message': id,
         'label': label,
       });
     } catch (_) {
@@ -140,6 +164,8 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     updates?.dispose();
     _incoming?.cancel();
+    bridge.setMethodCallHandler(null);
+    _voice?.dispose();
     chatmail?.close();
     super.dispose();
   }
@@ -165,7 +191,19 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       theme: ZompadoBrand.theme(Brightness.light),
       darkTheme: ZompadoBrand.theme(Brightness.dark),
-      builder: (context, child) => BrandLaunch(child: child!),
+      builder: (context, child) => BrandLaunch(
+        child: _voice == null
+            ? child!
+            : VoiceScope(
+                calls: _voice!,
+                child: Column(
+                  children: [
+                    const VoiceBar(),
+                    Expanded(child: child!),
+                  ],
+                ),
+              ),
+      ),
       themeMode: mode,
       home: !loaded
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
@@ -177,6 +215,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
               distribution: distribution,
               updates: updates,
               chatmail: chatmail,
+              openChats: _openChats,
               onTheme: (value) {
                 write('theme', value.name);
                 setState(() => mode = value);
@@ -195,7 +234,9 @@ class Home extends StatefulWidget {
     required this.distribution,
     required this.updates,
     required this.chatmail,
+    this.openChats = 0,
   });
+  final int openChats;
   final GithubDistribution? distribution;
   final Chatmail? chatmail;
   final AppUpdates? updates;
@@ -207,7 +248,14 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  int tab = 1;
+  late int tab = widget.openChats > 0 ? 0 : 1;
+
+  @override
+  void didUpdateWidget(Home oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openChats != oldWidget.openChats) tab = 0;
+  }
+
   bool catalog = false;
   bool loadingCatalog = false;
   bool downloadingGame = false;

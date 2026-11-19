@@ -1,17 +1,18 @@
 package io.tablecircle.prototype;
 
 import android.Manifest;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
 import android.os.Build;
 import android.provider.Settings;
 import androidx.core.content.FileProvider;
-import androidx.core.app.NotificationCompat;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
@@ -27,8 +28,14 @@ import io.flutter.plugin.common.MethodCall;
 
 public final class MainActivity extends FlutterActivity {
     private static final int REQUEST_NOTIFICATIONS = 390;
-    private static final String CHAT_CHANNEL = "friend_activity";
+    private static final int REQUEST_MIC = 393;
     private MethodChannel.Result notificationRequest;
+    private MethodChannel.Result micRequest;
+    private MethodChannel host;
+    private VoicePeer voice;
+    private boolean openChats;
+    private Ringtone ringing;
+    private int ringingId;
     private boolean scanningInvite;
     private static final int PICK_LOVE = 392;
     private MethodChannel.Result gamePicker;
@@ -36,13 +43,12 @@ public final class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
-        if (Build.VERSION.SDK_INT >= 26) {
-            getSystemService(NotificationManager.class).createNotificationChannel(
-                new NotificationChannel(CHAT_CHANNEL, "Friend activity",
-                    NotificationManager.IMPORTANCE_DEFAULT));
-        }
-        new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompado.host")
-            .setMethodCallHandler(new MethodChannel.MethodCallHandler() {
+        ChatAlerts.setup(this);
+        ChatSyncJob.schedule(this);
+        openChats = ChatAlerts.OPEN_CHATS.equals(getIntent().getAction());
+        host = new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompado.host");
+        voice = new VoicePeer(this, host);
+        host.setMethodCallHandler(new MethodChannel.MethodCallHandler() {
                 @Override
                 public void onMethodCall(MethodCall call, MethodChannel.Result result) {
                 switch (call.method) {
@@ -50,7 +56,8 @@ public final class MainActivity extends FlutterActivity {
                         result.success(getFilesDir().getAbsolutePath());
                         break;
                     case "chatmailExecutable":
-                        File core = new File(getApplicationInfo().nativeLibraryDir, "libchatmail_rpc.so");
+                        ChatSyncJob.claimForApp();
+                        File core = ChatSyncJob.executable(MainActivity.this);
                         result.success(core.canExecute() ? core.getAbsolutePath() : null);
                         break;
                     case "importLoveGame":
@@ -83,12 +90,66 @@ public final class MainActivity extends FlutterActivity {
                         result.success(null);
                         break;
                     case "showChatNotification":
-                        showChatNotification(call.argument("chat"), call.argument("label"));
+                        Integer chat = call.argument("chat");
+                        Integer message = call.argument("message");
+                        String label = call.argument("label");
+                        if (chat != null && message != null && label != null) {
+                            ChatAlerts.post(MainActivity.this, chat, message, label);
+                        }
                         result.success(null);
+                        break;
+                    case "showIncomingCall":
+                        Integer incoming = call.argument("message");
+                        if (incoming != null) {
+                            if (Boolean.TRUE.equals(call.argument("foreground"))) ring(incoming);
+                            else ChatAlerts.incoming(MainActivity.this, incoming);
+                        }
+                        result.success(null);
+                        break;
+                    case "dismissIncomingCall":
+                        Integer ended = call.argument("message");
+                        if (ended != null) {
+                            if (ringingId == ended) stopRinging();
+                            getSystemService(NotificationManager.class).cancel("voice", ended);
+                        }
+                        result.success(null);
+                        break;
+                    case "takeOpenChats":
+                        result.success(openChats);
+                        openChats = false;
+                        break;
+                    case "requestMicrophone":
+                        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                                == PackageManager.PERMISSION_GRANTED) {
+                            result.success(true);
+                        } else if (micRequest == null) {
+                            micRequest = result;
+                            requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, REQUEST_MIC);
+                        } else {
+                            result.success(false);
+                        }
+                        break;
+                    case "voiceStart":
+                        voice.start(call.argument("token"), call.argument("ice"), call.argument("offer"), result);
+                        break;
+                    case "voiceAnswer":
+                        voice.answer(call.argument("token"), call.argument("answer"), result);
+                        break;
+                    case "voiceEnd":
+                        voice.end(call.argument("token"));
+                        result.success(null);
+                        break;
+                    case "voiceMute":
+                        result.success(voice.mute(call.argument("token"), Boolean.TRUE.equals(call.argument("value"))));
+                        break;
+                    case "voiceSpeaker":
+                        result.success(voice.speaker(call.argument("token"), Boolean.TRUE.equals(call.argument("value"))));
                         break;
                     case "setupStatus":
                         HashMap<String, Boolean> statuses = new HashMap<>();
                         statuses.put("notifications", updateAlertsEnabled());
+                        statuses.put("microphone", checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                            == PackageManager.PERMISSION_GRANTED);
                         statuses.put("updateInstall", Build.VERSION.SDK_INT < 26
                             || getPackageManager().canRequestPackageInstalls());
                         result.success(statuses);
@@ -233,21 +294,53 @@ public final class MainActivity extends FlutterActivity {
         }
     }
 
-    private void showChatNotification(Integer chat, String label) {
-        if (chat == null || label == null || !updateAlertsEnabled()) return;
-        Intent intent = new Intent(this, MainActivity.class)
-            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent open = PendingIntent.getActivity(this, 391, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        getSystemService(NotificationManager.class).notify("friend-activity", chat,
-            new NotificationCompat.Builder(this, CHAT_CHANNEL)
-                .setSmallIcon(R.drawable.zompado_icon_monochrome)
-                .setContentTitle(label)
-                .setContentText("Open Zompado to see what’s new.")
-                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-                .setContentIntent(open)
-                .setAutoCancel(true)
-                .build());
+    private void ring(int message) {
+        stopRinging();
+        if (getSystemService(AudioManager.class).getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
+        try {
+            Ringtone tone = RingtoneManager.getRingtone(this,
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
+            if (tone == null) return;
+            tone.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build());
+            if (Build.VERSION.SDK_INT >= 28) tone.setLooping(true);
+            ringing = tone;
+            ringingId = message;
+            tone.play();
+        } catch (RuntimeException ignored) {
+            stopRinging();
+        }
+    }
+
+    private void stopRinging() {
+        if (ringing != null) ringing.stop();
+        ringing = null;
+        ringingId = 0;
+    }
+
+    @Override
+    protected void onStop() {
+        stopRinging();
+        super.onStop();
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (ChatAlerts.OPEN_CHATS.equals(intent.getAction())) {
+            openChats = true;
+            if (host != null) host.invokeMethod("openChats", null);
+        }
+    }
+
+    @Override
+    public void cleanUpFlutterEngine(FlutterEngine engine) {
+        stopRinging();
+        if (voice != null) voice.dispose();
+        if (host != null) host.setMethodCallHandler(null);
+        ChatSyncJob.releaseFromApp();
+        super.cleanUpFlutterEngine(engine);
     }
 
     private boolean updateAlertsEnabled() {
@@ -260,6 +353,10 @@ public final class MainActivity extends FlutterActivity {
         if (requestCode == REQUEST_NOTIFICATIONS && notificationRequest != null) {
             notificationRequest.success(null);
             notificationRequest = null;
+        }
+        if (requestCode == REQUEST_MIC && micRequest != null) {
+            micRequest.success(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+            micRequest = null;
         }
     }
 

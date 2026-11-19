@@ -18,6 +18,8 @@ class Chatmail {
   final Directory accountsDirectory;
   final _changes = StreamController<void>.broadcast();
   Stream<void> get changes => _changes.stream;
+  final _calls = StreamController<Json>.broadcast();
+  Stream<Json> get calls => _calls.stream;
   final _incoming = StreamController<(int, int)>.broadcast();
   Stream<(int, int)> get incoming => _incoming.stream;
   Process? _process;
@@ -181,6 +183,12 @@ class Chatmail {
           if (entry['contextId'] != _account) continue;
           final event = entry['event'] as Json;
           final kind = event['kind'] as String;
+          if (kind == 'IncomingCall' ||
+              kind == 'IncomingCallAccepted' ||
+              kind == 'OutgoingCallAccepted' ||
+              kind == 'CallEnded') {
+            _calls.add(event);
+          }
           if (kind == 'IncomingMsg' &&
               event['chatId'] is int &&
               event['msgId'] is int) {
@@ -309,7 +317,7 @@ class Chatmail {
     if (info['chatType'] != 'Single' ||
         info['isEncrypted'] != true ||
         info['isSelfTalk'] == true ||
-        info['isDeviceTalk'] == true ||
+        info['isDeviceChat'] == true ||
         info['isMuted'] == true ||
         info['isContactRequest'] == true)
       return null;
@@ -337,6 +345,60 @@ class Chatmail {
       await _call('markseen_msgs', [_accountId, messages]);
   }
 
+  Future<String> iceServers() async =>
+      await _call('ice_servers', [_accountId]) as String;
+
+  Future<Json> _voiceChat(int chat) async {
+    final account = _accountId;
+    final info = await _call('get_full_chat_by_id', [account, chat]) as Json;
+    if (info['isEncrypted'] != true ||
+        info['chatType'] != 'Single' ||
+        info['isSelfTalk'] == true ||
+        info['isDeviceChat'] == true ||
+        info['isContactRequest'] == true ||
+        info['canSend'] != true) {
+      throw ChatmailIssue.encrypted;
+    }
+    return info;
+  }
+
+  Future<String?> incomingCallName(int chat, int message) async {
+    final info = await _voiceChat(chat);
+    final entries =
+        await _call('get_messages', [
+              _accountId,
+              [message],
+            ])
+            as Json;
+    if (entries['$message'] case final Json call
+        when call['chatId'] == chat &&
+            call['showPadlock'] == true &&
+            call['viewType'] == 'Call' &&
+            call['fromId'] != 1) {
+      if (await callIsRinging(message)) return info['name'] as String;
+    }
+    return null;
+  }
+
+  Future<bool> callIsRinging(int message) async {
+    final result = await _call('call_info', [_accountId, message]) as Json;
+    return (result['state'] as Json)['kind'] == 'Alerting';
+  }
+
+  Future<int> placeCall(int chat, String offer) async {
+    await _voiceChat(chat);
+    return await _call('place_outgoing_call', [_accountId, chat, offer, false])
+        as int;
+  }
+
+  Future<void> acceptCall(int message, String answer) async {
+    await _call('accept_incoming_call', [_accountId, message, answer]);
+  }
+
+  Future<void> endCall(int message) async {
+    await _call('end_call', [_accountId, message]);
+  }
+
   Future<void> send(int chat, String message) async {
     final account = _accountId;
     final info = await _call('get_full_chat_by_id', [account, chat]) as Json;
@@ -354,6 +416,7 @@ class Chatmail {
     if (process != null) _stopped(process);
     _changes.close();
     _incoming.close();
+    _calls.close();
   }
 }
 

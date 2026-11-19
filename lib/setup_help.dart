@@ -104,12 +104,22 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
             icon: Icons.notifications_active_outlined,
             title: 'Notifications',
             text:
-                'Get update alerts and friend activity alerts. Friend alerts work while Zompado stays running in the background.',
+                'Get alerts for messages, calls, matches, and app updates. After Android closes Zompado, friend activity alerts can arrive on the next scheduled check.',
             enabled: _status?['notifications'],
             action: !_working && _status?['notifications'] == false
                 ? () => _open('requestUpdateNotifications')
                 : null,
             button: 'Allow alerts',
+          ),
+          _SetupCard(
+            icon: Icons.mic_none_outlined,
+            title: 'Microphone for voice calls',
+            text: 'Let friends hear you during calls.',
+            enabled: _status?['microphone'],
+            action: !_working && _status?['microphone'] == false
+                ? () => _open('requestMicrophone')
+                : null,
+            button: 'Allow microphone',
           ),
           _SetupCard(
             icon: Icons.system_update_alt_rounded,
@@ -277,6 +287,10 @@ const _topics = [
         'Open Chats and create a profile. Tap Invite friend to copy or share your invite link. On the other phone, open Chats → Accept invite and scan the QR code or paste the link. Camera scanning uses Google Play services.',
       ),
       (
+        'How do I call a friend?',
+        'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The call bar includes microphone mute, speaker, and End call. Keep Zompado running to receive a live incoming call.',
+      ),
+      (
         'When can I send a message?',
         'Open your friend’s conversation after the connection is ready. Messages waiting on the connection show Sending. A failed message shows Couldn’t send.',
       ),
@@ -297,7 +311,7 @@ const _topics = [
       ),
       (
         'What alerts can I turn on?',
-        'Setup offers app update and friend activity alerts. Friend activity alerts require Zompado to stay running in the background.',
+        'Setup offers app update and friend activity alerts. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
       ),
     ],
   ),
