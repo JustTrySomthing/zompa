@@ -13,12 +13,14 @@
 | Public APK | Official `.zomp` downloads, offline Drop Four, and the local chat preview. |
 | Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. Installed Drop Four can be shared by link or sent as a game card in friend chats. Receivers verify the exact catalog version before installing. Online Drop Four adds match invites, alternating turns, and match recovery from the conversation history. |
 | [Preview 0.5.5](https://github.com/JustTrySomthing/zompado/actions/runs/44631165902#artifacts) | Camera QR scanning through Google Play services with a paste fallback. Online Drop Four has a conversation dock and a Your turn shortcut in My Games. Friend activity can trigger private Android alerts while the app stays running in the background. The Games file picker checks and stores manually selected `.love` files. The first [Lua SDK](../sdk/README.md) includes saves, music and effects controls, and a sample game. |
-| Preview 0.5.6 | One-to-one voice calls from a friend chat, an app-wide call bar, and scheduled friend activity notifications after Android closes Zompado’s process. |
+| [Preview 0.5.6](https://github.com/JustTrySomthing/zompado/actions/runs/44635690236#artifacts) | One-to-one voice calls from a friend chat, an app-wide call bar, and scheduled friend activity notifications after Android closes Zompado’s process. |
 | Still open | Test the preview on two phones, including a 16 KB Android device. Immediate incoming ringing after Android has stopped the app, the bundled isolated LÖVE player, playback of manual imports, and host integration of the SDK remain open. |
 
 Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. Preview 0.5.5 compiles the ARM64 JSON-RPC executable with NDK r28. All native code in the APK passed the 16 KB ELF alignment check. See the published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
 
 The [live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44613099059) configured two fresh Chatmail Core profiles, established their encrypted conversations through SecureJoin, and verified messages in both directions. The test used the Linux build of the same Core release. Android installation and delivery still need device verification.
+
+The [0.5.6 live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44634766582) verified encrypted call offers, answers and hangup. A separate Core process detected fresh encrypted activity after restarting the receiving profile. Android audio and notification delivery still require device tests.
 
 ### Verify the Chatmail preview
 
