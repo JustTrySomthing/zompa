@@ -280,7 +280,9 @@ class _FriendsPaneState extends State<FriendsPane> {
                   subtitle: chat.preview.isEmpty
                       ? null
                       : Text(
-                          chat.preview,
+                          chat.preview.startsWith(matchMarker.trimRight())
+                              ? 'Drop Four match update'
+                              : chat.preview,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),

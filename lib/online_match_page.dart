@@ -179,6 +179,15 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                 ),
               const SizedBox(height: 12),
               if (match.accepted)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    match.mine
+                        ? 'Your pieces are gold.'
+                        : 'Your pieces are purple.',
+                  ),
+                ),
+              if (match.accepted)
                 Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 460),

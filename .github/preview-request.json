@@ -1,5 +1,6 @@
 {
   "version": "0.5.3",
   "build": 9,
-  "purpose": "Verify friend match invites, turn replay, and online Drop Four."
+  "purpose": "Verify friend match invites, turn replay, and online Drop Four.",
+  "revision": 2
 }
