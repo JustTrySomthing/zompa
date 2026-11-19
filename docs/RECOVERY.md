@@ -48,9 +48,9 @@ Flutter creates `android/local.properties` for the local SDK paths. Gradle needs
 
 The public APK contains the certificate. Signing future updates requires the original private key and its credentials. Never put the private material in commits, issues, logs, or release assets. The verified certificate also matches the Table Circle 0.2.0 APK.
 
-The [signed Android build](../.github/workflows/android-release.yml) expects encrypted secrets in the `android-release` GitHub Actions environment. **Provisioning is pending.** The original key was located in the build workspace and has yet to be transferred into GitHub's protected settings. The GitHub source and the existing APK are already available from a fresh checkout.
+The original signing key is stored in the `android-release` GitHub Actions environment with the other three signing secrets. The environment accepts deployments from the `main` branch only. The [signed Android build](../.github/workflows/android-release.yml) uses the key on GitHub and verifies its fingerprint before producing an APK. A fresh session can start this workflow from GitHub without recovering a local keystore. [Verified build](https://github.com/JustTrySomthing/zompado/actions/runs/44603090929).
 
-A repository administrator should create the `android-release` environment under **Settings → Environments**, restrict deployments to the `main` branch, and load these environment secrets from the original release credentials:
+The environment uses these secrets. If a repository administrator has to restore it from a backup, configure the environment under **Settings → Environments** with a `main` branch restriction before loading the original signing credentials.
 
 | GitHub Actions secret | Contents |
 |---|---|
@@ -69,6 +69,10 @@ for name in ZOMPADO_KEYSTORE_PASSWORD ZOMPADO_KEY_ALIAS ZOMPADO_KEY_PASSWORD; do
 done
 ```
 
-Run **Actions → Build signed Android APK → Run workflow** on `main`. The workflow produces a downloadable, verified APK artifact and leaves Releases and the update feed untouched. Once a successful run confirms the signing identity, update the custody status in this guide. Keep an owner-controlled encrypted backup of the same key and credentials to recover if the repository or Actions secrets are lost.
+Run **Actions → Build signed Android APK → Run workflow** on `main`, or use the authenticated GitHub CLI. Download the `zompado-signed-android` artifact from a successful run. The workflow leaves Releases and the update feed untouched. Keep an owner-controlled encrypted backup of the same key and credentials to recover if the repository or Actions secrets are lost.
+
+```sh
+gh workflow run android-release.yml --ref main -R JustTrySomthing/zompado
+```
 
 For local signing, set the same three credentials and set `ZOMPADO_KEYSTORE` to the secure local keystore path before building. See [RELEASE.md](RELEASE.md) for verification. A fresh debug or release key changes the APK signature and breaks updates over the existing install.
