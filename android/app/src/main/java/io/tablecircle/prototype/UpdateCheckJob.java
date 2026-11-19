@@ -43,7 +43,9 @@ public final class UpdateCheckJob extends JobService {
 
     @Override
     public boolean onStartJob(JobParameters parameters) {
-        Thread thread = new Thread(() -> {
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
             try {
                 int build = readBuild();
                 if (!Thread.currentThread().isInterrupted() && build > 0) {
@@ -54,6 +56,7 @@ public final class UpdateCheckJob extends JobService {
                 // Keep the last successful result. A manual check can be made from Settings.
             } finally {
                 if (!Thread.currentThread().isInterrupted()) jobFinished(parameters, false);
+            }
             }
         }, "table-circle-update-check");
         worker = thread;

@@ -13,23 +13,26 @@ import java.util.Arrays;
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
+import io.flutter.plugin.common.MethodCall;
 
 public final class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.tablecircle.host")
-            .setMethodCallHandler((call, result) -> {
+            .setMethodCallHandler(new MethodChannel.MethodCallHandler() {
+                @Override
+                public void onMethodCall(MethodCall call, MethodChannel.Result result) {
                 switch (call.method) {
                     case "dataPath":
                         result.success(getFilesDir().getAbsolutePath());
                         break;
                     case "scheduleUpdates":
-                        UpdateCheckJob.schedule(this, Boolean.TRUE.equals(call.argument("enabled")));
+                        UpdateCheckJob.schedule(MainActivity.this, Boolean.TRUE.equals(call.argument("enabled")));
                         result.success(null);
                         break;
                     case "backgroundUpdateBuild":
-                        result.success(UpdateCheckJob.cachedBuild(this));
+                        result.success(UpdateCheckJob.cachedBuild(MainActivity.this));
                         break;
                     case "installUpdate":
                         try {
@@ -42,6 +45,7 @@ public final class MainActivity extends FlutterActivity {
                         break;
                     default:
                         result.notImplemented();
+                }
                 }
             });
     }
