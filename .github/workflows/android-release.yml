@@ -1,0 +1,100 @@
+name: Build signed Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install pinned Flutter and Android packages
+        run: |
+          flutter_revision=ab2912035e160d9cad6306df307576da6128ebdb
+          git init -q "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 https://github.com/flutter/flutter.git "$flutter_revision"
+          git -C "$RUNNER_TEMP/flutter" checkout --detach FETCH_HEAD
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          sdkmanager --install 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+        env:
+          FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      - name: Build the ARM64 package
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build apk --release --target-platform android-arm64 --no-pub
+        env:
+          FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-build-input
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  sign:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    environment: android-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: android-build-input
+          path: input
+      - name: Install Android Build Tools
+        run: sdkmanager --install 'build-tools;36.0.0'
+      - name: Sign and verify APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ZOMPADO_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ZOMPADO_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ZOMPADO_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ZOMPADO_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z ${!name} ]]; then
+              echo 'The android-release environment is missing a signing secret.' >&2
+              exit 1
+            fi
+          done
+
+          release=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*)$/\1/p' pubspec.yaml)
+          [[ -n "$release" ]]
+          version=${release%+*}
+          build=${release#*+}
+          grep -Fxq "const installedVersion = '$version';" lib/app_updates.dart
+          grep -Fxq "const installedBuild = $build;" lib/app_updates.dart
+
+          umask 077
+          keystore=$(mktemp "$RUNNER_TEMP/zompado-signing.XXXXXX")
+          trap 'rm -f "$keystore"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          unset KEYSTORE_BASE64
+          build_tools="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0"
+          mkdir -p release
+          apk="release/Zompado-$version-ARM64.apk"
+          "$build_tools/apksigner" sign --ks "$keystore" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD \
+            --v4-signing-enabled false --in input/app-release.apk --out "$apk"
+          bash tools/verify_release_apk.sh "$apk" "$version" "$build"
+          python3 tools/release_manifest.py "$apk" --version "$version" --build "$build" > release/update.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: zompado-signed-android
+          path: release/
+          if-no-files-found: error
