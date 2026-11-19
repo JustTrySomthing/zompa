@@ -1,0 +1,30 @@
+name: Verify Chatmail relay messaging
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/verify-chatmail-relay.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Use pinned Chatmail Core and exchange messages between test profiles
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/chatmail-rpc"
+          curl -fsSL --retry 3 \
+            https://github.com/chatmail/core/releases/download/v2.69.0/deltachat-rpc-server-x86_64-linux \
+            -o "$core"
+          printf '%s  %s\n' db1a2c08375c9c2e73c8d6009cc99094e642722a41d06370cdb4dc680247eaa0 "$core" |
+            sha256sum --check --status
+          chmod 755 "$core"
+          python3 tools/check_chatmail_relay.py "$core"

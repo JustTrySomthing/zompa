@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""Exercise the preview's RPC sequence using two disposable relay profiles."""
+import json
+import os
+import select
+import subprocess
+import sys
+import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
+from pathlib import Path
+
+RELAY = "DCACCOUNT:https://nine.testrun.org/new"
+
+
+class Core:
+    def __init__(self, executable, folder):
+        self.pipe = subprocess.Popen(
+            [executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, bufsize=0,
+            env={**os.environ, "DC_ACCOUNTS_PATH": str(folder), "RUST_LOG": "off"},
+        )
+        self.sequence = 0
+
+    def close(self):
+        self.pipe.stdin.close()
+        try:
+            self.pipe.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.pipe.kill()
+            self.pipe.wait(timeout=5)
+        finally:
+            self.pipe.stdout.close()
+
+    def rpc(self, method, *args):
+        self.sequence += 1
+        request = {"jsonrpc": "2.0", "id": self.sequence, "method": method, "params": args}
+        self.pipe.stdin.write((json.dumps(request) + "\n").encode())
+        if not select.select([self.pipe.stdout], [], [], 110)[0]:
+            raise RuntimeError(f"{method} timed out")
+        line = self.pipe.stdout.readline()
+        if not line:
+            raise RuntimeError(f"Core stopped during {method}")
+        result = json.loads(line)
+        if result.get("id") != self.sequence or "error" in result:
+            raise RuntimeError(f"{method} did not succeed")
+        return result["result"]
+
+    def setup(self, name):
+        self.account = self.rpc("add_account")
+        self.rpc("set_config", self.account, "displayname", name)
+        self.rpc("init_transports", self.account, RELAY)
+        if not self.rpc("is_configured", self.account):
+            raise RuntimeError("The relay profile did not configure")
+        self.rpc("start_io", self.account)
+
+    def encrypted_chat(self, chat):
+        full = self.rpc("get_full_chat_by_id", self.account, chat)
+        return full["isEncrypted"] and full["canSend"] and full["chatType"] == "Single"
+
+    def friend_chat(self):
+        for chat in self.rpc("get_chatlist_entries", self.account, 2, None, None):
+            full = self.rpc("get_full_chat_by_id", self.account, chat)
+            if not full["isSelfTalk"] and not full["isDeviceChat"] and self.encrypted_chat(chat):
+                return chat
+        return None
+
+    def has_message(self, chat, text):
+        ids = self.rpc("get_message_ids", self.account, chat, False, False)
+        messages = self.rpc("get_messages", self.account, ids)
+        return any(row.get("text") == text and row.get("showPadlock") is True
+                   for row in messages.values())
+
+
+def wait_for(label, predicate):
+    deadline = time.monotonic() + 100
+    while time.monotonic() < deadline:
+        result = predicate()
+        if result:
+            return result
+        time.sleep(3)
+    raise RuntimeError(f"Timed out waiting for {label}")
+
+
+def main():
+    executable = str(Path(sys.argv[1]).resolve())
+    with tempfile.TemporaryDirectory(prefix="zompado-relay-check-") as root, ExitStack() as cleanup:
+        alice = Core(executable, Path(root) / "alice")
+        cleanup.callback(alice.close)
+        bob = Core(executable, Path(root) / "bob")
+        cleanup.callback(bob.close)
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            profiles = (workers.submit(core.setup, name) for core, name in (
+                (alice, "Zompado verification A"), (bob, "Zompado verification B")))
+            for profile in list(profiles):
+                profile.result()
+        print("Configured two disposable Chatmail profiles.", flush=True)
+
+        invite = alice.rpc("get_chat_securejoin_qr_code", alice.account, None)
+        if bob.rpc("check_qr", bob.account, invite)["kind"] != "askVerifyContact":
+            raise RuntimeError("Core did not recognize the friend invitation")
+        bob_chat = bob.rpc("secure_join", bob.account, invite)
+        alice_chat = wait_for("the inviter's encrypted conversation", alice.friend_chat)
+        wait_for("the accepting device's encrypted conversation", lambda: bob.encrypted_chat(bob_chat))
+        print("SecureJoin created matching encrypted conversations.", flush=True)
+
+        bob_text = "Zompado relay smoke check B to A"
+        bob.rpc("misc_send_text_message", bob.account, bob_chat, bob_text)
+        wait_for("the first encrypted message", lambda: alice.has_message(alice_chat, bob_text))
+        alice_text = "Zompado relay smoke check A to B"
+        alice.rpc("misc_send_text_message", alice.account, alice_chat, alice_text)
+        wait_for("the encrypted reply", lambda: bob.has_message(bob_chat, alice_text))
+        print("Both profiles exchanged and verified encrypted messages.", flush=True)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from None
