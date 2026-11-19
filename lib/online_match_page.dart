@@ -14,12 +14,14 @@ class OnlineMatchPage extends StatefulWidget {
     required this.chat,
     required this.id,
     required this.prepareGame,
+    required this.buildChatDock,
   });
 
   final Chatmail chatmail;
   final int chat;
   final String id;
   final Future<bool> Function(GameLink) prepareGame;
+  final Widget Function(VoidCallback close) buildChatDock;
 
   @override
   State<OnlineMatchPage> createState() => _OnlineMatchPageState();
@@ -32,6 +34,17 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   Timer? _timer;
   bool _loading = false, _again = false, _sending = false;
   String? _error;
+  bool _chatOpen = false;
+  bool _chatUnread = false;
+
+  void _toggleChat() {
+    if (_chatOpen) FocusScope.of(context).unfocus();
+    setState(() {
+      _chatOpen = !_chatOpen;
+      if (_chatOpen) _chatUnread = false;
+    });
+    unawaited(_load());
+  }
 
   @override
   void initState() {
@@ -76,6 +89,27 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               ? 'The match invitation is unavailable.'
               : null;
         });
+      }
+      if (!_chatOpen && mounted) {
+        try {
+          final thread = await widget.chatmail.thread(widget.chat);
+          if (mounted && !_chatOpen) {
+            setState(() {
+              _chatUnread =
+                  !_chatOpen &&
+                  (thread.messages.any(
+                    (message) =>
+                        !message.outgoing &&
+                        !message.info &&
+                        message.state == 10 &&
+                        (!message.encrypted ||
+                            MatchEvent.parse(message.text) == null),
+                  ));
+            });
+          }
+        } catch (_) {
+          // The board remains available when the conversation refresh fails.
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'Couldn’t refresh this match.');
@@ -130,112 +164,177 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   @override
   Widget build(BuildContext context) {
     final match = _match;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Online Drop Four'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh match',
-            onPressed: _sending ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (_sending || (match == null && _error == null))
-              const LinearProgressIndicator(),
-            if (_error case final error?)
-              ListTile(
-                title: Text(error),
-                trailing: TextButton(
-                  onPressed: _load,
-                  child: const Text('Refresh'),
-                ),
+    return PopScope(
+      canPop: !_chatOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _chatOpen) _toggleChat();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Online Drop Four'),
+          actions: [
+            IconButton(
+              tooltip: _chatOpen
+                  ? 'Close match chat'
+                  : _chatUnread
+                  ? 'Open match chat, unread messages'
+                  : 'Open match chat',
+              onPressed: _toggleChat,
+              icon: Badge(
+                isLabelVisible: _chatUnread,
+                child: const Icon(Icons.chat_bubble_outline),
               ),
-            if (match != null) ...[
-              Text(
-                _status(match),
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              if (!match.accepted && !match.mine && !match.conflict)
-                FilledButton(
-                  onPressed: _sending
-                      ? null
-                      : () => _send(
-                          match.invite.accept().wire,
-                          prepare: match.invite.game,
-                        ),
-                  child: const Text('Install if needed and accept'),
-                ),
-              if (match.pending case final pending?
-                  when pending.state == 24 && !match.conflict)
-                OutlinedButton(
-                  onPressed: _sending ? null : () => _send(pending.text),
-                  child: const Text('Retry send'),
-                ),
-              const SizedBox(height: 12),
-              if (match.accepted)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    match.mine
-                        ? 'Your pieces are gold.'
-                        : 'Your pieces are purple.',
-                  ),
-                ),
-              if (match.accepted)
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 460),
-                    child: Card(
-                      color: ZompadoBrand.darkPanel,
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Row(
-                          children: [
-                            for (var column = 0; column < 7; column++)
-                              Expanded(
-                                child: Semantics(
-                                  button: true,
-                                  label: 'Drop piece in column ${column + 1}',
-                                  child: InkWell(
-                                    onTap:
-                                        !_sending &&
-                                            _error == null &&
-                                            match.myTurn &&
-                                            match.board.landing(column) >= 0
-                                        ? () => _send(
-                                            match.invite
-                                                .move(match.moves, column)
-                                                .wire,
-                                          )
-                                        : null,
-                                    child: Column(
+            ),
+            IconButton(
+              tooltip: 'Refresh match',
+              onPressed: _sending ? null : _load,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final dockHeight = MediaQuery.viewInsetsOf(context).bottom > 0
+                  ? constraints.maxHeight
+                  : (constraints.maxHeight * .75)
+                        .clamp(
+                          constraints.maxHeight < 260
+                              ? constraints.maxHeight
+                              : 260.0,
+                          constraints.maxHeight,
+                        )
+                        .toDouble();
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        if (_sending || (match == null && _error == null))
+                          const LinearProgressIndicator(),
+                        if (_error case final error?)
+                          ListTile(
+                            title: Text(error),
+                            trailing: TextButton(
+                              onPressed: _load,
+                              child: const Text('Refresh'),
+                            ),
+                          ),
+                        if (match != null) ...[
+                          Text(
+                            _status(match),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 12),
+                          if (!match.accepted && !match.mine && !match.conflict)
+                            FilledButton(
+                              onPressed: _sending
+                                  ? null
+                                  : () => _send(
+                                      match.invite.accept().wire,
+                                      prepare: match.invite.game,
+                                    ),
+                              child: const Text('Install if needed and accept'),
+                            ),
+                          if (match.pending case final pending?
+                              when pending.state == 24 && !match.conflict)
+                            OutlinedButton(
+                              onPressed: _sending
+                                  ? null
+                                  : () => _send(pending.text),
+                              child: const Text('Retry send'),
+                            ),
+                          const SizedBox(height: 12),
+                          if (match.accepted)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                match.mine
+                                    ? 'Your pieces are gold.'
+                                    : 'Your pieces are purple.',
+                              ),
+                            ),
+                          if (match.accepted)
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 460,
+                                ),
+                                child: Card(
+                                  color: ZompadoBrand.darkPanel,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(6),
+                                    child: Row(
                                       children: [
-                                        for (var row = 0; row < 6; row++)
-                                          AspectRatio(
-                                            aspectRatio: 1,
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(3),
-                                              child: DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  color: switch (match
-                                                      .board
-                                                      .cells[row * 7 +
-                                                      column]) {
-                                                    1 => const Color(
-                                                      0xffffc65a,
-                                                    ),
-                                                    2 => const Color(
-                                                      0xffcab1ff,
-                                                    ),
-                                                    _ => ZompadoBrand.ink,
-                                                  },
+                                        for (
+                                          var column = 0;
+                                          column < 7;
+                                          column++
+                                        )
+                                          Expanded(
+                                            child: Semantics(
+                                              button: true,
+                                              label:
+                                                  'Drop piece in column ${column + 1}',
+                                              child: InkWell(
+                                                onTap:
+                                                    !_sending &&
+                                                        _error == null &&
+                                                        match.myTurn &&
+                                                        match.board.landing(
+                                                              column,
+                                                            ) >=
+                                                            0
+                                                    ? () => _send(
+                                                        match.invite
+                                                            .move(
+                                                              match.moves,
+                                                              column,
+                                                            )
+                                                            .wire,
+                                                      )
+                                                    : null,
+                                                child: Column(
+                                                  children: [
+                                                    for (
+                                                      var row = 0;
+                                                      row < 6;
+                                                      row++
+                                                    )
+                                                      AspectRatio(
+                                                        aspectRatio: 1,
+                                                        child: Padding(
+                                                          padding:
+                                                              const EdgeInsets.all(
+                                                                3,
+                                                              ),
+                                                          child: DecoratedBox(
+                                                            decoration: BoxDecoration(
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              color: switch (match
+                                                                  .board
+                                                                  .cells[row *
+                                                                      7 +
+                                                                  column]) {
+                                                                1 =>
+                                                                  const Color(
+                                                                    0xffffc65a,
+                                                                  ),
+                                                                2 =>
+                                                                  const Color(
+                                                                    0xffcab1ff,
+                                                                  ),
+                                                                _ =>
+                                                                  ZompadoBrand
+                                                                      .ink,
+                                                              },
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                               ),
                                             ),
@@ -245,21 +344,30 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                   ),
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
+                            ),
+                          if (match.accepted)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Tap a column to drop a piece. Use Back to return to the conversation.',
+                              ),
+                            ),
+                        ],
+                      ],
                     ),
                   ),
-                ),
-              if (match.accepted)
-                const Padding(
-                  padding: EdgeInsets.only(top: 12),
-                  child: Text(
-                    'Tap a column to drop a piece. Use Back to return to the conversation.',
-                  ),
-                ),
-            ],
-          ],
+                  if (_chatOpen)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: dockHeight,
+                      child: widget.buildChatDock(_toggleChat),
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

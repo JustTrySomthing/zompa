@@ -1,6 +1,5 @@
 {
-  "version": "0.5.3",
-  "build": 9,
-  "purpose": "Verify friend match invites, turn replay, and online Drop Four.",
-  "revision": 2
+  "version": "0.5.4",
+  "build": 10,
+  "purpose": "Test QR invites, match chat and Your turn, background alerts, and 16 KB native alignment."
 }

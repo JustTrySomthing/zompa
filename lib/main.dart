@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,6 +15,8 @@ import 'game_link.dart';
 import 'chatmail.dart';
 import 'friends.dart';
 import 'setup_help.dart';
+import 'your_turn.dart';
+import 'online_match.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
@@ -44,6 +47,10 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   GithubDistribution? distribution;
   AppUpdates? updates;
   Chatmail? chatmail;
+  StreamSubscription<(int, int)>? _incoming;
+  bool get _background =>
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.paused ||
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.hidden;
   bool loaded = false;
 
   @override
@@ -59,8 +66,13 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       if (path != null) {
         storage = File('$path/profile.json');
         final core = await bridge.invokeMethod<String>('chatmailExecutable');
-        if (mounted && core != null)
-          chatmail = Chatmail(core, Directory('$path/chatmail'));
+        if (mounted && core != null) {
+          final chat = Chatmail(core, Directory('$path/chatmail'));
+          chatmail = chat;
+          _incoming = chat.incoming.listen((event) {
+            if (_background) unawaited(_chatAlert(chat, event.$1, event.$2));
+          });
+        }
         if (await storage!.exists()) {
           data = Map<String, dynamic>.from(
             jsonDecode(await storage!.readAsString()),
@@ -83,6 +95,31 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     setState(() => loaded = true);
   }
 
+  Future<void> _chatAlert(Chatmail chatmail, int chat, int id) async {
+    try {
+      final message = await chatmail.notificationMessage(chat, id);
+      if (message == null || !mounted || !_background) return;
+      final event = MatchEvent.parse(message.text);
+      var label = 'New message';
+      if (event != null) {
+        if (event.kind == 'invite') {
+          label = 'New game invitation';
+        } else {
+          final history = await chatmail.matchHistory(chat, event.id);
+          if (OnlineMatch.replay(event.id, history)?.myTurn != true) return;
+          label = 'Your turn in Drop Four';
+        }
+      }
+      if (!mounted || !_background) return;
+      await bridge.invokeMethod<void>('showChatNotification', {
+        'chat': chat,
+        'label': label,
+      });
+    } catch (_) {
+      // Receiving a message still works when Android suppresses its alert.
+    }
+  }
+
   void finishSetup() {
     write('setupComplete', true);
     setState(() {});
@@ -101,6 +138,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     updates?.dispose();
+    _incoming?.cancel();
     chatmail?.close();
     super.dispose();
   }
@@ -611,6 +649,9 @@ class _HomeState extends State<Home> {
           ),
         ),
         const SizedBox(height: 20),
+        if (!catalog)
+          if (widget.chatmail case final Chatmail chatmail)
+            YourTurn(chatmail: chatmail, prepareGame: _prepareOnlineGame),
         Row(
           children: [
             Expanded(

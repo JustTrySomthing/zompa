@@ -349,6 +349,44 @@ class _AcceptInviteDialog extends StatefulWidget {
 
 class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
   final _input = TextEditingController();
+  bool _scanning = false;
+  String? _scanError;
+
+  Future<void> _scan() async {
+    setState(() {
+      _scanning = true;
+      _scanError = null;
+    });
+    try {
+      final value = await const MethodChannel(
+        'io.zompado.host',
+      ).invokeMethod<String>('scanFriendInvite');
+      if (!mounted || value == null) return;
+      if (value.isEmpty || value.length > 4096) {
+        setState(
+          () =>
+              _scanError = 'Scan the QR code from your friend’s Invite screen.',
+        );
+        return;
+      }
+      _input.text = value;
+      _accept();
+    } on PlatformException {
+      if (mounted)
+        setState(
+          () => _scanError =
+              'Scanner unavailable. Ask your friend to share the invite link and paste it here.',
+        );
+    } on MissingPluginException {
+      if (mounted)
+        setState(
+          () => _scanError =
+              'Scanner unavailable. Paste a friend invite link here.',
+        );
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -364,11 +402,26 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Accept invite'),
-    content: TextField(
-      controller: _input,
-      maxLength: 4096,
-      decoration: const InputDecoration(labelText: 'Friend invite link'),
-      onSubmitted: (_) => _accept(),
+    scrollable: true,
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _scanning ? null : _scan,
+          icon: const Icon(Icons.qr_code_scanner),
+          label: Text(_scanning ? 'Opening scanner…' : 'Scan QR code'),
+        ),
+        if (_scanError case final error?) Text(error),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_scanning,
+          controller: _input,
+          maxLength: 4096,
+          decoration: const InputDecoration(labelText: 'Friend invite link'),
+          onSubmitted: (_) => _accept(),
+        ),
+      ],
     ),
     actions: [
       TextButton(
@@ -376,15 +429,20 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
         child: const Text('Cancel'),
       ),
       TextButton(
-        onPressed: () async {
-          final data = await Clipboard.getData(Clipboard.kTextPlain);
-          final value = data?.text;
-          if (mounted && value != null && value.length <= 4096)
-            _input.text = value;
-        },
+        onPressed: _scanning
+            ? null
+            : () async {
+                final data = await Clipboard.getData(Clipboard.kTextPlain);
+                final value = data?.text;
+                if (mounted && value != null && value.length <= 4096)
+                  _input.text = value;
+              },
         child: const Text('Paste'),
       ),
-      FilledButton(onPressed: _accept, child: const Text('Accept')),
+      FilledButton(
+        onPressed: _scanning ? null : _accept,
+        child: const Text('Accept'),
+      ),
     ],
   );
 }
@@ -398,14 +456,25 @@ class FriendConversation extends StatefulWidget {
     required this.pickGameLink,
     required this.openGameLink,
     required this.prepareGame,
-  });
+  }) : onClose = null;
+
+  const FriendConversation.docked({
+    super.key,
+    required this.chatmail,
+    required this.id,
+    required VoidCallback this.onClose,
+  }) : initialName = 'Match chat',
+       pickGameLink = null,
+       openGameLink = null,
+       prepareGame = null;
 
   final Chatmail chatmail;
   final int id;
+  final VoidCallback? onClose;
   final String initialName;
-  final Future<String?> Function() pickGameLink;
-  final Future<void> Function(GameLink) openGameLink;
-  final Future<bool> Function(GameLink) prepareGame;
+  final Future<String?> Function()? pickGameLink;
+  final Future<void> Function(GameLink)? openGameLink;
+  final Future<bool> Function(GameLink)? prepareGame;
 
   @override
   State<FriendConversation> createState() => _FriendConversationState();
@@ -468,7 +537,12 @@ class _FriendConversationState extends State<FriendConversation>
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
         await widget.chatmail.markSeen([
           for (final message in thread.messages)
-            if (!message.outgoing && message.state == 10) message.id,
+            if (!message.outgoing &&
+                message.state == 10 &&
+                (widget.onClose == null ||
+                    !message.encrypted ||
+                    MatchEvent.parse(message.text) == null))
+              message.id,
         ]);
       }
     } catch (error) {
@@ -511,7 +585,7 @@ class _FriendConversationState extends State<FriendConversation>
   Future<void> _sendGame() async {
     setState(() => _pickingGame = true);
     try {
-      final link = await widget.pickGameLink();
+      final link = await widget.pickGameLink!();
       if (!mounted || link == null) return;
       final send = await showDialog<bool>(
         context: context,
@@ -542,7 +616,7 @@ class _FriendConversationState extends State<FriendConversation>
     if (_pickingGame || _sending || _thread?.canSend != true) return;
     setState(() => _pickingGame = true);
     try {
-      final link = await widget.pickGameLink();
+      final link = await widget.pickGameLink!();
       if (!mounted || link == null) return;
       final game = GameLink.parse(link);
       if (game == null) return;
@@ -578,7 +652,12 @@ class _FriendConversationState extends State<FriendConversation>
         chatmail: widget.chatmail,
         chat: widget.id,
         id: id,
-        prepareGame: widget.prepareGame,
+        prepareGame: widget.prepareGame!,
+        buildChatDock: (close) => FriendConversation.docked(
+          chatmail: widget.chatmail,
+          id: widget.id,
+          onClose: close,
+        ),
       ),
     ),
   );
@@ -590,14 +669,24 @@ class _FriendConversationState extends State<FriendConversation>
         thread?.messages.where((message) {
           if (!message.outgoing && !message.encrypted) return true;
           final event = MatchEvent.parse(message.text);
-          return event == null || event.kind == 'invite';
+          return event == null ||
+              (event.kind == 'invite' && widget.onClose == null);
         }).toList() ??
         const <FriendMessage>[];
     final colors = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(thread?.name ?? widget.initialName),
-        actions: [
+    final docked = widget.onClose != null;
+    final appBar = AppBar(
+      automaticallyImplyLeading: !docked,
+      primary: !docked,
+      title: Text(thread?.name ?? widget.initialName),
+      actions: [
+        if (docked)
+          IconButton(
+            tooltip: 'Close match chat',
+            onPressed: widget.onClose,
+            icon: const Icon(Icons.close),
+          )
+        else
           IconButton(
             tooltip: 'Invite to a Drop Four match',
             onPressed: _pickingGame || _sending || thread?.canSend != true
@@ -605,171 +694,179 @@ class _FriendConversationState extends State<FriendConversation>
                 : _inviteMatch,
             icon: const Icon(Icons.sports_esports_outlined),
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_loadError case final error?)
-              ListTile(
-                title: Text(error),
-                trailing: TextButton(
-                  onPressed: _load,
-                  child: const Text('Retry'),
-                ),
+      ],
+    );
+    final body = SafeArea(
+      top: false,
+      child: Column(
+        children: [
+          if (_loadError case final error?)
+            ListTile(
+              title: Text(error),
+              trailing: TextButton(
+                onPressed: _load,
+                child: const Text('Retry'),
               ),
-            if (thread == null)
-              if (_loadError == null) const LinearProgressIndicator(),
-            if (thread != null && !thread.canSend)
-              const Padding(
-                padding: EdgeInsets.all(14),
-                child: Text(
-                  'Connecting with your friend. This chat will open for messages once it is ready.',
-                ),
-              ),
-            Expanded(
-              child: thread == null || (visible.isEmpty && !thread.hasOlder)
-                  ? Center(
-                      child: Text(
-                        thread?.canSend == true
-                            ? 'Send your first message.'
-                            : '',
-                      ),
-                    )
-                  : ListView.builder(
-                      reverse: true,
-                      padding: const EdgeInsets.all(12),
-                      itemCount: visible.length + (thread.hasOlder ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == visible.length) {
-                          return TextButton(
-                            onPressed: () {
-                              _limit += 60;
-                              _load();
-                            },
-                            child: const Text('Load older messages'),
-                          );
-                        }
-                        final message = visible[visible.length - index - 1];
-                        final text = message.text.isEmpty
-                            ? 'Attachment'
-                            : message.text;
-                        if (message.info) {
-                          return Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Text(text, textAlign: TextAlign.center),
-                          );
-                        }
-                        final match = (message.outgoing || message.encrypted)
-                            ? MatchEvent.parse(message.text)
-                            : null;
-                        final gameLink = GameLink.parse(message.text);
-                        return Align(
-                          alignment: message.outgoing
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 7),
-                            constraints: const BoxConstraints(maxWidth: 340),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: message.outgoing
-                                  ? colors.secondaryContainer
-                                  : colors.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (match?.kind == 'invite')
-                                  OutlinedButton.icon(
-                                    onPressed: () => _openMatch(match!.id),
-                                    icon: const Icon(
-                                      Icons.sports_esports_outlined,
-                                    ),
-                                    label: const Text('Open Drop Four match'),
-                                  )
-                                else if (gameLink != null)
-                                  OutlinedButton.icon(
-                                    onPressed: () =>
-                                        widget.openGameLink(gameLink),
-                                    icon: const Icon(
-                                      Icons.sports_esports_outlined,
-                                    ),
-                                    label: Text(
-                                      gameLink.id == 'drop-four'
-                                          ? 'Open Drop Four'
-                                          : 'Open game',
-                                    ),
-                                  )
-                                else
-                                  SelectableText(
-                                    text,
-                                    style: TextStyle(
-                                      color: message.outgoing
-                                          ? colors.onSecondaryContainer
-                                          : colors.onSurface,
-                                    ),
-                                  ),
-                                if (message.delivery case final delivery?)
-                                  Text(
-                                    delivery,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: colors.onSecondaryContainer,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
             ),
-            if (_sendError case final error?)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(error, style: TextStyle(color: colors.error)),
+          if (thread == null)
+            if (_loadError == null) const LinearProgressIndicator(),
+          if (thread != null && !thread.canSend)
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: Text(
+                'Connecting with your friend. This chat will open for messages once it is ready.',
               ),
-            if (thread?.canSend == true)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            ),
+          Expanded(
+            child: thread == null || (visible.isEmpty && !thread.hasOlder)
+                ? Center(
+                    child: Text(
+                      thread?.canSend == true ? 'Send your first message.' : '',
+                    ),
+                  )
+                : ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: visible.length + (thread.hasOlder ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == visible.length) {
+                        return TextButton(
+                          onPressed: () {
+                            _limit += 60;
+                            _load();
+                          },
+                          child: const Text('Load older messages'),
+                        );
+                      }
+                      final message = visible[visible.length - index - 1];
+                      final text = message.text.isEmpty
+                          ? 'Attachment'
+                          : message.text;
+                      if (message.info) {
+                        return Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(text, textAlign: TextAlign.center),
+                        );
+                      }
+                      final match = (message.outgoing || message.encrypted)
+                          ? MatchEvent.parse(message.text)
+                          : null;
+                      final gameLink = GameLink.parse(message.text);
+                      return Align(
+                        alignment: message.outgoing
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 7),
+                          constraints: const BoxConstraints(maxWidth: 340),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: message.outgoing
+                                ? colors.secondaryContainer
+                                : colors.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (match?.kind == 'invite')
+                                OutlinedButton.icon(
+                                  onPressed: () => _openMatch(match!.id),
+                                  icon: const Icon(
+                                    Icons.sports_esports_outlined,
+                                  ),
+                                  label: const Text('Open Drop Four match'),
+                                )
+                              else if (gameLink != null &&
+                                  widget.openGameLink != null)
+                                OutlinedButton.icon(
+                                  onPressed: () =>
+                                      widget.openGameLink!(gameLink),
+                                  icon: const Icon(
+                                    Icons.sports_esports_outlined,
+                                  ),
+                                  label: Text(
+                                    gameLink.id == 'drop-four'
+                                        ? 'Open Drop Four'
+                                        : 'Open game',
+                                  ),
+                                )
+                              else
+                                SelectableText(
+                                  text,
+                                  style: TextStyle(
+                                    color: message.outgoing
+                                        ? colors.onSecondaryContainer
+                                        : colors.onSurface,
+                                  ),
+                                ),
+                              if (message.delivery case final delivery?)
+                                Text(
+                                  delivery,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.onSecondaryContainer,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          if (_sendError case final error?)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(error, style: TextStyle(color: colors.error)),
+            ),
+          if (thread?.canSend == true)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!docked)
                     IconButton(
                       tooltip: 'Share a game',
                       onPressed: _sending || _pickingGame ? null : _sendGame,
                       icon: const Icon(Icons.sports_esports_outlined),
                     ),
-                    Expanded(
-                      child: TextField(
-                        controller: _composer,
-                        maxLength: 5000,
-                        minLines: 1,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          hintText: 'Write a message',
-                          counterText: '',
-                        ),
+                  Expanded(
+                    child: TextField(
+                      controller: _composer,
+                      maxLength: 5000,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText: 'Write a message',
+                        counterText: '',
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Send message',
-                      onPressed: _sending || _pickingGame
-                          ? null
-                          : () => _send(),
-                      icon: const Icon(Icons.send),
-                    ),
-                  ],
-                ),
+                  ),
+                  IconButton(
+                    tooltip: 'Send message',
+                    onPressed: _sending || _pickingGame ? null : () => _send(),
+                    icon: const Icon(Icons.send),
+                  ),
+                ],
               ),
-          ],
-        ),
+            ),
+        ],
+      ),
+    );
+    if (!docked) return Scaffold(appBar: appBar, body: body);
+    return Material(
+      elevation: 12,
+      child: Column(
+        children: [
+          appBar,
+          Expanded(child: body),
+        ],
       ),
     );
   }

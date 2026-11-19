@@ -24,7 +24,7 @@ The Android prototype uses a built-in Drop Four player and installs verified off
 
 ## Toolchain and fresh checkout
 
-Use JDK 21, Android platform and Build Tools `36.0.0` (SDK platform `android-36`), NDK `28.2.13676358`, and Python 3.11 or newer for the feed generator. The Gradle wrapper pins Gradle 9.5.0, and Android Gradle Plugin 9.3.1 is declared in `android/settings.gradle.kts`.
+Use JDK 21, Android platform and Build Tools `36.0.0` (SDK platform `android-36`), NDK `28.2.13676358`, and Python 3.11 or newer for the feed generator. The ARM64 Chatmail executable is built on Linux from its pinned upstream source with Cargo 1.95.0 via rustup. Install rustup, a C build toolchain, and Perl for vendored OpenSSL. CI checks 16 KB ELF alignment for every packaged ARM64 library. The Gradle wrapper pins Gradle 9.5.0, and Android Gradle Plugin 9.3.1 is declared in `android/settings.gradle.kts`.
 
 The 0.3.0 build used Flutter 3.50.0 candidate revision `ab2912035e160d9cad6306df307576da6128ebdb`, with engine `371f77202a73e8dff57a8b3bff75bca55c090aee` and Dart 3.14.0. Use the framework revision in [the workflow](../.github/workflows/android-release.yml) to reinstall it. With Flutter on PATH and SDK licenses accepted:
 

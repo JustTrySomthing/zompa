@@ -102,9 +102,9 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           ),
           _SetupCard(
             icon: Icons.notifications_active_outlined,
-            title: 'App update alerts',
+            title: 'Notifications',
             text:
-                'Get an Android notification when automatic checks find a new version.',
+                'Get update alerts and friend activity alerts. Friend alerts work while Zompado stays running in the background.',
             enabled: _status?['notifications'],
             action: !_working && _status?['notifications'] == false
                 ? () => _open('requestUpdateNotifications')
@@ -255,7 +255,7 @@ const _topics = [
       ),
       (
         'How do I play Drop Four with a friend online?',
-        'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Tap the same card later to resume.',
+        'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Resume from the match card or from Your turn in My Games. Tap the chat bubble on the board to talk to your friend.',
       ),
       (
         'Can I play with someone next to me?',
@@ -270,7 +270,7 @@ const _topics = [
     answers: [
       (
         'How do I connect with a friend?',
-        'Open Chats and create a profile. Tap Invite friend to copy or share your invite link. On the other phone, open Chats → Accept invite and paste the link.',
+        'Open Chats and create a profile. Tap Invite friend to copy or share your invite link. On the other phone, open Chats → Accept invite and scan the QR code or paste the link. Camera scanning uses Google Play services.',
       ),
       (
         'When can I send a message?',
@@ -285,7 +285,7 @@ const _topics = [
     answers: [
       (
         'How do I open Setup again?',
-        'Open Settings → Setup. You can turn on update alerts or open Android’s installation settings there.',
+        'Open Settings → Setup. You can turn on notifications or open Android’s installation settings there.',
       ),
       (
         'Does Zompado need my location?',
@@ -293,7 +293,7 @@ const _topics = [
       ),
       (
         'What alerts can I turn on?',
-        'Setup offers alerts for available app updates. Leave Automatic update checks on in Settings to let Zompado check in the background.',
+        'Setup offers app update and friend activity alerts. Friend activity alerts require Zompado to stay running in the background.',
       ),
     ],
   ),

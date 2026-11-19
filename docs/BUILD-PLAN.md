@@ -12,15 +12,16 @@
 |---|---|
 | Public APK | Official `.zomp` downloads, offline Drop Four, and the local chat preview. |
 | Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. Installed Drop Four can be shared by link or sent as a game card in friend chats. Receivers verify the exact catalog version before installing. Online Drop Four adds match invites, alternating turns, and match recovery from the conversation history. |
-| Still open | Two-Android-device validation, QR camera scanning, 16 KB Android compatibility for the bundled core, background alerts, calls, two-phone match validation, docked in-game chat, isolated LÖVE, and manual `.love` import. |
+| Next preview | Camera QR scanning through Google Play services with a paste fallback. Online Drop Four has a conversation dock and a Your turn shortcut in My Games. Friend activity can trigger private Android alerts while the app stays running in the background. |
+| Still open | Test the next preview on two phones, including a 16 KB Android device. Background delivery after Android stops the process, voice calls, isolated LÖVE, the game SDK, and manual `.love` import remain open. |
 
-Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. Zompado uses the verified official ARM64 JSON-RPC executable and its published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
+Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. The next build compiles the ARM64 JSON-RPC executable with NDK r28 and checks 16 KB ELF alignment during packaging. See the published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
 
 The [live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44613099059) configured two fresh Chatmail Core profiles, established their encrypted conversations through SecureJoin, and verified messages in both directions. The test used the Linux build of the same Core release. Android installation and delivery still need device verification.
 
 ### Verify the Chatmail preview
 
-Install the signed preview on two ARM64 Android phones with 4 KB memory pages. Open **Chats** and create a profile on each phone. On the first phone, tap **Invite friend**, then copy or share its link. On the second phone, use **Accept invite** and wait for the connection to finish. Exchange messages both ways, check unread badges when the conversation is closed, then restart both apps and verify that the chats and Drop Four saves persist. Keep both apps open for initial validation.
+Install the signed preview on two ARM64 Android phones. Use a 16 KB Android phone or emulator for the new alignment check. Open **Chats** and create a profile on each phone. On the first phone, tap **Invite friend**, then copy or share its link. On the second phone, use **Accept invite**, scan the QR code or paste an invite link, and wait for the connection to finish. Exchange messages both ways, check unread badges when the conversation is closed, then restart both apps and verify that the chats and Drop Four saves persist. Keep both apps open for initial validation.
 
 Repeat on Wi-Fi and mobile data. Confirm that the sending state clears when the server accepts a message, that status changes do not duplicate messages, and that the profile remains usable offline and after reconnecting. Verify voice calls and online turns separately after this baseline is proven.
 

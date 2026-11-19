@@ -18,8 +18,11 @@ class Chatmail {
   final Directory accountsDirectory;
   final _changes = StreamController<void>.broadcast();
   Stream<void> get changes => _changes.stream;
+  final _incoming = StreamController<(int, int)>.broadcast();
+  Stream<(int, int)> get incoming => _incoming.stream;
   Process? _process;
   Future<Process>? _starting;
+  Future<bool>? _restoring;
   final _requests = <int, Completer<dynamic>>{};
   int _nextRequest = 0;
   int? _account;
@@ -129,7 +132,11 @@ class Chatmail {
     }
   }
 
-  Future<bool> restore() async {
+  Future<bool> restore() => _restoring ??= _restore().whenComplete(() {
+    _restoring = null;
+  });
+
+  Future<bool> _restore() async {
     if (_ready) return true;
     final ids = (await _call('get_all_account_ids', const []) as List)
         .cast<int>();
@@ -168,16 +175,26 @@ class Chatmail {
         final batch =
             await _call('get_next_event_batch', const [], timeout: null)
                 as List;
-        final hasChanges = batch.cast<Json>().any((entry) {
-          if (entry['contextId'] != _account) return false;
-          final kind = (entry['event'] as Json)['kind'] as String;
-          return kind.startsWith('Chat') ||
+        if (_closed || _process != process) return;
+        var hasChanges = false;
+        for (final entry in batch.cast<Json>()) {
+          if (entry['contextId'] != _account) continue;
+          final event = entry['event'] as Json;
+          final kind = event['kind'] as String;
+          if (kind == 'IncomingMsg' &&
+              event['chatId'] is int &&
+              event['msgId'] is int) {
+            _incoming.add((event['chatId'] as int, event['msgId'] as int));
+          }
+          hasChanges =
+              hasChanges ||
+              kind.startsWith('Chat') ||
               kind.startsWith('Msg') ||
               kind.startsWith('Securejoin') ||
               kind.startsWith('IncomingMsg') ||
               kind == 'ConnectivityChanged';
-        });
-        if (hasChanges && !_closed) _changes.add(null);
+        }
+        if (hasChanges) _changes.add(null);
       }
     } catch (_) {
       if (!_closed && _process == process) _stopped(process);
@@ -262,7 +279,10 @@ class Chatmail {
     );
   }
 
-  Future<List<FriendMessage>> matchHistory(int chat, String id) async {
+  Future<List<FriendMessage>> matchHistory(int chat, String id) =>
+      _search(chat, id);
+
+  Future<List<FriendMessage>> _search(int? chat, String id) async {
     final account = _accountId;
     final ids = (await _call('search_messages', [account, id, chat]) as List)
         .cast<int>();
@@ -278,6 +298,38 @@ class Chatmail {
       ]);
     }
     return records;
+  }
+
+  Future<List<FriendMessage>> recentMatchMessages(String marker) =>
+      _search(null, marker);
+
+  Future<FriendMessage?> notificationMessage(int chat, int id) async {
+    final account = _accountId;
+    final info = await _call('get_full_chat_by_id', [account, chat]) as Json;
+    if (info['chatType'] != 'Single' ||
+        info['isEncrypted'] != true ||
+        info['isSelfTalk'] == true ||
+        info['isDeviceTalk'] == true ||
+        info['isMuted'] == true ||
+        info['isContactRequest'] == true)
+      return null;
+    final messages =
+        await _call('get_messages', [
+              account,
+              [id],
+            ])
+            as Json;
+    if (messages['$id'] case final Json message
+        when message['kind'] == 'message') {
+      final result = FriendMessage.fromJson(message);
+      if (result.chat == chat &&
+          !result.outgoing &&
+          !result.info &&
+          result.encrypted &&
+          result.state == 10)
+        return result;
+    }
+    return null;
   }
 
   Future<void> markSeen(List<int> messages) async {
@@ -301,6 +353,7 @@ class Chatmail {
     final process = _process;
     if (process != null) _stopped(process);
     _changes.close();
+    _incoming.close();
   }
 }
 
@@ -322,12 +375,13 @@ class FriendMessage {
   FriendMessage.fromJson(Json message)
     : id = message['id'] as int,
       state = message['state'] as int,
+      chat = message['chatId'] as int? ?? 0,
       text = (message['text'] as String?) ?? '',
       outgoing = message['fromId'] == 1,
       info = message['isInfo'] == true,
       encrypted = message['showPadlock'] == true;
 
-  final int id, state;
+  final int id, state, chat;
   final String text;
   final bool outgoing, info, encrypted;
 

@@ -8,7 +8,9 @@ val chatmailNativeLibraries = layout.buildDirectory.dir("chatmail/jniLibs")
 val chatmailInstaller = rootProject.file("../tools/install_chatmail_core.sh")
 val chatmailExecutable = chatmailNativeLibraries.map { it.file("arm64-v8a/libchatmail_rpc.so") }
 
+val androidSdkLocation = androidComponents.sdkComponents.sdkDirectory
 val installChatmailCore by tasks.registering(Exec::class) {
+    environment("ANDROID_SDK_ROOT", androidSdkLocation.get().asFile.absolutePath)
     inputs.file(chatmailInstaller)
     outputs.file(chatmailExecutable)
     commandLine("bash", chatmailInstaller.absolutePath, chatmailExecutable.get().asFile.absolutePath)
@@ -77,4 +79,5 @@ flutter {
 
 dependencies {
     implementation("androidx.core:core:1.13.1")
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }

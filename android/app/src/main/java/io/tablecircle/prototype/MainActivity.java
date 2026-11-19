@@ -1,16 +1,20 @@
 package io.tablecircle.prototype;
 
 import android.Manifest;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
-import android.system.Os;
-import android.system.OsConstants;
 import androidx.core.content.FileProvider;
+import androidx.core.app.NotificationCompat;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -22,11 +26,18 @@ import io.flutter.plugin.common.MethodCall;
 
 public final class MainActivity extends FlutterActivity {
     private static final int REQUEST_NOTIFICATIONS = 390;
+    private static final String CHAT_CHANNEL = "friend_activity";
     private MethodChannel.Result notificationRequest;
+    private boolean scanningInvite;
 
     @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
+        if (Build.VERSION.SDK_INT >= 26) {
+            getSystemService(NotificationManager.class).createNotificationChannel(
+                new NotificationChannel(CHAT_CHANNEL, "Friend activity",
+                    NotificationManager.IMPORTANCE_DEFAULT));
+        }
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompado.host")
             .setMethodCallHandler(new MethodChannel.MethodCallHandler() {
                 @Override
@@ -37,8 +48,10 @@ public final class MainActivity extends FlutterActivity {
                         break;
                     case "chatmailExecutable":
                         File core = new File(getApplicationInfo().nativeLibraryDir, "libchatmail_rpc.so");
-                        boolean compatible = Os.sysconf(OsConstants._SC_PAGESIZE) == 4096;
-                        result.success(compatible && core.canExecute() ? core.getAbsolutePath() : null);
+                        result.success(core.canExecute() ? core.getAbsolutePath() : null);
+                        break;
+                    case "scanFriendInvite":
+                        scanFriendInvite(result);
                         break;
                     case "shareGameLink":
                     case "shareFriendInvite":
@@ -52,6 +65,10 @@ public final class MainActivity extends FlutterActivity {
                         shareInvite.putExtra(Intent.EXTRA_TEXT, invite);
                         startActivity(Intent.createChooser(shareInvite,
                             call.method.equals("shareGameLink") ? "Share game" : "Share friend invite"));
+                        result.success(null);
+                        break;
+                    case "showChatNotification":
+                        showChatNotification(call.argument("chat"), call.argument("label"));
                         result.success(null);
                         break;
                     case "setupStatus":
@@ -114,6 +131,51 @@ public final class MainActivity extends FlutterActivity {
                 }
                 }
             });
+    }
+
+    private void scanFriendInvite(MethodChannel.Result result) {
+        if (scanningInvite) {
+            result.error("INVITE_SCAN", "Scanner is already open.", null);
+            return;
+        }
+        scanningInvite = true;
+        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAutoZoom()
+            .build();
+        try {
+            GmsBarcodeScanning.getClient(this, options).startScan()
+                .addOnCompleteListener(task -> {
+                    scanningInvite = false;
+                    if (task.isCanceled()) {
+                        result.success(null);
+                    } else if (task.isSuccessful()) {
+                        result.success(task.getResult().getRawValue());
+                    } else {
+                        result.error("INVITE_SCAN", "Couldn’t open the QR scanner.", null);
+                    }
+                });
+        } catch (RuntimeException error) {
+            scanningInvite = false;
+            result.error("INVITE_SCAN", "Couldn’t open the QR scanner.", null);
+        }
+    }
+
+    private void showChatNotification(Integer chat, String label) {
+        if (chat == null || label == null || !updateAlertsEnabled()) return;
+        Intent intent = new Intent(this, MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent open = PendingIntent.getActivity(this, 391, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        getSystemService(NotificationManager.class).notify("friend-activity", chat,
+            new NotificationCompat.Builder(this, CHAT_CHANNEL)
+                .setSmallIcon(R.drawable.zompado_icon_monochrome)
+                .setContentTitle(label)
+                .setContentText("Open Zompado to see what’s new.")
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build());
     }
 
     private boolean updateAlertsEnabled() {
