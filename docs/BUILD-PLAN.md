@@ -1,4 +1,6 @@
-# Android game and chat app — build plan
+# Zompado — build plan
+
+**Pronunciation:** zomp-ah-doh
 
 **Status:** Proposed for review before implementation  
 **First platform:** Android. Windows, macOS, and Linux follow using the same game packages.  

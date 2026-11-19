@@ -18,10 +18,10 @@ import org.json.JSONObject;
 public final class UpdateCheckJob extends JobService {
     private static final int JOB_ID = 290;
     private static final int LIMIT = 128 * 1024;
-    private static final String PREFS = "table_circle_updates";
+    private static final String PREFS = "zompado_updates";
     private static final String CACHE_KEY = "background_update_build";
     private static final String FEED =
-        "https://raw.githubusercontent.com/JustTrySomthing/table-circle/main/update.json";
+        "https://raw.githubusercontent.com/JustTrySomthing/zompado/main/update.json";
     private volatile Thread worker;
 
     static int cachedBuild(Context context) {
@@ -58,7 +58,7 @@ public final class UpdateCheckJob extends JobService {
                 if (!Thread.currentThread().isInterrupted()) jobFinished(parameters, false);
             }
             }
-        }, "table-circle-update-check");
+        }, "zompado-update-check");
         worker = thread;
         thread.start();
         return true;

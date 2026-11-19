@@ -19,7 +19,7 @@ public final class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
-        new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.tablecircle.host")
+        new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompado.host")
             .setMethodCallHandler(new MethodChannel.MethodCallHandler() {
                 @Override
                 public void onMethodCall(MethodCall call, MethodChannel.Result result) {

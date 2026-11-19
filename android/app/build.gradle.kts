@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // Keep the original Android ID so existing installs can upgrade in place.
         applicationId = "io.tablecircle.prototype"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -30,12 +30,12 @@ android {
     }
 
     signingConfigs {
-        if (System.getenv("TABLE_CIRCLE_KEYSTORE") != null) {
+        if (System.getenv("ZOMPADO_KEYSTORE") != null) {
             create("distribution") {
-                storeFile = file(System.getenv("TABLE_CIRCLE_KEYSTORE"))
-                storePassword = System.getenv("TABLE_CIRCLE_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("TABLE_CIRCLE_KEY_ALIAS")
-                keyPassword = System.getenv("TABLE_CIRCLE_KEY_PASSWORD")
+                storeFile = file(System.getenv("ZOMPADO_KEYSTORE"))
+                storePassword = System.getenv("ZOMPADO_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ZOMPADO_KEY_ALIAS")
+                keyPassword = System.getenv("ZOMPADO_KEY_PASSWORD")
             }
         }
     }

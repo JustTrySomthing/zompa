@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the updater feed for an already signed Table Circle ARM64 APK."""
+"""Write the updater feed for an already signed Zompado ARM64 APK."""
 import argparse
 import hashlib
 import json
@@ -22,7 +22,7 @@ print(json.dumps({
     "version": args.version,
     "build": args.build,
     "abi": "arm64-v8a",
-    "url": f"https://github.com/JustTrySomthing/table-circle/releases/download/v{args.version}/{args.apk.name}",
+    "url": f"https://github.com/JustTrySomthing/zompado/releases/download/v{args.version}/{args.apk.name}",
     "sha256": sha256,
     "size": args.apk.stat().st_size,
 }, indent=2))

@@ -5,8 +5,8 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 
 const githubOwner = 'JustTrySomthing';
-const appRepository = 'table-circle';
-const gamesRepository = 'table-circle-games';
+const appRepository = 'zompado';
+const gamesRepository = 'zompado-games';
 const transferLimit = 256 * 1024 * 1024;
 
 class ReleaseAsset {

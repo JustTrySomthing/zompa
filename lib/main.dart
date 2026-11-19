@@ -12,20 +12,20 @@ const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
 const ink = Color(0xff14171f);
 const panel = Color(0xff252a36);
-const bridge = MethodChannel('io.tablecircle.host');
+const bridge = MethodChannel('io.zompado.host');
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const TableCircle());
+  runApp(const Zompado());
 }
 
-class TableCircle extends StatefulWidget {
-  const TableCircle({super.key});
+class Zompado extends StatefulWidget {
+  const Zompado({super.key});
   @override
-  State<TableCircle> createState() => _TableCircleState();
+  State<Zompado> createState() => _ZompadoState();
 }
 
-class _TableCircleState extends State<TableCircle> with WidgetsBindingObserver {
+class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   ThemeMode mode = ThemeMode.dark;
   File? storage;
   Map<String, dynamic> data = {};
@@ -130,7 +130,7 @@ class _TableCircleState extends State<TableCircle> with WidgetsBindingObserver {
     }
 
     return MaterialApp(
-      title: 'Table Circle',
+      title: 'Zompado',
       debugShowCheckedModeBanner: false,
       theme: theme(Brightness.light),
       darkTheme: theme(Brightness.dark),
@@ -356,7 +356,7 @@ class _HomeState extends State<Home> {
         children: [
           if (widget.updates?.available case final update?)
             MaterialBanner(
-              content: Text('Table Circle ${update.version} is available.'),
+              content: Text('Zompado ${update.version} is available.'),
               actions: [
                 TextButton(
                   onPressed: settings,
