@@ -34,9 +34,13 @@ Repeat on Wi-Fi and mobile data. Confirm that the sending state clears when the 
 | **Get Games** | Browse the official GitHub catalog from inside the app. See cover art, size, supported modes, and Install or Update. |
 | **Shared and imported games** | Send an eligible installed game in chat or import a downloaded file using the Games header icon and Android file picker. The same preview shows title, size, source, and compatibility across all install paths. Download & install and Install & join lead into the library or match. |
 | **While playing** | In a friend match, a chat button with an unread dot opens the existing conversation in a bottom dock. The keyboard appears only when the field is tapped. Close the dock to dismiss the keyboard and return to the same board and unsubmitted move. A small call bar keeps Mic mute, Audio output, and End call available. |
-| **Later releases** | Desktop chat can dock beside a game and remember whether it was open. The conversational AI creator generates a game from a template, previews it, accepts revisions, and saves the same shareable package to My Games. Model hosting and costs are a separate decision. |
+| **Later releases** | Desktop chat can dock beside a game and remember whether it was open. The optional Game Builder is a separate download described below. |
 
 The six-screen mockup is the visual reference. Use Chats and Games as the two bottom destinations, with My Games and Get Games inside Games. Follow the [approved Zompado brand kit](brand/README.md). Pair activity dots with readable text or accessible labels. Let people try solo play without setting up Chatmail. Ask for permissions when the corresponding feature is used and explain how to recover from a denial.
+
+## Optional Game Builder
+
+Stabilize and test gameplay, the game library, and the game SDK before starting the Game Builder. Distribute it as a separate, optional download. People will be able to chat with AI to create a game from a Zompado template, play a preview, ask for revisions, and save a shareable `.zomp` package to My Games. Use the same framework, SDK, and package format as the rest of Zompado. Decide model hosting and costs during Game Builder development.
 
 ## Settings and defaults
 

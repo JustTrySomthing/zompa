@@ -14,6 +14,10 @@ and easily make and share your own.
 
 The public APK includes a local chat preview. For online messaging, download the `zompado-signed-android` ZIP from the preview build and extract the APK. The preview supports ARM64 Android devices with 4 KB memory pages.
 
+## Game Builder coming soon
+
+Chat with AI to turn your idea into a Zompado game you can play and share. The Game Builder will be available as an optional download.
+
 ## Project docs
 
 [Build and recovery](docs/RECOVERY.md) · [Releases](docs/RELEASE.md) · [Brand assets](docs/brand/README.md) · [Build plan](docs/BUILD-PLAN.md)
