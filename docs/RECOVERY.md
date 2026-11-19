@@ -17,12 +17,12 @@ Both repositories use `main`. Check the latest published APK and the current `up
 | Official .zomp catalog, versioned LÖVE sources, and release assets | [zompado-games](https://github.com/JustTrySomthing/zompado-games) |
 | Voice calls and scheduled Android chat alerts | [Call state and UI](../lib/voice_calls.dart), [Android WebRTC bridge](../android/app/src/main/java/io/tablecircle/prototype/VoicePeer.java), [Chat sync job](../android/app/src/main/java/io/tablecircle/prototype/ChatSyncJob.java) |
 | Manual `.love` staging and Lua template | [Android archive validation](../android/app/src/main/java/io/tablecircle/prototype/LoveImport.java), [Lua SDK](../sdk/README.md) |
-| Board rules and UI | [board.dart](../lib/board.dart), [main.dart](../lib/main.dart) |
+| Embedded LÖVE and online match validation | [Runtime pin and hashes](../tools/install_love_runtime.sh), [Android player](../android/app/src/main/java/io/tablecircle/prototype/LovePlayer.java), [Flutter view](../lib/love_player.dart), [match validation](../lib/online_match.dart) |
 | Implemented features and next milestones | [README](../README.md), [build plan](BUILD-PLAN.md) |
 | Public download page | [GitHub Pages source](index.html), published from `main:/docs` |
 | Release preparation and feed update order | [RELEASE.md](RELEASE.md) |
 
-The Android prototype uses a built-in Drop Four player and installs verified official `.zomp` packages from the version 2 game catalog. The version 1 catalog is kept for older APKs. The Chatmail developer preview and remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md). The public APK and the developer preview can be on different versions.
+The Android preview ships the LÖVE 11.5 compatibility WebAssembly runtime inside the APK. Players install and remove their games separately. The catalog uses `games` for current entries and `archive` for exact older shared links. The player opens the selected package in a sandboxed Android WebView renderer with a private origin per game. Playback requires Android 10 or later and a multiprocess WebView provider. The Gradle build fetches two pinned runtime files, checks their hashes, and packages them with the player assets. The version 1 catalog is kept for older APKs. The Chatmail developer preview and remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md). The public APK and the developer preview can be on different versions.
 
 ## Toolchain and fresh checkout
 

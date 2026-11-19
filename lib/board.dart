@@ -1,8 +1,5 @@
-import 'dart:math';
-
 class Board {
   Board() : cells = List.filled(42, 0);
-  Board.from(List<dynamic> data) : cells = data.cast<int>().toList();
   final List<int> cells;
   int get count => cells.where((piece) => piece != 0).length;
   int get turn => count.isEven ? 1 : 2;
@@ -41,24 +38,5 @@ class Board {
     if (slot < 0 || winner != 0) return false;
     cells[slot] = turn;
     return true;
-  }
-
-  int computerMove() {
-    const centerFirst = [3, 2, 4, 1, 5, 0, 6];
-    final available = centerFirst
-        .where((column) => landing(column) >= 0)
-        .toList();
-    if (available.isEmpty) return -1;
-    final sideToPlay = turn;
-    for (final side in [sideToPlay, 3 - sideToPlay]) {
-      for (final column in available) {
-        final slot = landing(column);
-        cells[slot] = side;
-        final wins = winner == side;
-        cells[slot] = 0;
-        if (wins) return column;
-      }
-    }
-    return available[Random().nextInt(min(3, available.length))];
   }
 }

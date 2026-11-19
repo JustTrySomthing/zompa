@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart'
     show LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/services.dart';
 
-import 'board.dart';
 import 'brand.dart';
 import 'app_updates.dart';
 import 'github_distribution.dart';
@@ -18,6 +17,7 @@ import 'setup_help.dart';
 import 'your_turn.dart';
 import 'online_match.dart';
 import 'love_imports.dart';
+import 'love_player.dart';
 import 'voice_calls.dart';
 
 const gold = Color(0xffffdc71);
@@ -33,6 +33,10 @@ void main() {
     yield LicenseEntryWithLineBreaks(const ['Chatmail Core'], license);
     final rtc = await rootBundle.loadString('assets/licenses/WebRTC-BSD.txt');
     yield LicenseEntryWithLineBreaks(const ['WebRTC'], rtc);
+    final love = await rootBundle.loadString('assets/licenses/love-11.5.txt');
+    yield LicenseEntryWithLineBreaks(const ['LÖVE and dependencies'], love);
+    final port = await rootBundle.loadString('assets/licenses/love.js-MIT.txt');
+    yield LicenseEntryWithLineBreaks(const ['love.js'], port);
   });
   runApp(const Zompado());
 }
@@ -262,7 +266,34 @@ class _HomeState extends State<Home> {
   bool openingGameLink = false;
   String? catalogError;
   List<GameRelease> releases = [];
-  int get installedBuild => widget.data['dropFourBuild'] as int? ?? 0;
+  Map<String, GameRelease> _readLibrary() {
+    final stored = widget.data['installedGames'];
+    final legacy = widget.data['dropFourRelease'];
+    final values = stored is Map ? stored.values : [if (legacy is Map) legacy];
+    final library = <String, GameRelease>{};
+    for (final value in values) {
+      try {
+        final game = GameRelease.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
+        final file = widget.distribution?.gameFile(game);
+        if (file != null &&
+            file.existsSync() &&
+            file.lengthSync() == game.asset.size) {
+          library[game.id] = game;
+        }
+      } catch (_) {
+        // Ignore incomplete or invalid library records.
+      }
+    }
+    return library;
+  }
+
+  late final Map<String, GameRelease> installedGames = _readLibrary();
+
+  void _saveLibrary() => widget.write('installedGames', {
+    for (final game in installedGames.values) game.id: game.toJson(),
+  });
 
   Future<void> browseGames() async {
     setState(() => catalog = true);
@@ -297,18 +328,19 @@ class _HomeState extends State<Home> {
   Future<bool> installGame(GameRelease release) async {
     final distribution = widget.distribution;
     if (downloadingGame ||
-        !release.playable ||
         distribution == null ||
-        release.build <= installedBuild)
+        release.build < (installedGames[release.id]?.build ?? 0))
       return false;
     setState(() => downloadingGame = true);
     try {
       await distribution.installGame(release);
+      await bridge.invokeMethod<void>('checkLoveGame', release.playerReference);
       if (!mounted) return false;
-      widget.write('dropFourRelease', release.toJson());
-      widget.write('dropFourBuild', release.build);
-      widget.write('dropFourVersion', release.version);
-      setState(() => catalog = false);
+      setState(() {
+        installedGames[release.id] = release;
+        _saveLibrary();
+        catalog = false;
+      });
       return true;
     } catch (_) {
       if (mounted)
@@ -325,37 +357,22 @@ class _HomeState extends State<Home> {
 
   void _gameNotice(String message) {
     if (mounted)
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<String?> _installedGameLink() async {
+  Future<String?> _installedGameLink([GameRelease? game]) async {
+    final release = game ?? installedGames['drop-four'];
     final distribution = widget.distribution;
-    final build = installedBuild;
-    if (distribution == null || build < 1) {
+    if (release == null || distribution == null) {
       _gameNotice('Install Drop Four from Get Games before sharing it.');
       return null;
     }
-    GameRelease? release;
-    final saved = widget.data['dropFourRelease'];
-    if (saved is Map<String, dynamic>) {
-      try {
-        final candidate = GameRelease.fromJson(saved);
-        if (candidate.playable && candidate.build == build) release = candidate;
-      } catch (_) {
-        // Fall back to the official catalog for older installations.
-      }
-    }
     try {
-      release ??= (await distribution.catalog())
-          .where((game) => game.playable && game.build == build)
-          .firstOrNull;
-      if (release == null) {
-        _gameNotice('Update Drop Four from Get Games before sharing it.');
+      if (!await distribution.verifyGame(release)) {
+        _gameNotice('Reinstall this game before sharing it.');
         return null;
       }
-      await distribution.installGame(release);
       return GameLink.fromRelease(release).toString();
     } catch (_) {
       _gameNotice('Couldn’t verify the game for sharing. Try again.');
@@ -363,45 +380,105 @@ class _HomeState extends State<Home> {
     }
   }
 
-  Future<bool> _prepareOnlineGame(GameLink link) async {
+  Future<GameRelease?> _prepareOnlineGame(GameLink link) async {
     final distribution = widget.distribution;
     if (distribution == null) {
       _gameNotice('Game storage is unavailable. Try reopening the app.');
-      return false;
+      return null;
     }
     try {
-      final saved = widget.data['dropFourRelease'];
-      GameRelease? release;
-      if (saved is Map<String, dynamic>) {
-        final installed = GameRelease.fromJson(saved);
-        if (link.matches(installed)) release = installed;
+      final installed = installedGames[link.id];
+      if (installed != null &&
+          link.matches(installed) &&
+          installed.modes.contains('online') &&
+          await distribution.verifyGame(installed)) {
+        return installed;
       }
-      release ??= (await distribution.catalog())
-          .where(link.matches)
-          .firstOrNull;
-      if (!mounted) return false;
-      if (release == null ||
-          !release.playable ||
-          release.build < installedBuild) {
-        _gameNotice('This exact game version isn’t available for this match.');
-        return false;
+      final releases = await distribution.catalog(includeArchive: true);
+      final exact = releases.where(link.matches).firstOrNull;
+      if (!mounted) return null;
+      if (exact == null) {
+        _gameNotice('This exact game version isn’t in the official catalog.');
+        return null;
       }
-      if (release.build > installedBuild) return await installGame(release);
-      await distribution.installGame(release);
-      return true;
+      // The first Drop Four release ran online in the host. Its match rules
+      // are unchanged, so the current cartridge can render legacy matches.
+      final playable = exact.modes.contains('online')
+          ? exact
+          : releases
+                .where(
+                  (game) =>
+                      game.id == exact.id && game.modes.contains('online'),
+                )
+                .firstOrNull;
+      if (playable == null) {
+        _gameNotice('An online version of this game isn’t available.');
+        return null;
+      }
+      if (installed != null &&
+          playable.build == installed.build &&
+          await distribution.verifyGame(installed))
+        return installed;
+      if (installed != null && playable.build < installed.build) {
+        await distribution.installGame(playable);
+        await bridge.invokeMethod<void>(
+          'checkLoveGame',
+          playable.playerReference,
+        );
+        return playable;
+      }
+      return await installGame(playable) ? playable : null;
     } catch (_) {
       _gameNotice('Couldn’t verify the game for this match.');
-      return false;
+      return null;
     }
   }
 
-  Future<void> _shareInstalledGame() async {
-    final link = await _installedGameLink();
+  Future<void> _shareInstalledGame(GameRelease game) async {
+    final link = await _installedGameLink(game);
     if (link == null || !mounted) return;
     try {
       await bridge.invokeMethod<void>('shareGameLink', {'invite': link});
     } on PlatformException {
       _gameNotice('Couldn’t open sharing. Try again.');
+    }
+  }
+
+  Future<void> _removeGame(GameRelease game) async {
+    final distribution = widget.distribution;
+    if (distribution == null || downloadingGame) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text('Remove ${game.title}?'),
+        content: const Text(
+          'This deletes the downloaded game. Saved progress is kept on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || downloadingGame) return;
+    setState(() => downloadingGame = true);
+    try {
+      await distribution.removeGame(game);
+      if (!mounted) return;
+      setState(() {
+        installedGames.remove(game.id);
+        _saveLibrary();
+      });
+    } catch (_) {
+      _gameNotice('Couldn’t remove the game. Try again.');
+    } finally {
+      if (mounted) setState(() => downloadingGame = false);
     }
   }
 
@@ -428,28 +505,27 @@ class _HomeState extends State<Home> {
     }
     openingGameLink = true;
     try {
-      final game = (await distribution.catalog())
+      final game = (await distribution.catalog(includeArchive: true))
           .where(link.matches)
           .firstOrNull;
       if (!mounted) return;
-      if (game == null || !game.playable) {
+      if (game == null) {
         _gameNotice('This exact game version isn’t available in Get Games.');
         return;
       }
-      if (game.build < installedBuild) {
+      final installed = installedGames[game.id];
+      if (installed != null && game.build < installed.build) {
         _gameNotice(
           'You already have a newer version. Open My Games to play it.',
         );
         return;
       }
-      final alreadyInstalled = game.build == installedBuild;
+      final alreadyInstalled = installed?.build == game.build;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
           title: Text(game.title),
-          content: Text(
-            'Official Zompado game · Version ${game.version}\nSolo or pass and play',
-          ),
+          content: Text('Official Zompado game · Version ${game.version}'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialog, false),
@@ -463,10 +539,8 @@ class _HomeState extends State<Home> {
         ),
       );
       if (!mounted || confirmed != true) return;
-      if (game.build == installedBuild) {
-        selectMode();
-      } else if (await installGame(game) && mounted) {
-        selectMode();
+      if (alreadyInstalled || await installGame(game)) {
+        if (mounted) await selectMode(game);
       }
     } catch (_) {
       _gameNotice(
@@ -477,75 +551,42 @@ class _HomeState extends State<Home> {
     }
   }
 
-  List<String> get messages =>
-      (widget.data['previewMessages'] as List?)?.cast<String>() ?? [];
-  bool get installed => installedBuild > 0 || widget.data['installed'] == true;
-
-  void openMatch({required bool solo}) {
-    final saveKey = solo ? 'soloBoard' : 'localBoard';
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => MatchPage(
-          solo: solo,
-          saved: widget.data[saveKey] as List?,
-          messages: messages,
-          save: (value) => widget.write(saveKey, value),
-          saveMessages: (value) => widget.write('previewMessages', value),
-          sound: widget.data['effects'] != false,
+  Future<void> selectMode(GameRelease game) async {
+    var mode = 'solo';
+    if (game.modes.contains('local')) {
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Play solo'),
+                onTap: () => Navigator.pop(sheet, 'solo'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.people_outline),
+                title: const Text('Pass and play'),
+                onTap: () => Navigator.pop(sheet, 'local'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (choice == null || !mounted) return;
+      mode = choice;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: Text(game.title)),
+          body: SafeArea(
+            child: LoveGameView.official(game: game, mode: mode),
+          ),
         ),
       ),
-    ).then((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  void selectMode() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheet) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  title: Text(
-                    'Drop Four',
-                    style: Theme.of(sheet).textTheme.headlineSmall,
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: const Text('Play solo'),
-                  subtitle: Text(
-                    widget.data['soloBoard'] == null
-                        ? 'Play against the computer, offline'
-                        : 'Resume your offline game',
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    openMatch(solo: true);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.people_outline),
-                  title: const Text('Pass and play'),
-                  subtitle: const Text(
-                    'Take turns on this phone. Includes a local chat preview.',
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    openMatch(solo: false);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -698,9 +739,8 @@ class _HomeState extends State<Home> {
             Expanded(
               child: Text(
                 catalog ? 'Official game catalog' : 'Your library',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             if (catalog)
@@ -735,31 +775,40 @@ class _HomeState extends State<Home> {
             gameCard(
               game.title,
               'Version ${game.version} · .zomp · ${game.asset.size < 1024 ? '${game.asset.size} B' : '${(game.asset.size / 1024).toStringAsFixed(1)} KB'}',
-              game.playable
-                  ? game.build <= installedBuild
-                        ? 'Play'
-                        : installedBuild > 0
-                        ? 'Update'
-                        : 'Install'
-                  : 'Player required',
-              !game.playable || downloadingGame
+              (installedGames[game.id]?.build ?? 0) >= game.build
+                  ? 'Play'
+                  : installedGames.containsKey(game.id)
+                  ? 'Update'
+                  : 'Install',
+              downloadingGame
                   ? null
-                  : game.build <= installedBuild
-                  ? selectMode
-                  : () => installGame(game),
+                  : () {
+                      final installed = installedGames[game.id];
+                      if (installed != null && installed.build >= game.build) {
+                        selectMode(installed);
+                      } else {
+                        installGame(game);
+                      }
+                    },
+              dropFour: game.id == 'drop-four',
             ),
             const SizedBox(height: 12),
           ],
           if (!loadingCatalog && catalogError == null && releases.isEmpty)
             const Text('No games in the catalog yet.'),
-        ] else if (installed)
-          gameCard(
-            'Drop Four',
-            'Solo · Pass and play',
-            'Play',
-            selectMode,
-            share: _shareInstalledGame,
-          )
+        ] else if (installedGames.isNotEmpty)
+          for (final game in installedGames.values) ...[
+            gameCard(
+              game.title,
+              'Version ${game.version} · .zomp',
+              'Play',
+              downloadingGame ? null : () => selectMode(game),
+              dropFour: game.id == 'drop-four',
+              share: () => _shareInstalledGame(game),
+              remove: downloadingGame ? null : () => _removeGame(game),
+            ),
+            const SizedBox(height: 12),
+          ]
         else
           Card(
             child: Padding(
@@ -775,7 +824,7 @@ class _HomeState extends State<Home> {
                   const SizedBox(height: 12),
                   const Text('Your library is empty'),
                   const SizedBox(height: 4),
-                  const Text('Open Get Games to add Drop Four.'),
+                  const Text('Open Get Games to download a game.'),
                   const SizedBox(height: 14),
                   OutlinedButton(
                     onPressed: browseGames,
@@ -794,13 +843,15 @@ class _HomeState extends State<Home> {
     String description,
     String button,
     VoidCallback? action, {
+    required bool dropFour,
     VoidCallback? share,
+    VoidCallback? remove,
   }) => Card(
     clipBehavior: Clip.antiAlias,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 146, child: GameCover()),
+        if (dropFour) const SizedBox(height: 146, child: GameCover()),
         Padding(
           padding: const EdgeInsets.all(17),
           child: Row(
@@ -821,11 +872,20 @@ class _HomeState extends State<Home> {
                   ],
                 ),
               ),
-              if (share != null)
-                IconButton(
-                  tooltip: 'Share game',
-                  onPressed: share,
-                  icon: const Icon(Icons.share_outlined),
+              if (share != null || remove != null)
+                PopupMenuButton<String>(
+                  tooltip: 'Game options',
+                  onSelected: (choice) =>
+                      (choice == 'remove' ? remove : share)?.call(),
+                  itemBuilder: (_) => [
+                    if (share != null)
+                      const PopupMenuItem(value: 'share', child: Text('Share')),
+                    if (remove != null)
+                      const PopupMenuItem(
+                        value: 'remove',
+                        child: Text('Remove'),
+                      ),
+                  ],
                 ),
               FilledButton(onPressed: action, child: Text(button)),
             ],
@@ -968,394 +1028,6 @@ class Piece extends StatelessWidget {
   }
 }
 
-class MatchPage extends StatefulWidget {
-  const MatchPage({
-    super.key,
-    required this.solo,
-    required this.saved,
-    required this.messages,
-    required this.save,
-    required this.saveMessages,
-    required this.sound,
-  });
-  final bool solo;
-  final List? saved;
-  final List<String> messages;
-  final ValueChanged<List<int>> save;
-  final ValueChanged<List<String>> saveMessages;
-  final bool sound;
-  @override
-  State<MatchPage> createState() => _MatchPageState();
-}
-
-class _MatchPageState extends State<MatchPage> {
-  late Board board = widget.saved == null ? Board() : Board.from(widget.saved!);
-  int? selected;
-  bool chat = false;
-  List<String> get messages => widget.messages;
-  bool get finished => board.winner != 0 || board.full;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.solo && board.turn == 2 && !finished) {
-      Future<void>.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && !finished && board.turn == 2)
-          commit(board.computerMove());
-      });
-    }
-  }
-
-  void commit(int column) {
-    if (!board.drop(column)) return;
-    if (widget.sound) SystemSound.play(SystemSoundType.click);
-    setState(() => selected = null);
-    widget.save(List.of(board.cells));
-    if (widget.solo && board.turn == 2 && !finished) {
-      Future<void>.delayed(const Duration(milliseconds: 330), () {
-        if (mounted && !finished && board.turn == 2)
-          commit(board.computerMove());
-      });
-    }
-  }
-
-  Widget dock() => ChatPanel(
-    messages: messages,
-    onClose: toggleChat,
-    onChange: (value) {
-      messages
-        ..clear()
-        ..addAll(value);
-      widget.saveMessages(List.of(value));
-    },
-  );
-
-  void toggleChat() {
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => chat = !chat);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final winner = board.winner;
-    final title = winner != 0
-        ? (widget.solo
-              ? (winner == 1 ? 'You win!' : 'Computer wins')
-              : 'Player $winner wins!')
-        : board.full
-        ? 'Draw'
-        : widget.solo
-        ? (board.turn == 1 ? 'Your turn' : 'Computer is moving…')
-        : 'Player ${board.turn}’s turn';
-    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final canPlay = !finished && (!widget.solo || board.turn == 1);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Drop Four',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        actions: [
-          if (!widget.solo)
-            IconButton(
-              tooltip: chat ? 'Close match chat' : 'Open match chat',
-              onPressed: toggleChat,
-              icon: Icon(chat ? Icons.chat_bubble : Icons.chat_bubble_outline),
-            ),
-          IconButton(
-            tooltip: 'Restart game',
-            icon: const Icon(Icons.restart_alt),
-            onPressed: () async {
-              final reset = await showDialog<bool>(
-                context: context,
-                builder: (c) => AlertDialog(
-                  title: const Text('Restart this game?'),
-                  content: const Text('The current board will be cleared.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(c, false),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(c, true),
-                      child: const Text('Restart'),
-                    ),
-                  ],
-                ),
-              );
-              if (mounted && reset == true) {
-                setState(() {
-                  board = Board();
-                  selected = null;
-                });
-                widget.save(board.cells.toList());
-              }
-            },
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, page) {
-            final dockHeight = !chat
-                ? 0.0
-                : keyboard
-                ? page.maxHeight
-                : (page.maxHeight * .46).clamp(0.0, 205.0);
-            return Column(
-              children: [
-                SizedBox(
-                  height: page.maxHeight - dockHeight,
-                  child: LayoutBuilder(
-                    builder: (context, bounds) {
-                      return Center(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 10,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: bounds.maxHeight > 480 ? 460 : 340,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    Piece(
-                                      side: winner == 0 ? board.turn : winner,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Flexible(
-                                      child: Text(
-                                        title,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: ZompadoBrand.darkPanel,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: ZompadoBrand.wordmarkBlue,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: AspectRatio(
-                                    aspectRatio: 7 / 6,
-                                    child: Row(
-                                      children: List.generate(7, (column) {
-                                        final previewSlot = selected == column
-                                            ? board.landing(column)
-                                            : -1;
-                                        return Expanded(
-                                          child: Semantics(
-                                            button: true,
-                                            label: 'Column ${column + 1}',
-                                            selected: selected == column,
-                                            enabled:
-                                                canPlay &&
-                                                board.landing(column) >= 0,
-                                            child: InkWell(
-                                              onTap:
-                                                  canPlay &&
-                                                      board.landing(column) >= 0
-                                                  ? () => setState(
-                                                      () => selected = column,
-                                                    )
-                                                  : null,
-                                              child: Column(
-                                                children: List.generate(6, (
-                                                  row,
-                                                ) {
-                                                  final slot = row * 7 + column;
-                                                  return Expanded(
-                                                    child: Center(
-                                                      child: FractionallySizedBox(
-                                                        widthFactor: .84,
-                                                        heightFactor: .84,
-                                                        child: LayoutBuilder(
-                                                          builder: (context, cell) => Center(
-                                                            child: Piece(
-                                                              side:
-                                                                  slot ==
-                                                                      previewSlot
-                                                                  ? board.turn
-                                                                  : board
-                                                                        .cells[slot],
-                                                              size: cell
-                                                                  .biggest
-                                                                  .shortestSide,
-                                                              preview:
-                                                                  slot ==
-                                                                  previewSlot,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  );
-                                                }),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                FilledButton(
-                                  onPressed: selected != null && canPlay
-                                      ? () => commit(selected!)
-                                      : null,
-                                  child: Text(
-                                    widget.solo ? 'Drop piece' : 'Confirm move',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (chat) SizedBox(height: dockHeight, child: dock()),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class ChatPanel extends StatefulWidget {
-  const ChatPanel({
-    super.key,
-    required this.messages,
-    required this.onChange,
-    this.onClose,
-  });
-  final List<String> messages;
-  final ValueChanged<List<String>> onChange;
-  final VoidCallback? onClose;
-  @override
-  State<ChatPanel> createState() => _ChatPanelState();
-}
-
-class _ChatPanelState extends State<ChatPanel> {
-  late final List<String> messages = List.of(widget.messages);
-  final input = TextEditingController();
-  @override
-  void dispose() {
-    input.dispose();
-    super.dispose();
-  }
-
-  void send() {
-    final message = input.text.trim();
-    if (message.isEmpty) return;
-    setState(() => messages.add(message));
-    widget.onChange(List.of(messages));
-    input.clear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: colors.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 8, 8),
-        child: Column(
-          children: [
-            if (widget.onClose != null)
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Local chat preview',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close chat',
-                    onPressed: widget.onClose,
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            Expanded(
-              child: messages.isEmpty
-                  ? const Center(child: Text('Messages stay on this phone.'))
-                  : ListView.builder(
-                      reverse: true,
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) => Align(
-                        alignment: Alignment.centerRight,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 7,
-                            horizontal: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colors.secondaryContainer,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            messages[messages.length - 1 - index],
-                            style: TextStyle(
-                              color: colors.onSecondaryContainer,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: input,
-                    maxLength: 500,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => send(),
-                    decoration: const InputDecoration(
-                      hintText: 'Write a message',
-                      counterText: '',
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Save preview message',
-                  onPressed: send,
-                  icon: const Icon(Icons.send_rounded),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class Preferences extends StatefulWidget {
   const Preferences({
     super.key,
@@ -1400,9 +1072,8 @@ class _PreferencesState extends State<Preferences> {
             'Find answers about games, friends, and updates',
           ),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
+          onTap: () => Navigator.of(context)
+              .push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
         ),
         ListTile(
           leading: const Icon(Icons.palette_outlined),
@@ -1423,12 +1094,6 @@ class _PreferencesState extends State<Preferences> {
               }
             },
           ),
-        ),
-        SwitchListTile(
-          secondary: const Icon(Icons.volume_up_outlined),
-          title: const Text('Game sound effects'),
-          value: widget.data['effects'] != false,
-          onChanged: (value) => setState(() => widget.write('effects', value)),
         ),
         if (widget.updates case final updates?)
           ListenableBuilder(

@@ -15,8 +15,15 @@ val installChatmailCore by tasks.registering(Exec::class) {
     outputs.file(chatmailExecutable)
     commandLine("bash", chatmailInstaller.absolutePath, chatmailExecutable.get().asFile.absolutePath)
 }
+val loveAssets = layout.buildDirectory.dir("love-runtime/assets")
+val loveInstaller = rootProject.file("../tools/install_love_runtime.sh")
+val installLoveRuntime by tasks.registering(Exec::class) {
+    inputs.file(loveInstaller)
+    outputs.dir(loveAssets)
+    commandLine("bash", loveInstaller.absolutePath, loveAssets.get().asFile.absolutePath)
+}
 tasks.named("preBuild") {
-    dependsOn(installChatmailCore)
+    dependsOn(installChatmailCore, installLoveRuntime)
 }
 
 android {
@@ -31,6 +38,7 @@ android {
     }
 
     sourceSets["main"].jniLibs.srcDir(chatmailNativeLibraries.get().asFile)
+    sourceSets["main"].assets.srcDir(loveAssets.get().asFile)
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

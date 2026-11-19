@@ -90,21 +90,18 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           _GuideHeader(
             icon: Icons.tune_rounded,
             title: widget.firstRun ? 'Welcome to Zompado' : 'Set up Zompado',
-            text:
-                'Get ready to play. You can change these choices any time in Settings → Setup.',
+            text: 'Get ready to play. You can change these choices any time in Settings → Setup.',
           ),
           const SizedBox(height: 16),
           const _SetupCard(
             icon: Icons.language_rounded,
             title: 'Internet access',
-            text:
-                'Android already allows Zompado to connect for game downloads, chats, and updates. Installed solo games can be played offline.',
+            text: 'Android already allows Zompado to connect for game downloads, chats, and updates. Installed solo games can be played offline.',
           ),
           _SetupCard(
             icon: Icons.notifications_active_outlined,
             title: 'Notifications',
-            text:
-                'Get alerts for messages, calls, matches, and app updates. After Android closes Zompado, friend activity alerts can arrive on the next scheduled check.',
+            text: 'Get alerts for messages, calls, matches, and app updates. After Android closes Zompado, friend activity alerts can arrive on the next scheduled check.',
             enabled: _status?['notifications'],
             action: !_working && _status?['notifications'] == false
                 ? () => _open('requestUpdateNotifications')
@@ -124,8 +121,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           _SetupCard(
             icon: Icons.system_update_alt_rounded,
             title: 'Install updates from Zompado',
-            text:
-                'Allow Zompado to open Android’s installer for future updates. Android still asks you to confirm each installation.',
+            text: 'Allow Zompado to open Android’s installer for future updates. Android still asks you to confirm each installation.',
             enabled: _status?['updateInstall'],
             action: !_working && _status?['updateInstall'] == false
                 ? () => _open('openUpdateInstallSettings')
@@ -268,8 +264,12 @@ const _topics = [
         'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Resume from the match card or from Your turn in My Games. Tap the chat bubble on the board to talk to your friend.',
       ),
       (
+        'How do I remove a downloaded game?',
+        'Open My Games, tap the menu on the game, then tap Remove. This removes its download and keeps its save files.',
+      ),
+      (
         'Can I import my own .love game?',
-        'Open Games → Import a .love game to check an archive and save a copy on this device. In-app playback of imported games is still in development. Official catalog games use .zomp.',
+        'Open Games → Import a .love game, choose the file, then tap Play next to its name. Official catalog games use .zomp.',
       ),
       (
         'Can I play with someone next to me?',
@@ -361,8 +361,7 @@ class _HelpPageState extends State<HelpPage> {
             const _GuideHeader(
               icon: Icons.help_outline_rounded,
               title: 'How can we help?',
-              text:
-                  'Find quick answers about games, friends, and setting up Zompado.',
+              text: 'Find quick answers about games, friends, and setting up Zompado.',
             ),
             const SizedBox(height: 14),
             TextField(

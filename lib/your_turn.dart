@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'chatmail.dart';
 import 'friends.dart';
 import 'game_link.dart';
+import 'github_distribution.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
 
@@ -16,7 +17,7 @@ class YourTurn extends StatefulWidget {
   });
 
   final Chatmail chatmail;
-  final Future<bool> Function(GameLink) prepareGame;
+  final Future<GameRelease?> Function(GameLink) prepareGame;
 
   @override
   State<YourTurn> createState() => _YourTurnState();

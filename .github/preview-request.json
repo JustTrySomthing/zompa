@@ -1,6 +1,5 @@
 {
-  "version": "0.5.6",
-  "build": 12,
-  "purpose": "Test voice calls, microphone routing and Android-scheduled friend alerts after process death.",
-  "revision": 3
+  "version": "0.5.7",
+  "build": 13,
+  "purpose": "Run downloaded .zomp games and imported .love files in the built-in LÖVE player."
 }

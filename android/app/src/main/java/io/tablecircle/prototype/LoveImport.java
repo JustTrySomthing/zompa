@@ -20,7 +20,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 final class LoveImport {
-    private static final long MAX_PACKAGE_BYTES = 64L * 1024 * 1024;
+    static final long MAX_PACKAGE_BYTES = 64L * 1024 * 1024;
     private static final long MAX_CONTENT_BYTES = 192L * 1024 * 1024;
     private static final int MAX_ENTRIES = 4096;
 
@@ -56,12 +56,7 @@ final class LoveImport {
                 }
             }
             validate(pending);
-            StringBuilder key = new StringBuilder(64);
-            for (var value : digest.digest()) {
-                key.append(Character.forDigit((value & 0xff) >> 4, 16));
-                key.append(Character.forDigit(value & 0xf, 16));
-            }
-            String id = key.toString();
+            String id = hex(digest.digest());
             long bytes = pending.length();
             File destination = new File(directory, id + ".love");
             if (!destination.isFile() && !pending.renameTo(destination)) {
@@ -139,7 +134,16 @@ final class LoveImport {
         if (!hasEntry) throw new IOException("This game needs a main.lua file at the top level.");
     }
 
-    private static MessageDigest sha256() {
+    static String hex(byte[] bytes) {
+        StringBuilder key = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) {
+            key.append(Character.forDigit((value & 0xff) >> 4, 16));
+            key.append(Character.forDigit(value & 0xf, 16));
+        }
+        return key.toString();
+    }
+
+    static MessageDigest sha256() {
         try {
             return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {

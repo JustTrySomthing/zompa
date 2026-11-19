@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'love_player.dart';
+
 class LoveImports extends StatefulWidget {
   const LoveImports({
     super.key,
@@ -79,10 +81,7 @@ class _LoveImportsState extends State<LoveImports> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text(
-              'Choose a .love file to check and save it on this device. '
-              'An in-app LÖVE player is required before you can play these games.',
-            ),
+            const Text('Choose a .love file to add a game from this device.'),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: _busy ? null : _import,
@@ -109,13 +108,34 @@ class _LoveImportsState extends State<LoveImports> {
                     title: Text(title),
                     subtitle: Text(
                       bytes < 1024
-                          ? '$bytes B · Saved for playback'
-                          : '${(bytes / 1024).toStringAsFixed(1)} KB · Saved for playback',
+                          ? '$bytes B · .love'
+                          : '${(bytes / 1024).toStringAsFixed(1)} KB · .love',
                     ),
-                    trailing: IconButton(
-                      tooltip: 'Remove saved copy',
-                      onPressed: _busy ? null : () => _remove(id),
-                      icon: const Icon(Icons.delete_outline),
+                    trailing: Wrap(
+                      spacing: 4,
+                      children: [
+                        IconButton(
+                          tooltip: 'Play',
+                          onPressed: _busy
+                              ? null
+                              : () => Navigator.of(context).push<void>(
+                                  MaterialPageRoute(
+                                    builder: (_) => Scaffold(
+                                      appBar: AppBar(title: Text(title)),
+                                      body: SafeArea(
+                                        child: LoveGameView.imported(id: id),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          icon: const Icon(Icons.play_arrow),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove saved copy',
+                          onPressed: _busy ? null : () => _remove(id),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
                     ),
                   ),
                 ),

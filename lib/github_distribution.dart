@@ -50,20 +50,31 @@ class GameRelease {
       title = json['title'] as String,
       version = json['version'] as String,
       build = json['build'] as int,
+      modes =
+          (json['modes'] as List?)?.cast<String>().toSet() ?? const {'solo'},
       asset = ReleaseAsset.fromJson(json, gamesRepository, '.zomp') {
-    if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
+    if (id.length > 64 ||
+        !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
         json['format'] != 'zomp' ||
         title.isEmpty ||
         title.length > 90 ||
         !RegExp(r'^\d+\.\d+\.\d+$').hasMatch(version) ||
-        build < 1) {
+        build < 1 ||
+        build > 2147483647 ||
+        asset.size > 64 * 1024 * 1024 ||
+        !modes.contains('solo')) {
       throw const FormatException('Invalid game catalog entry.');
     }
   }
   final String id, title, version;
   final int build;
   final ReleaseAsset asset;
-  bool get playable => id == 'drop-four';
+  final Set<String> modes;
+  Map<String, Object> get playerReference => {
+    'id': id,
+    'build': build,
+    'sha': asset.sha,
+  };
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -71,6 +82,7 @@ class GameRelease {
     'version': version,
     'build': build,
     'format': 'zomp',
+    'modes': modes.toList(),
     'url': asset.url.toString(),
     'sha256': asset.sha,
     'size': asset.size,
@@ -97,9 +109,12 @@ class GithubDistribution {
   GithubDistribution(this.directory);
   final Directory directory;
 
-  Future<List<GameRelease>> catalog() async {
+  Future<List<GameRelease>> catalog({bool includeArchive = false}) async {
     final json = await _manifest(gamesRepository, 'catalog-v2.json', schema: 2);
-    final entries = json['games'] as List;
+    final entries = [
+      ...(json['games'] as List),
+      if (includeArchive) ...(json['archive'] as List? ?? const []),
+    ];
     return entries
         .map(
           (entry) =>
@@ -141,10 +156,19 @@ class GithubDistribution {
     }
   }
 
-  Future<File> installGame(GameRelease game) => _download(
-    game.asset,
-    File('${directory.path}/games/${game.id}/${game.build}.zomp'),
-  );
+  File gameFile(GameRelease game) =>
+      File('${directory.path}/games/${game.id}/${game.build}.zomp');
+
+  Future<File> installGame(GameRelease game) =>
+      _download(game.asset, gameFile(game));
+
+  Future<bool> verifyGame(GameRelease game) =>
+      _matchesAsset(game.asset, gameFile(game));
+
+  Future<void> removeGame(GameRelease game) async {
+    final folder = gameFile(game).parent;
+    if (await folder.exists()) await folder.delete(recursive: true);
+  }
 
   Future<File> stageUpdate(AppRelease release) => _download(
     release.asset,

@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'brand.dart';
 import 'chatmail.dart';
 import 'game_link.dart';
+import 'github_distribution.dart';
 import 'online_match.dart';
+import 'love_player.dart';
 
 class OnlineMatchPage extends StatefulWidget {
   const OnlineMatchPage({
@@ -20,7 +21,7 @@ class OnlineMatchPage extends StatefulWidget {
   final Chatmail chatmail;
   final int chat;
   final String id;
-  final Future<bool> Function(GameLink) prepareGame;
+  final Future<GameRelease?> Function(GameLink) prepareGame;
   final Widget Function(VoidCallback close) buildChatDock;
 
   @override
@@ -30,6 +31,8 @@ class OnlineMatchPage extends StatefulWidget {
 class _OnlineMatchPageState extends State<OnlineMatchPage>
     with WidgetsBindingObserver {
   OnlineMatch? _match;
+  GameRelease? _game;
+  bool _preparing = false;
   StreamSubscription<void>? _events;
   Timer? _timer;
   bool _loading = false, _again = false, _sending = false;
@@ -129,7 +132,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _error = null;
     });
     try {
-      if (prepare != null && !await widget.prepareGame(prepare)) return;
+      if (prepare != null) {
+        final game = await widget.prepareGame(prepare);
+        if (!mounted || game == null) return;
+        setState(() => _game = game);
+      }
       if (!mounted) return;
       await widget.chatmail.send(widget.chat, message);
       await _load();
@@ -142,6 +149,31 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Future<void> _openBoard(GameLink link) async {
+    if (_preparing) return;
+    setState(() => _preparing = true);
+    try {
+      final game = await widget.prepareGame(link);
+      if (mounted && game != null) setState(() => _game = game);
+    } finally {
+      if (mounted) setState(() => _preparing = false);
+    }
+  }
+
+  void _move(int column) {
+    final match = _match;
+    if (match == null ||
+        _sending ||
+        _chatOpen ||
+        _error != null ||
+        !match.myTurn ||
+        column < 0 ||
+        column >= 7 ||
+        match.board.landing(column) < 0)
+      return;
+    unawaited(_send(match.invite.move(match.moves, column).wire));
   }
 
   String _status(OnlineMatch match) {
@@ -255,97 +287,38 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                     : 'Your pieces are purple.',
                               ),
                             ),
-                          if (match.accepted)
+                          if (match.accepted && _game == null)
+                            FilledButton(
+                              onPressed: _preparing
+                                  ? null
+                                  : () => _openBoard(match.invite.game!),
+                              child: Text(
+                                _preparing
+                                    ? 'Preparing game…'
+                                    : 'Install if needed and open board',
+                              ),
+                            ),
+                          if (_game case final GameRelease game
+                              when match.accepted)
                             Center(
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
-                                  maxWidth: 460,
+                                  maxWidth: 560,
                                 ),
-                                child: Card(
-                                  color: ZompadoBrand.darkPanel,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(6),
-                                    child: Row(
-                                      children: [
-                                        for (
-                                          var column = 0;
-                                          column < 7;
-                                          column++
-                                        )
-                                          Expanded(
-                                            child: Semantics(
-                                              button: true,
-                                              label:
-                                                  'Drop piece in column ${column + 1}',
-                                              child: InkWell(
-                                                onTap:
-                                                    !_sending &&
-                                                        _error == null &&
-                                                        match.myTurn &&
-                                                        match.board.landing(
-                                                              column,
-                                                            ) >=
-                                                            0
-                                                    ? () => _send(
-                                                        match.invite
-                                                            .move(
-                                                              match.moves,
-                                                              column,
-                                                            )
-                                                            .wire,
-                                                      )
-                                                    : null,
-                                                child: Column(
-                                                  children: [
-                                                    for (
-                                                      var row = 0;
-                                                      row < 6;
-                                                      row++
-                                                    )
-                                                      AspectRatio(
-                                                        aspectRatio: 1,
-                                                        child: Padding(
-                                                          padding:
-                                                              const EdgeInsets.all(
-                                                                3,
-                                                              ),
-                                                          child: DecoratedBox(
-                                                            decoration: BoxDecoration(
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                              color: switch (match
-                                                                  .board
-                                                                  .cells[row *
-                                                                      7 +
-                                                                  column]) {
-                                                                1 =>
-                                                                  const Color(
-                                                                    0xffffc65a,
-                                                                  ),
-                                                                2 =>
-                                                                  const Color(
-                                                                    0xffcab1ff,
-                                                                  ),
-                                                                _ =>
-                                                                  ZompadoBrand
-                                                                      .ink,
-                                                              },
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
+                                child: AspectRatio(
+                                  aspectRatio: 540 / 620,
+                                  child: LoveGameView.official(
+                                    key: ValueKey('${widget.id}/${game.build}'),
+                                    game: game,
+                                    mode: 'online',
+                                    match:
+                                        '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _error == null && match.myTurn ? 1 : 0}',
+                                    onMove: _move,
                                   ),
                                 ),
                               ),
                             ),
-                          if (match.accepted)
+                          if (match.accepted && _game != null)
                             const Padding(
                               padding: EdgeInsets.only(top: 12),
                               child: Text(

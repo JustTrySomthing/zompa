@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
 import 'game_link.dart';
+import 'github_distribution.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
 import 'voice_calls.dart';
@@ -15,8 +16,7 @@ String _failure(Object error) => switch (error) {
   ChatmailIssue.unavailable =>
     'The Chatmail connection stopped. Retry from Chats.',
   TimeoutException() => 'Chatmail took too long to respond. Try again.',
-  _ =>
-    'Chatmail couldn’t complete this action. Check your connection and try again.',
+  _ => 'Chatmail couldn’t complete this action. Check your connection and try again.',
 };
 
 class FriendsPane extends StatefulWidget {
@@ -33,7 +33,7 @@ class FriendsPane extends StatefulWidget {
   final Future<void> Function(String) share;
   final Future<String?> Function() pickGameLink;
   final Future<void> Function(GameLink) openGameLink;
-  final Future<bool> Function(GameLink) prepareGame;
+  final Future<GameRelease?> Function(GameLink) prepareGame;
 
   @override
   State<FriendsPane> createState() => _FriendsPaneState();
@@ -359,9 +359,8 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
       _scanError = null;
     });
     try {
-      final value = await const MethodChannel(
-        'io.zompado.host',
-      ).invokeMethod<String>('scanFriendInvite');
+      final value = await const MethodChannel('io.zompado.host')
+          .invokeMethod<String>('scanFriendInvite');
       if (!mounted || value == null) return;
       if (value.isEmpty || value.length > 4096) {
         setState(
@@ -375,8 +374,7 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
     } on PlatformException {
       if (mounted)
         setState(
-          () => _scanError =
-              'Scanner unavailable. Ask your friend to share the invite link and paste it here.',
+          () => _scanError = 'Scanner unavailable. Ask your friend to share the invite link and paste it here.',
         );
     } on MissingPluginException {
       if (mounted)
@@ -475,7 +473,7 @@ class FriendConversation extends StatefulWidget {
   final String initialName;
   final Future<String?> Function()? pickGameLink;
   final Future<void> Function(GameLink)? openGameLink;
-  final Future<bool> Function(GameLink)? prepareGame;
+  final Future<GameRelease?> Function(GameLink)? prepareGame;
 
   @override
   State<FriendConversation> createState() => _FriendConversationState();

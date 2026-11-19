@@ -43,6 +43,8 @@ public final class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
+        flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
+            "io.zompado.love", new LovePlayer.Factory(flutterEngine.getDartExecutor().getBinaryMessenger()));
         ChatAlerts.setup(this);
         ChatSyncJob.schedule(this);
         openChats = ChatAlerts.OPEN_CHATS.equals(getIntent().getAction());
@@ -59,6 +61,21 @@ public final class MainActivity extends FlutterActivity {
                         ChatSyncJob.claimForApp();
                         File core = ChatSyncJob.executable(MainActivity.this);
                         result.success(core.canExecute() ? core.getAbsolutePath() : null);
+                        break;
+                    case "checkLoveGame":
+                        if (!(call.arguments instanceof Map)) {
+                            result.error("LOVE_IMPORT", "Invalid game reference.", null);
+                            break;
+                        }
+                        Map<?, ?> gameReference = (Map<?, ?>) call.arguments;
+                        new Thread(() -> {
+                            try {
+                                LovePlayer.verify(MainActivity.this, gameReference);
+                                runOnUiThread(() -> result.success(null));
+                            } catch (Exception error) {
+                                runOnUiThread(() -> result.error("LOVE_IMPORT", error.getMessage(), null));
+                            }
+                        }, "zompado-love-check").start();
                         break;
                     case "importLoveGame":
                         pickLoveGame(result);
