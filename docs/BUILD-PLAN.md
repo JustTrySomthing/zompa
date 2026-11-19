@@ -23,7 +23,18 @@ The [live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44
 
 Install the signed preview on two ARM64 Android phones. Use a 16 KB Android phone or emulator for the new alignment check. Open **Chats** and create a profile on each phone. On the first phone, tap **Invite friend**, then copy or share its link. On the second phone, use **Accept invite**, scan the QR code or paste an invite link, and wait for the connection to finish. Exchange messages both ways, check unread badges when the conversation is closed, then restart both apps and verify that the chats and Drop Four saves persist. Keep both apps open for initial validation.
 
-Repeat on Wi-Fi and mobile data. Confirm that the sending state clears when the server accepts a message, that status changes do not duplicate messages, and that the profile remains usable offline and after reconnecting. Verify voice calls and online turns separately after this baseline is proven.
+Repeat on Wi-Fi and mobile data. Confirm that the sending state clears when the server accepts a message, that status changes do not duplicate messages, and that the profile remains usable offline and after reconnecting.
+
+- In an online Drop Four match, send a message from the chat dock, close it, and play a turn. On the other device, open **Games → My Games → Your turn** and confirm that it opens the same board.
+- Allow notifications in **Settings → Setup**, background one phone, then send an encrypted chat message and advance an online match from the other phone. Repeat with the screen locked. Record what happens after Android stops the process separately.
+- Open **Games → Import a .love game** with a valid archive and a damaged archive. The valid file should appear once and be removable. The damaged archive should show an error. Imported games become playable after the isolated player is integrated.
+- On a 16 KB test device, check that `adb shell getconf PAGE_SIZE` returns `16384` before testing Chatmail startup, an invite, and two-way messaging. The build-time ELF check verifies alignment. The phone test verifies execution.
+
+### Android implementation notes
+
+**Calls.** Chatmail Core 2.69.0 exposes `place_outgoing_call`, `accept_incoming_call`, `end_call` and `ice_servers`. The event stream reports `IncomingCall`, `IncomingCallAccepted`, `OutgoingCallAccepted` and `CallEnded`. The app still needs a WebRTC audio session, a 16 KB-aligned Android dependency, microphone permission, audio routing and two-device tests of both direct and relay connections. [Pinned RPC implementation](https://github.com/chatmail/core/blob/v2.69.0/deltachat-jsonrpc/src/api.rs).
+
+**LÖVE.** The upstream Android port initializes LÖVE through its SDL activity. The bundled player needs an Android service with `isolatedProcess` enabled and a surface inside Zompado. Prototype loading one game from a read-only file descriptor and rendering to a host-owned surface before connecting the save or turn APIs. Use the .love import staging directory as the source of the descriptor. Keep the service private and deny access to app files, chats, microphone, and network. [Upstream Android loader](https://github.com/love2d/love-android/blob/11.5a/love/src/main/java/org/love2d/android/GameActivity.java) · [Android isolated services](https://developer.android.com/guide/topics/manifest/service-element).
 
 ## First release
 
