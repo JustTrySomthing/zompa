@@ -1,5 +1,7 @@
 package io.tablecircle.prototype;
 
+import android.Manifest;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -12,12 +14,16 @@ import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodCall;
 
 public final class MainActivity extends FlutterActivity {
+    private static final int REQUEST_NOTIFICATIONS = 390;
+    private MethodChannel.Result notificationRequest;
+
     @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
@@ -46,6 +52,45 @@ public final class MainActivity extends FlutterActivity {
                         startActivity(Intent.createChooser(shareInvite, "Share friend invite"));
                         result.success(null);
                         break;
+                    case "setupStatus":
+                        HashMap<String, Boolean> statuses = new HashMap<>();
+                        statuses.put("notifications", updateAlertsEnabled());
+                        statuses.put("updateInstall", Build.VERSION.SDK_INT < 26
+                            || getPackageManager().canRequestPackageInstalls());
+                        result.success(statuses);
+                        break;
+                    case "requestUpdateNotifications":
+                        if (Build.VERSION.SDK_INT >= 33
+                                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                                    != PackageManager.PERMISSION_GRANTED
+                                && !getPreferences(MODE_PRIVATE).getBoolean("asked_update_alerts", false)) {
+                            if (notificationRequest != null) {
+                                result.error("NOTIFICATION_REQUEST", "A permission prompt is already open.", null);
+                                break;
+                            }
+                            notificationRequest = result;
+                            getPreferences(MODE_PRIVATE).edit().putBoolean("asked_update_alerts", true).apply();
+                            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS },
+                                REQUEST_NOTIFICATIONS);
+                        } else {
+                            if (!updateAlertsEnabled()) {
+                                Intent notificationSettings = Build.VERSION.SDK_INT >= 26
+                                    ? new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
+                                    : new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.parse("package:" + getPackageName()));
+                                startActivity(notificationSettings);
+                            }
+                            result.success(null);
+                        }
+                        break;
+                    case "openUpdateInstallSettings":
+                        if (Build.VERSION.SDK_INT >= 26) {
+                            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:" + getPackageName())));
+                        }
+                        result.success(null);
+                        break;
                     case "scheduleUpdates":
                         UpdateCheckJob.schedule(MainActivity.this, Boolean.TRUE.equals(call.argument("enabled")));
                         result.success(null);
@@ -67,6 +112,19 @@ public final class MainActivity extends FlutterActivity {
                 }
                 }
             });
+    }
+
+    private boolean updateAlertsEnabled() {
+        return getSystemService(NotificationManager.class).areNotificationsEnabled();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_NOTIFICATIONS && notificationRequest != null) {
+            notificationRequest.success(null);
+            notificationRequest = null;
+        }
     }
 
     @SuppressWarnings("deprecation")

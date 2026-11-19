@@ -44,6 +44,8 @@ Stabilize and test gameplay, the game library, and the game SDK before starting 
 
 ## Settings and defaults
 
+First-run Setup explains internet access and offers optional Android permissions for update alerts and in-app installation. Settings keeps Setup and searchable Help available after onboarding. Add future permissions alongside the features that use them.
+
 - **Voice:** Mute mic, earpiece/speaker/headset routing, and hang up during calls. Support Android call volume buttons. Add a separate voice playback slider if it works reliably across the supported audio routes.
 - **Game audio:** Music and Sound effects sliders, Mute game audio, and Lower game audio during calls enabled by default. Restore the previous game level when the call ends. Expose the controls from the pause menu. Official games and templates use a shared audio API. Compatibility imports may support overall volume only.
 - **Appearance:** System, Light, or Dark, accent color, text size with preview, and reduced motion.

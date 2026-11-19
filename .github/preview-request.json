@@ -1,6 +1,5 @@
 {
-  "version": "0.5.0",
-  "build": 6,
-  "revision": 2,
-  "purpose": "Test the first Chatmail profile, friend invite, and messaging build."
+  "version": "0.5.1",
+  "build": 7,
+  "purpose": "Verify first-launch setup, permission controls, and searchable in-app Help."
 }

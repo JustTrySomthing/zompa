@@ -12,6 +12,7 @@ import 'app_updates.dart';
 import 'github_distribution.dart';
 import 'chatmail.dart';
 import 'friends.dart';
+import 'setup_help.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
@@ -42,6 +43,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   GithubDistribution? distribution;
   AppUpdates? updates;
   Chatmail? chatmail;
+  bool loaded = false;
 
   @override
   void initState() {
@@ -77,6 +79,11 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       updates!.syncSchedule();
       updates!.checkIfDue();
     }
+    setState(() => loaded = true);
+  }
+
+  void finishSetup() {
+    write('setupComplete', true);
     setState(() {});
   }
 
@@ -120,17 +127,21 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       darkTheme: ZompadoBrand.theme(Brightness.dark),
       builder: (context, child) => BrandLaunch(child: child!),
       themeMode: mode,
-      home: Home(
-        data: data,
-        write: write,
-        distribution: distribution,
-        updates: updates,
-        chatmail: chatmail,
-        onTheme: (value) {
-          write('theme', value.name);
-          setState(() => mode = value);
-        },
-      ),
+      home: !loaded
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : data['setupComplete'] != true
+          ? SetupPage(host: bridge, firstRun: true, onDone: finishSetup)
+          : Home(
+              data: data,
+              write: write,
+              distribution: distribution,
+              updates: updates,
+              chatmail: chatmail,
+              onTheme: (value) {
+                write('theme', value.name);
+                setState(() => mode = value);
+              },
+            ),
     );
   }
 }
@@ -1055,6 +1066,31 @@ class _PreferencesState extends State<Preferences> {
     body: ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
+        ListTile(
+          leading: const Icon(Icons.tune_rounded),
+          title: const Text('Setup'),
+          subtitle: const Text('Review permissions and update options'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (route) => SetupPage(
+                host: bridge,
+                onDone: () => Navigator.of(route).pop(),
+              ),
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.help_outline_rounded),
+          title: const Text('Help'),
+          subtitle: const Text(
+            'Find answers about games, friends, and updates',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
+        ),
         ListTile(
           leading: const Icon(Icons.palette_outlined),
           title: const Text('Appearance'),
