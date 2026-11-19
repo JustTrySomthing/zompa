@@ -12,7 +12,13 @@ Play Drop Four against the computer or take turns on the same phone. Install off
 
 Zompado checks GitHub automatically on launch when due and about daily in the background when Android permits. You can also use **Settings → Check for updates**. The app verifies the downloaded APK and opens Android’s installer for confirmation. If you have a build from before Zompado 0.3.0, install the APK from Releases over your existing app to move to the new update and game feeds.
 
-The game catalog comes from the separate games repository. The app downloads and verifies the official Drop Four `.zomp` package before adding it to My Games. This build uses its built-in Drop Four player and supports solo or same-phone play. Its chat preview is local. Friend invites, Chatmail messaging, voice calls, online matches, and manual `.love` imports require further implementation.
+The game catalog comes from the separate games repository. The app downloads and verifies the official Drop Four `.zomp` package before adding it to My Games. The public APK uses its built-in Drop Four player for solo and same-phone play. Chat in that build is a local preview.
+
+## Chatmail developer preview
+
+The [signed 0.5.0 ARM64 preview](https://github.com/JustTrySomthing/zompado/actions/runs/44613350401#artifacts) adds Chatmail profile setup, friend invites, and encrypted text messaging. Open the run and download the `zompado-signed-android` ZIP to extract the APK. The preview supports Android ARM64 devices with 4 KB memory pages.
+
+The [live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44613099059) verified the exchange of encrypted messages between two fresh profiles on the pinned core. See the [two-phone verification steps](docs/BUILD-PLAN.md#verify-the-chatmail-preview) for the Android follow-up.
 
 ## Build
 
