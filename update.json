@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "version": "0.2.0",
+  "build": 2,
+  "abi": "arm64-v8a",
+  "url": "https://github.com/JustTrySomthing/table-circle/releases/download/v0.2.0/Table-Circle-0.2.0-ARM64.apk",
+  "sha256": "3cfd281edd91fed9d9968967b738046e952e74eac436528e2ee9a469634ecc6d",
+  "size": 48214704
+}
