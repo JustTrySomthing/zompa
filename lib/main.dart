@@ -2,12 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/services.dart';
 
 import 'board.dart';
 import 'brand.dart';
 import 'app_updates.dart';
 import 'github_distribution.dart';
+import 'chatmail.dart';
+import 'friends.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
@@ -15,6 +19,12 @@ const bridge = MethodChannel('io.zompado.host');
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    final license = await rootBundle.loadString(
+      'assets/licenses/Chatmail-Core-MPL-2.0.txt',
+    );
+    yield LicenseEntryWithLineBreaks(const ['Chatmail Core'], license);
+  });
   runApp(const Zompado());
 }
 
@@ -31,6 +41,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   Future<void> pendingWrite = Future.value();
   GithubDistribution? distribution;
   AppUpdates? updates;
+  Chatmail? chatmail;
 
   @override
   void initState() {
@@ -44,6 +55,9 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       final path = await bridge.invokeMethod<String>('dataPath');
       if (path != null) {
         storage = File('$path/profile.json');
+        final core = await bridge.invokeMethod<String>('chatmailExecutable');
+        if (mounted && core != null)
+          chatmail = Chatmail(core, Directory('$path/chatmail'));
         if (await storage!.exists()) {
           data = Map<String, dynamic>.from(
             jsonDecode(await storage!.readAsString()),
@@ -79,6 +93,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     updates?.dispose();
+    chatmail?.close();
     super.dispose();
   }
 
@@ -110,6 +125,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         write: write,
         distribution: distribution,
         updates: updates,
+        chatmail: chatmail,
         onTheme: (value) {
           write('theme', value.name);
           setState(() => mode = value);
@@ -127,8 +143,10 @@ class Home extends StatefulWidget {
     required this.onTheme,
     required this.distribution,
     required this.updates,
+    required this.chatmail,
   });
   final GithubDistribution? distribution;
+  final Chatmail? chatmail;
   final AppUpdates? updates;
   final Map<String, dynamic> data;
   final void Function(String, dynamic) write;
@@ -345,7 +363,26 @@ class _HomeState extends State<Home> {
                 ),
               ],
             ),
-          Expanded(child: isGames ? games() : chats()),
+          Expanded(
+            child: isGames
+                ? games()
+                : widget.chatmail == null
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(
+                        'Chatmail is unavailable on this device or build.',
+                      ),
+                    ),
+                  )
+                : FriendsPane(
+                    chatmail: widget.chatmail!,
+                    share: (invite) => bridge.invokeMethod<void>(
+                      'shareFriendInvite',
+                      {'invite': invite},
+                    ),
+                  ),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -518,56 +555,6 @@ class _HomeState extends State<Home> {
         ),
       ],
     ),
-  );
-
-  Widget chats() => ListView(
-    padding: const EdgeInsets.all(20),
-    children: [
-      Card(
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          leading: const CircleAvatar(
-            backgroundColor: ZompadoBrand.bubbleBlue,
-            foregroundColor: ZompadoBrand.ink,
-            child: Icon(Icons.forum_outlined),
-          ),
-          title: const Text(
-            'Local chat preview',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(
-            messages.isEmpty ? 'Messages stay on this phone' : messages.last,
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () =>
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Local chat preview')),
-                    body: SafeArea(
-                      child: ChatPanel(
-                        messages: messages,
-                        onChange: (value) =>
-                            widget.write('previewMessages', value),
-                      ),
-                    ),
-                  ),
-                ),
-              ).then((_) {
-                if (mounted) setState(() {});
-              }),
-        ),
-      ),
-      const SizedBox(height: 16),
-      Text(
-        'Friend invites, online messaging, and voice calls aren’t available yet. The local preview keeps messages on this phone.',
-        style: Theme.of(context).textTheme.bodyMedium,
-      ),
-    ],
   );
 }
 

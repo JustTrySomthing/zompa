@@ -20,7 +20,7 @@ Both repositories use `main`. Check the latest published APK and the current `up
 | Public download page | [GitHub Pages source](index.html), published from `main:/docs` |
 | Release preparation and feed update order | [RELEASE.md](RELEASE.md) |
 
-The Android prototype uses a built-in Drop Four player and installs verified official `.zomp` packages from the version 2 game catalog. The version 1 catalog is kept for older APKs. Manual `.love` imports, Chatmail contacts and messaging, voice calls, and online friend matches remain open milestones in the [build plan](BUILD-PLAN.md).
+The Android prototype uses a built-in Drop Four player and installs verified official `.zomp` packages from the version 2 game catalog. The version 1 catalog is kept for older APKs. The Chatmail developer preview and remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md). The public APK and the developer preview can be on different versions.
 
 ## Toolchain and fresh checkout
 

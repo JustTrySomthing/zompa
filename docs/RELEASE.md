@@ -7,6 +7,10 @@ To ship from the connected GitHub account, commit the code and increase the vers
 
 The workflow builds and signs on GitHub, publishes the verified APK, downloads the public asset to verify it, and then updates the in-app feed. Routine code changes and manual test runs do not publish a release. If the publish job fails after creating a release, rerun the failed jobs so the same signed artifact is used.
 
+## Signed previews
+
+A change to [the preview request](../.github/preview-request.json) on `main` builds and signs an APK. Download the `zompado-signed-android` artifact from the GitHub Actions run. Update the preview request without changing the release request to keep the public release and update feed on the stable build.
+
 ## Manual release fallback
 
 1. Increase the version and Android build code in `pubspec.yaml`. Set `installedVersion` and `installedBuild` to the same values in `lib/app_updates.dart`.

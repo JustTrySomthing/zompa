@@ -4,6 +4,19 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val chatmailNativeLibraries = layout.buildDirectory.dir("chatmail/jniLibs")
+val chatmailInstaller = rootProject.file("../tools/install_chatmail_core.sh")
+val chatmailExecutable = chatmailNativeLibraries.map { it.file("arm64-v8a/libchatmail_rpc.so") }
+
+val installChatmailCore by tasks.registering(Exec::class) {
+    inputs.file(chatmailInstaller)
+    outputs.file(chatmailExecutable)
+    commandLine("bash", chatmailInstaller.absolutePath, chatmailExecutable.get().asFile.absolutePath)
+}
+tasks.named("preBuild") {
+    dependsOn(installChatmailCore)
+}
+
 android {
     namespace = "io.tablecircle.prototype"
     compileSdk = flutter.compileSdkVersion
@@ -12,7 +25,10 @@ android {
     // Preserve native library extraction from the original APK.
     packaging {
         jniLibs.useLegacyPackaging = true
+        jniLibs.keepDebugSymbols.add("**/libchatmail_rpc.so")
     }
+
+    sourceSets["main"].jniLibs.srcDir(chatmailNativeLibraries)
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

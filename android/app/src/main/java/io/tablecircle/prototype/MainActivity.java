@@ -6,6 +6,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.system.Os;
+import android.system.OsConstants;
 import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.IOException;
@@ -26,6 +28,23 @@ public final class MainActivity extends FlutterActivity {
                 switch (call.method) {
                     case "dataPath":
                         result.success(getFilesDir().getAbsolutePath());
+                        break;
+                    case "chatmailExecutable":
+                        File core = new File(getApplicationInfo().nativeLibraryDir, "libchatmail_rpc.so");
+                        boolean compatible = Os.sysconf(OsConstants._SC_PAGESIZE) == 4096;
+                        result.success(compatible && core.canExecute() ? core.getAbsolutePath() : null);
+                        break;
+                    case "shareFriendInvite":
+                        String invite = call.argument("invite");
+                        if (invite == null || invite.isEmpty()) {
+                            result.error("FRIEND_INVITE", "Invite is unavailable.", null);
+                            break;
+                        }
+                        Intent shareInvite = new Intent(Intent.ACTION_SEND);
+                        shareInvite.setType("text/plain");
+                        shareInvite.putExtra(Intent.EXTRA_TEXT, invite);
+                        startActivity(Intent.createChooser(shareInvite, "Share friend invite"));
+                        result.success(null);
                         break;
                     case "scheduleUpdates":
                         UpdateCheckJob.schedule(MainActivity.this, Boolean.TRUE.equals(call.argument("enabled")));

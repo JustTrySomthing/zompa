@@ -6,13 +6,21 @@
 **First platform:** Android. Windows, macOS, and Linux follow using the same game packages.  
 **Product goal:** Open one app to talk with friends, find a game, and play together. Install a game once and play solo offline where supported, or invite someone from an existing conversation.
 
-## Current Android prototype
+## Current Android builds
 
-| Available | Still to implement |
+| Build | Scope |
 |---|---|
-| Official Drop Four `.zomp` catalog downloads, built-in offline solo and same-phone play, local chat preview, signed app updates. | Isolated LÖVE player and manual `.love` import, Chatmail account setup, friend invites, messaging between devices, voice calls, incoming activity alerts, and friend matches. |
+| Public APK | Official `.zomp` downloads, offline Drop Four, and the local chat preview. |
+| Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. |
+| Still open | Two-device validation, QR camera scanning, 16 KB Android compatibility for the bundled core, background alerts, calls, remote matches, isolated LÖVE, and manual `.love` import. |
 
-Keep the local chat preview separate from any future Chatmail account and conversations. The first communication milestone is a verified invitation and two-way messaging between real Android devices. Calls and remote turns follow after that connection works.
+Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. Zompado uses the verified official ARM64 JSON-RPC executable and its published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
+
+### Verify the Chatmail preview
+
+Install the signed preview on two ARM64 Android phones with 4 KB memory pages. Open **Chats** and create a profile on each phone. On the first phone, tap **Invite friend**, then copy or share its link. On the second phone, use **Accept invite** and wait for the connection to finish. Exchange messages both ways, check unread badges when the conversation is closed, then restart both apps and verify that the chats and Drop Four saves persist. Keep both apps open for initial validation.
+
+Repeat on Wi-Fi and mobile data. Confirm that the sending state clears when the server accepts a message, that status changes do not duplicate messages, and that the profile remains usable offline and after reconnecting. Verify voice calls and online turns separately after this baseline is proven.
 
 ## First release
 
