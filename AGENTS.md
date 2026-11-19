@@ -10,6 +10,10 @@ Prioritize work that helps people play or chat with friends, discover games, or 
 
 The Game Builder is an optional download for Zompado. Begin work on it after gameplay, the game library, and the shared game SDK are stable and tested. Build it on the same framework and shareable game package format used by Zompado.
 
+## Setup and Help
+
+Keep first-run Setup and the Settings entries for Setup and Help easy to find. Update Help and the setup guidance when shipped features or their Android permission requirements change. Offer the applicable optional permissions during Setup and explain what each permission does.
+
 ## Working on the project
 
 Start with [docs/RECOVERY.md](docs/RECOVERY.md) when resuming on a new machine or in a new chat. GitHub is the source of truth for the Android app, official games, and shipped versions. Check both repositories and their release feeds before changing versions or distribution.
