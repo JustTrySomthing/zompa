@@ -28,7 +28,7 @@ android {
         jniLibs.keepDebugSymbols.add("**/libchatmail_rpc.so")
     }
 
-    sourceSets["main"].jniLibs.srcDir(chatmailNativeLibraries)
+    sourceSets["main"].jniLibs.srcDir(chatmailNativeLibraries.get().asFile)
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

@@ -51,6 +51,9 @@ jobs:
         run: |
           flutter pub get --enforce-lockfile
           flutter build apk --release --target-platform android-arm64 --no-pub
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          unzip -p "$apk" lib/arm64-v8a/libchatmail_rpc.so > "$RUNNER_TEMP/packed-chatmail-rpc"
+          cmp build/app/chatmail/jniLibs/arm64-v8a/libchatmail_rpc.so "$RUNNER_TEMP/packed-chatmail-rpc"
         env:
           FLUTTER_SUPPRESS_ANALYTICS: 'true'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

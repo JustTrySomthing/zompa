@@ -12,9 +12,11 @@
 |---|---|
 | Public APK | Official `.zomp` downloads, offline Drop Four, and the local chat preview. |
 | Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. |
-| Still open | Two-device validation, QR camera scanning, 16 KB Android compatibility for the bundled core, background alerts, calls, remote matches, isolated LÖVE, and manual `.love` import. |
+| Still open | Two-Android-device validation, QR camera scanning, 16 KB Android compatibility for the bundled core, background alerts, calls, remote matches, isolated LÖVE, and manual `.love` import. |
 
 Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. Zompado uses the verified official ARM64 JSON-RPC executable and its published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
+
+The [live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44613099059) configured two fresh Chatmail Core profiles, established their encrypted conversations through SecureJoin, and verified messages in both directions. The test used the Linux build of the same Core release. Android installation and delivery still need device verification.
 
 ### Verify the Chatmail preview
 
