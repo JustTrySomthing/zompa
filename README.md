@@ -10,11 +10,11 @@ or make your own.
 
 - **Play Drop Four.** Go solo against the computer or take turns with a friend on the same phone.
 - **Discover and install games.** Open **Games → Get Games** to browse the official catalog and install games in the app.
-- **Invite and message friends in the Android preview.** Create a Chatmail profile, share an invite link or QR code, and exchange encrypted one-to-one text messages. [Get the signed preview](https://github.com/JustTrySomthing/zompado/actions/runs/44626086040#artifacts).
+- **Invite and message friends in the Android preview.** Create a Chatmail profile, share an invite link or QR code, and exchange encrypted one-to-one text messages. [Get the signed preview](https://github.com/JustTrySomthing/zompado/actions/runs/44631165902/artifacts/14581962951).
 
-The public APK includes a local chat preview. For online messaging, download the `zompado-signed-android` ZIP from the preview build and extract the APK. The preview supports ARM64 Android devices with 4 KB memory pages.
+The public APK includes a local chat preview. For online messaging, download the `zompado-signed-android` ZIP from the preview build and extract the APK. Preview 0.5.5 passed the APK’s 16 KB native alignment check. On-device verification is pending.
 
-The Android preview lets you invite a friend to online Drop Four, take turns, and resume from the match card in chat. It also lets you share Drop Four from My Games or send it as a game card in a friend chat. Recipients can preview the exact official version and install it. It includes guided first-run setup, optional update alerts, and searchable Help. Reopen either page from **Settings**.
+In the preview, scan a friend’s invite QR code or paste their invite link. Take turns in online Drop Four, chat from the board, and resume from **Your turn** in My Games. Share Drop Four from your library or a conversation. Optional friend activity alerts work while Zompado stays running in the background. Reopen Setup and searchable Help from **Settings**.
 
 ## Game Builder coming soon
 
