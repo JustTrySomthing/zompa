@@ -12,8 +12,8 @@
 |---|---|
 | Public APK | Official `.zomp` downloads, offline Drop Four, and the local chat preview. |
 | Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. Installed Drop Four can be shared by link or sent as a game card in friend chats. Receivers verify the exact catalog version before installing. Online Drop Four adds match invites, alternating turns, and match recovery from the conversation history. |
-| Next preview | Camera QR scanning through Google Play services with a paste fallback. Online Drop Four has a conversation dock and a Your turn shortcut in My Games. Friend activity can trigger private Android alerts while the app stays running in the background. |
-| Still open | Test the next preview on two phones, including a 16 KB Android device. Background delivery after Android stops the process, voice calls, isolated LÖVE, the game SDK, and manual `.love` import remain open. |
+| Next preview | Camera QR scanning through Google Play services with a paste fallback. Online Drop Four has a conversation dock and a Your turn shortcut in My Games. Friend activity can trigger private Android alerts while the app stays running in the background. The Games file picker checks and stores manually selected `.love` files. The first [Lua SDK](../sdk/README.md) includes saves, music and effects controls, and a sample game. |
+| Still open | Test the next preview on two phones, including a 16 KB Android device. Background delivery after Android stops the process, voice calls, the bundled isolated LÖVE player, playback of manual imports, and host integration of the SDK remain open. |
 
 Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. The next build compiles the ARM64 JSON-RPC executable with NDK r28 and checks 16 KB ELF alignment during packaging. See the published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
 

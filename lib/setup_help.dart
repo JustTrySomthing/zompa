@@ -258,6 +258,10 @@ const _topics = [
         'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Resume from the match card or from Your turn in My Games. Tap the chat bubble on the board to talk to your friend.',
       ),
       (
+        'Can I import my own .love game?',
+        'Open Games → Import a .love game to check an archive and save a copy on this device. In-app playback of imported games is still in development. Official catalog games use .zomp.',
+      ),
+      (
         'Can I play with someone next to me?',
         'In Drop Four, choose Pass and play to take turns on one phone. Choose Play solo to play against the computer.',
       ),

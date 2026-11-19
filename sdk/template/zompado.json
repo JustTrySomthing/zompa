@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "id": "tap-counter",
+  "title": "Tap Counter",
+  "version": "1.0.0",
+  "build": 1,
+  "runtime": "love-11.5",
+  "entry": "main.lua",
+  "modes": ["solo"]
+}

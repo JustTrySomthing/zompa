@@ -17,6 +17,7 @@ import 'friends.dart';
 import 'setup_help.dart';
 import 'your_turn.dart';
 import 'online_match.dart';
+import 'love_imports.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
@@ -541,24 +542,16 @@ class _HomeState extends State<Home> {
             ),
           if (isGames)
             IconButton(
-              tooltip: 'About game imports',
-              onPressed: () {
-                showDialog<void>(
-                  context: context,
-                  builder: (c) => AlertDialog(
-                    title: const Text('Import game'),
-                    content: const Text(
-                      'Official games use .zomp. Manual .love imports will be available when the isolated LÖVE player is ready.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(c),
-                        child: const Text('Done'),
-                      ),
-                    ],
+              tooltip: 'Import a .love game',
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => LoveImports(
+                    host: bridge,
+                    read: () => widget.data['loveImports'] as List? ?? const [],
+                    save: (files) => widget.write('loveImports', files),
                   ),
-                );
-              },
+                ),
+              ),
               icon: const Icon(Icons.file_open_outlined),
             ),
           IconButton(

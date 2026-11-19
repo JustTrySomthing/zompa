@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
@@ -29,6 +30,8 @@ public final class MainActivity extends FlutterActivity {
     private static final String CHAT_CHANNEL = "friend_activity";
     private MethodChannel.Result notificationRequest;
     private boolean scanningInvite;
+    private static final int PICK_LOVE = 392;
+    private MethodChannel.Result gamePicker;
 
     @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
@@ -49,6 +52,18 @@ public final class MainActivity extends FlutterActivity {
                     case "chatmailExecutable":
                         File core = new File(getApplicationInfo().nativeLibraryDir, "libchatmail_rpc.so");
                         result.success(core.canExecute() ? core.getAbsolutePath() : null);
+                        break;
+                    case "importLoveGame":
+                        pickLoveGame(result);
+                        break;
+                    case "removeLoveGame":
+                        String id = call.argument("id");
+                        if (id == null || !id.matches("[0-9a-f]{64}")) {
+                            result.error("LOVE_IMPORT", "Game could not be found.", null);
+                            break;
+                        }
+                        File game = new File(loveDirectory(), id + ".love");
+                        result.success(!game.exists() || game.delete());
                         break;
                     case "scanFriendInvite":
                         scanFriendInvite(result);
@@ -131,6 +146,63 @@ public final class MainActivity extends FlutterActivity {
                 }
                 }
             });
+    }
+
+    private File loveDirectory() {
+        return new File(getFilesDir(), "imported-love");
+    }
+
+    private void pickLoveGame(MethodChannel.Result result) {
+        if (gamePicker != null) {
+            result.error("LOVE_IMPORT", "A game import is already open.", null);
+            return;
+        }
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*");
+        try {
+            gamePicker = result;
+            startActivityForResult(picker, PICK_LOVE);
+        } catch (RuntimeException error) {
+            gamePicker = null;
+            result.error("LOVE_IMPORT", "Couldn’t open the Android file picker.", null);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int request, int status, Intent data) {
+        super.onActivityResult(request, status, data);
+        if (request != PICK_LOVE || gamePicker == null) return;
+        MethodChannel.Result result = gamePicker;
+        Uri source = data == null ? null : data.getData();
+        if (status != RESULT_OK || source == null) {
+            gamePicker = null;
+            result.success(null);
+            return;
+        }
+        new Thread(() -> {
+            try {
+                final Map<String, Object> imported =
+                    LoveImport.stage(getContentResolver(), source, loveDirectory());
+                runOnUiThread(() -> {
+                    gamePicker = null;
+                    result.success(imported);
+                });
+            } catch (IOException error) {
+                String message = error instanceof java.util.zip.ZipException
+                    ? "This file isn’t a readable .love archive."
+                    : error.getMessage();
+                runOnUiThread(() -> {
+                    gamePicker = null;
+                    result.error("LOVE_IMPORT", message, null);
+                });
+            } catch (RuntimeException error) {
+                runOnUiThread(() -> {
+                    gamePicker = null;
+                    result.error("LOVE_IMPORT", "Couldn’t read this game.", null);
+                });
+            }
+        }, "zompado-love-import").start();
     }
 
     private void scanFriendInvite(MethodChannel.Result result) {
