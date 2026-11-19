@@ -1,5 +1,5 @@
 {
   "version": "0.4.0",
   "build": 4,
-  "notes": "## What’s new\n\n- New Zompado branding across the launcher, app, and download page.\n- A one-second launch animation with the speech bubble and wordmark. The animation respects Android’s reduced motion setting.\n- Light and dark themes use the approved colors and Noto Sans typography.\n\nInstall the APK over your existing Zompado app to update in place."
+  "notes": "## What’s new\n\n- The new Zompado icon, with Android themed launcher support, plus updated branding in the app and on the download page.\n- A one-second launch animation with the speech bubble and wordmark. The animation respects Android’s reduced motion setting.\n- Light and dark themes use the approved colors and Noto Sans typography.\n\nInstall the APK over your existing Zompado app to update in place."
 }
