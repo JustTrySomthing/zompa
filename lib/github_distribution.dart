@@ -50,8 +50,9 @@ class GameRelease {
       title = json['title'] as String,
       version = json['version'] as String,
       build = json['build'] as int,
-      asset = ReleaseAsset.fromJson(json, gamesRepository, '.love') {
+      asset = ReleaseAsset.fromJson(json, gamesRepository, '.zomp') {
     if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
+        json['format'] != 'zomp' ||
         title.isEmpty ||
         title.length > 90 ||
         !RegExp(r'^\d+\.\d+\.\d+$').hasMatch(version) ||
@@ -86,7 +87,7 @@ class GithubDistribution {
   final Directory directory;
 
   Future<List<GameRelease>> catalog() async {
-    final json = await _manifest(gamesRepository, 'catalog.json');
+    final json = await _manifest(gamesRepository, 'catalog-v2.json', schema: 2);
     final entries = json['games'] as List;
     return entries
         .map(
@@ -99,7 +100,11 @@ class GithubDistribution {
   Future<AppRelease> appRelease() async =>
       AppRelease.fromJson(await _manifest(appRepository, 'update.json'));
 
-  Future<Map<String, dynamic>> _manifest(String repo, String name) async {
+  Future<Map<String, dynamic>> _manifest(
+    String repo,
+    String name, {
+    int schema = 1,
+  }) async {
     final client = _client();
     try {
       final response = await _get(
@@ -117,7 +122,7 @@ class GithubDistribution {
         bytes.addAll(chunk);
       }
       final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      if (json['schema'] != 1)
+      if (json['schema'] != schema)
         throw const FormatException('Unsupported release feed.');
       return json;
     } finally {
@@ -127,7 +132,7 @@ class GithubDistribution {
 
   Future<File> installGame(GameRelease game) => _download(
     game.asset,
-    File('${directory.path}/games/${game.id}/${game.build}.love'),
+    File('${directory.path}/games/${game.id}/${game.build}.zomp'),
   );
 
   Future<File> stageUpdate(AppRelease release) => _download(

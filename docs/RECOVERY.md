@@ -14,13 +14,13 @@ Both repositories use `main`. Check the latest published APK and the current `up
 |---|---|
 | Android source at the tag for a shipped version | [Android releases](https://github.com/JustTrySomthing/zompado/releases) |
 | App updater feed, native Android bridge, and download validation | [update.json](../update.json), [Android sources](../android/app/src/main/java/io/tablecircle/prototype), [install controller](../lib/app_updates.dart), [GitHub distribution code](../lib/github_distribution.dart) |
-| Game catalog, versioned LÖVE sources, and release assets | [zompado-games](https://github.com/JustTrySomthing/zompado-games) |
+| Official .zomp catalog, versioned LÖVE sources, and release assets | [zompado-games](https://github.com/JustTrySomthing/zompado-games) |
 | Board rules and UI | [board.dart](../lib/board.dart), [main.dart](../lib/main.dart) |
 | Implemented features and next milestones | [README](../README.md), [build plan](BUILD-PLAN.md) |
 | Public download page | [GitHub Pages source](index.html), published from `main:/docs` |
 | Release preparation and feed update order | [RELEASE.md](RELEASE.md) |
 
-At the 0.3.0 baseline, the app supports local Drop Four and downloads a verified official cartridge from the game catalog. A built-in player runs Drop Four. General LÖVE execution, Chatmail, and online friend matches remain future work.
+The Android prototype uses a built-in Drop Four player and installs verified official `.zomp` packages from the version 2 game catalog. The version 1 catalog is kept for older APKs. Manual `.love` imports, Chatmail contacts and messaging, voice calls, and online friend matches remain open milestones in the [build plan](BUILD-PLAN.md).
 
 ## Toolchain and fresh checkout
 

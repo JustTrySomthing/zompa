@@ -12,7 +12,7 @@ Play Drop Four against the computer or take turns on the same phone. Install off
 
 Zompado checks GitHub automatically on launch when due and about daily in the background when Android permits. You can also use **Settings → Check for updates**. The app verifies the downloaded APK and opens Android’s installer for confirmation. If you have a build from before Zompado 0.3.0, install the APK from Releases over your existing app to move to the new update and game feeds.
 
-The game catalog comes from the separate games repository. The app downloads and verifies the versioned Drop Four package before adding it to My Games. The current Android prototype uses its built-in Drop Four player. The isolated LÖVE player, Chatmail, and online friend matches are future milestones.
+The game catalog comes from the separate games repository. The app downloads and verifies the official Drop Four `.zomp` package before adding it to My Games. This build uses its built-in Drop Four player and supports solo or same-phone play. Its chat preview is local. Friend invites, Chatmail messaging, voice calls, online matches, and manual `.love` imports require further implementation.
 
 ## Build
 

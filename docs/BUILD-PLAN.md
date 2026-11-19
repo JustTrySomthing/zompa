@@ -2,9 +2,17 @@
 
 **Pronunciation:** zomp-ah-doh
 
-**Status:** Proposed for review before implementation  
+**Status:** Android prototype available. The first release below is the target scope.
 **First platform:** Android. Windows, macOS, and Linux follow using the same game packages.  
 **Product goal:** Open one app to talk with friends, find a game, and play together. Install a game once and play solo offline where supported, or invite someone from an existing conversation.
+
+## Current Android prototype
+
+| Available | Still to implement |
+|---|---|
+| Official Drop Four `.zomp` catalog downloads, built-in offline solo and same-phone play, local chat preview, signed app updates. | Isolated LÖVE player and manual `.love` import, Chatmail account setup, friend invites, messaging between devices, voice calls, incoming activity alerts, and friend matches. |
+
+Keep the local chat preview separate from any future Chatmail account and conversations. The first communication milestone is a verified invitation and two-way messaging between real Android devices. Calls and remote turns follow after that connection works.
 
 ## First release
 
@@ -18,7 +26,7 @@
 | **While playing** | In a friend match, a chat button with an unread dot opens the existing conversation in a bottom dock. The keyboard appears only when the field is tapped. Close the dock to dismiss the keyboard and return to the same board and unsubmitted move. A small call bar keeps Mic mute, Audio output, and End call available. |
 | **Later releases** | Desktop chat can dock beside a game and remember whether it was open. The conversational AI creator generates a game from a template, previews it, accepts revisions, and saves the same shareable package to My Games. Model hosting and costs are a separate decision. |
 
-The six-screen mockup is the visual reference. Use Chats and Games as the two bottom destinations, with My Games and Get Games inside Games. Retain the slate, warm yellow, and lavender direction. Pair activity dots with readable text or accessible labels. Let people try solo play without setting up Chatmail. Ask for permissions when the corresponding feature is used and explain how to recover from a denial.
+The six-screen mockup is the visual reference. Use Chats and Games as the two bottom destinations, with My Games and Get Games inside Games. Follow the [approved Zompado brand kit](brand/README.md). Pair activity dots with readable text or accessible labels. Let people try solo play without setting up Chatmail. Ask for permissions when the corresponding feature is used and explain how to recover from a denial.
 
 ## Settings and defaults
 
@@ -36,7 +44,7 @@ The six-screen mockup is the visual reference. Use Chats and Games as the two bo
 |---|---|
 | App | Flutter and Dart for shared UI, catalog, installation, and match state. SQLite and private files for library data, saves, and matches. Chatmail Core owns its own message store. |
 | Player | Bundle a pinned native LÖVE runtime once per platform. Adapt the Android Java/SDL loader with Kotlin where needed. Test native rendering, docked chat, and keyboard together. |
-| Package | One portable .love file per game version. A platform manifest defines stable game ID, version, compatible API/runtime, and supported modes. Compatible plain .love files can be solo imports. Friend matches require the turn API. |
+| Package | One portable `.zomp` ZIP archive per official game version, with a root `zompado.json` manifest for game ID, version, runtime, entry point, and supported modes. Compatible plain `.love` files are a separate manual solo import. Friend matches require the turn API. |
 | Communication | Bundle Chatmail Core, using JSON-RPC where supported. Reuse the Relay Lab approach for verified contacts and encrypted chat. Call setup uses Chatmail and audio uses native WebRTC. Confirm the selected Core exposes the needed call operations and verify TURN fallback on the intended relay. |
 | Isolation | Prototype a permissionless Android isolated player. Give it access to the selected game, input, rendering, and narrowly scoped saves and moves. Keep chats, contacts, microphone, and networking with the host. Validate archive paths, expanded size, and compatibility before install. LÖVE plus an ordinary Android activity is insufficient for isolating downloaded Lua. |
 | Turns | Send small moves over Chatmail. Include match ID, move ID, sequence number, and an exact game version and hash. Validate sender, order, and move legality. Persist pending sends, apply each move once, and handle missing predecessors before replaying. |

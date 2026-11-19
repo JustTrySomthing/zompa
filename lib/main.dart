@@ -305,14 +305,14 @@ class _HomeState extends State<Home> {
         actions: [
           if (isGames)
             IconButton(
-              tooltip: 'Import game',
+              tooltip: 'About game imports',
               onPressed: () {
                 showDialog<void>(
                   context: context,
                   builder: (c) => AlertDialog(
                     title: const Text('Import game'),
                     content: const Text(
-                      'Game import needs the isolated LÖVE player. This prototype includes one built-in game.',
+                      'Official games use .zomp. Manual .love imports will be available when the isolated LÖVE player is ready.',
                     ),
                     actions: [
                       TextButton(
@@ -396,8 +396,9 @@ class _HomeState extends State<Home> {
             Expanded(
               child: Text(
                 catalog ? 'Official game catalog' : 'Your library',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             if (catalog)
@@ -431,7 +432,7 @@ class _HomeState extends State<Home> {
           for (final game in releases) ...[
             gameCard(
               game.title,
-              'Version ${game.version} · ${game.asset.size < 1024 ? '${game.asset.size} B' : '${(game.asset.size / 1024).toStringAsFixed(1)} KB'}',
+              'Version ${game.version} · .zomp · ${game.asset.size < 1024 ? '${game.asset.size} B' : '${(game.asset.size / 1024).toStringAsFixed(1)} KB'}',
               game.playable
                   ? game.build <= installedBuild
                         ? 'Play'
@@ -534,7 +535,7 @@ class _HomeState extends State<Home> {
             child: Icon(Icons.forum_outlined),
           ),
           title: const Text(
-            'Match chat preview',
+            'Local chat preview',
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
           subtitle: Text(
@@ -546,7 +547,7 @@ class _HomeState extends State<Home> {
                 context,
                 MaterialPageRoute<void>(
                   builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Match chat preview')),
+                    appBar: AppBar(title: const Text('Local chat preview')),
                     body: SafeArea(
                       child: ChatPanel(
                         messages: messages,
@@ -563,7 +564,7 @@ class _HomeState extends State<Home> {
       ),
       const SizedBox(height: 16),
       Text(
-        'This preview uses local chat. Chatmail accounts, friend invites, and voice calling are not connected in this build.',
+        'Friend invites, online messaging, and voice calls aren’t available yet. The local preview keeps messages on this phone.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
     ],
