@@ -1,34 +1,55 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#151720"><title>Zompado for Android</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#091a20">
+  <title>Zompado for Android</title>
+  <link rel="icon" href="brand/icon.svg" type="image/svg+xml">
   <style>
-    :root{color-scheme:dark;--ink:#151720;--paper:#f7f3ff;--gold:#ffdc71;--lav:#c9b7ff}
-    *{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--paper);font:1rem/1.6 system-ui,sans-serif}
-    main{width:min(100% - 2.5rem,50rem);margin:0 auto;padding:clamp(3rem,10vw,8rem) 0}
-    h1{font-size:clamp(3rem,10vw,6rem);line-height:1;letter-spacing:-.075em;margin:.65rem 0 1.5rem}
-    p{max-width:37rem;margin:0 0 1.2rem;color:#dcdaea}a{color:var(--lav)}
-    small{color:var(--gold);font-weight:700;letter-spacing:.08em}
-    nav{display:flex;flex-wrap:wrap;gap:.8rem;margin:2rem 0}
-    nav a{display:inline-block;padding:.65rem 1.1rem;border:1px solid var(--lav);border-radius:1rem;text-decoration:none;font-weight:650}
-    nav a:first-child{background:var(--gold);color:var(--ink);border-color:var(--gold)}
-    section{border-top:1px solid #494455;margin-top:3rem;padding-top:1.1rem}h2{margin:.35rem 0}
-    a:focus-visible{outline:3px solid var(--lav);outline-offset:4px}
+    @font-face{font-family:"Noto Sans";src:url(brand/NotoSans-Regular.woff) format("woff");font-weight:400;font-display:swap}
+    @font-face{font-family:"Noto Sans";src:url(brand/NotoSans-Bold.woff) format("woff");font-weight:700;font-display:swap}
+    :root{color-scheme:dark;--ink:#091a20;--panel:#122a35;--white:#fefefe;--blue:#5ecffe;--mark:#5cb3db;--muted:#b9d2db}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--ink);color:var(--white);font:1rem/1.65 "Noto Sans",system-ui,sans-serif}
+    main{width:min(100% - 2.5rem,65rem);margin:auto;padding:clamp(3rem,9vw,7.2rem) 0 3rem}
+    .intro{display:grid;grid-template-columns:minmax(0,1fr) minmax(9rem,15rem);align-items:center;gap:clamp(1.5rem,5vw,4rem)}
+    h1{margin:0 0 1.05rem}
+    .wordmark{display:block;width:min(100%,32rem);height:auto}
+    .mark{display:block;width:100%;max-width:15rem;aspect-ratio:1;background:var(--panel);border-radius:2rem;padding:1.4rem;justify-self:end}
+    p{margin:0 0 1rem;color:var(--muted)}
+    .intro p{max-width:33rem;font-size:clamp(1.05rem,2.5vw,1.2rem)}
+    a{color:var(--blue)}
+    nav{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.65rem}
+    nav a{display:inline-block;padding:.65rem 1.05rem;border:1px solid var(--mark);border-radius:.8rem;text-decoration:none;font-weight:700}
+    nav a:first-child{background:var(--blue);color:var(--ink);border-color:var(--blue)}
+    section{padding:clamp(1.25rem,4vw,2rem);margin-top:clamp(2rem,5vw,3.8rem);border-radius:1.25rem;background:var(--panel)}
+    h2{margin:0 0 .35rem;font-size:1.3rem}
+    a:focus-visible{outline:3px solid var(--white);outline-offset:4px}
+    @media(max-width:39rem){
+      .intro{grid-template-columns:minmax(0,1fr)}
+      .mark{display:none}
+    }
   </style>
 </head>
-<body><main>
-  <small>ANDROID PROTOTYPE</small>
-  <h1>Zompado</h1>
-  <p>Play a round of Drop Four offline, or pass the phone and take turns. Browse independently released games from inside the app.</p>
-  <nav>
-    <a href="https://github.com/JustTrySomthing/zompado/releases/latest">Download for Android</a>
-    <a href="https://github.com/JustTrySomthing/zompado-games">Browse official games</a>
-  </nav>
-  <section>
-    <h2>Install a game</h2>
-    <p>Open <strong>Games → Get Games</strong>, choose Drop Four and tap Install. Future app releases appear under <strong>Settings → Check for updates</strong>.</p>
-    <a href="https://github.com/JustTrySomthing/zompado">Source and build instructions</a>
-  </section>
-</main></body>
+<body>
+  <main>
+    <div class="intro">
+      <div>
+        <h1><img class="wordmark" src="brand/wordmark.png" alt="Zompado"></h1>
+        <p>Play a round of Drop Four offline, or pass the phone and take turns. Get more games right from the app.</p>
+        <nav aria-label="Downloads">
+          <a href="https://github.com/JustTrySomthing/zompado/releases/latest">Download for Android</a>
+          <a href="https://github.com/JustTrySomthing/zompado-games">Browse official games</a>
+        </nav>
+      </div>
+      <img class="mark" src="brand/bubble.svg" alt="">
+    </div>
+    <section>
+      <h2>Install a game</h2>
+      <p>Open <strong>Games → Get Games</strong>, choose Drop Four, and tap Install. Find app updates under <strong>Settings → Check for updates</strong>.</p>
+      <a href="https://github.com/JustTrySomthing/zompado">Source and build instructions</a>
+    </section>
+  </main>
+</body>
 </html>

@@ -5,13 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'board.dart';
+import 'brand.dart';
 import 'app_updates.dart';
 import 'github_distribution.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
-const ink = Color(0xff14171f);
-const panel = Color(0xff252a36);
 const bridge = MethodChannel('io.zompado.host');
 
 void main() {
@@ -99,41 +98,12 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    ThemeData theme(Brightness brightness) {
-      final dark = brightness == Brightness.dark;
-      final scheme =
-          ColorScheme.fromSeed(
-            seedColor: const Color(0xff7252b5),
-            brightness: brightness,
-          ).copyWith(
-            primary: dark ? gold : const Color(0xff5f4300),
-            secondary: dark ? lilac : const Color(0xff5d3f91),
-            surface: dark ? ink : const Color(0xfffaf7ff),
-          );
-      return ThemeData(
-        useMaterial3: true,
-        colorScheme: scheme,
-        scaffoldBackgroundColor: scheme.surface,
-        appBarTheme: AppBarTheme(
-          backgroundColor: scheme.surface,
-          scrolledUnderElevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          color: dark ? panel : const Color(0xffeee9f6),
-          elevation: 0,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
-      );
-    }
-
     return MaterialApp(
       title: 'Zompado',
       debugShowCheckedModeBanner: false,
-      theme: theme(Brightness.light),
-      darkTheme: theme(Brightness.dark),
+      theme: ZompadoBrand.theme(Brightness.light),
+      darkTheme: ZompadoBrand.theme(Brightness.dark),
+      builder: (context, child) => BrandLaunch(child: child!),
       themeMode: mode,
       home: Home(
         data: data,
@@ -317,9 +287,20 @@ class _HomeState extends State<Home> {
     final isGames = tab == 1;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          isGames ? 'Games' : 'Chats',
-          style: const TextStyle(fontWeight: FontWeight.w800),
+        title: Row(
+          children: [
+            Image.asset(
+              ZompadoBrand.markAsset,
+              width: 25,
+              height: 25,
+              excludeFromSemantics: true,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              isGames ? 'Games' : 'Chats',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
         actions: [
           if (isGames)
@@ -415,9 +396,8 @@ class _HomeState extends State<Home> {
             Expanded(
               child: Text(
                 catalog ? 'Official game catalog' : 'Your library',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             if (catalog)
@@ -549,8 +529,8 @@ class _HomeState extends State<Home> {
             vertical: 8,
           ),
           leading: const CircleAvatar(
-            backgroundColor: lilac,
-            foregroundColor: Colors.black,
+            backgroundColor: ZompadoBrand.bubbleBlue,
+            foregroundColor: ZompadoBrand.ink,
             child: Icon(Icons.forum_outlined),
           ),
           title: const Text(
@@ -595,7 +575,9 @@ class GameCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: const BoxDecoration(
-      gradient: LinearGradient(colors: [Color(0xff243c73), Color(0xff532e73)]),
+      gradient: LinearGradient(
+        colors: [ZompadoBrand.darkPanel, Color(0xff1c4c63)],
+      ),
     ),
     child: Center(
       child: Transform.rotate(
@@ -603,9 +585,9 @@ class GameCover extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: const Color(0xff182447),
+            color: ZompadoBrand.ink,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xff607bd1), width: 2),
+            border: Border.all(color: ZompadoBrand.wordmarkBlue, width: 2),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -648,7 +630,7 @@ class Piece extends StatelessWidget {
     final color = switch (side) {
       1 => gold,
       2 => lilac,
-      _ => const Color(0xff121a35),
+      _ => ZompadoBrand.ink,
     };
     return Container(
       width: size,
@@ -852,10 +834,10 @@ class _MatchPageState extends State<MatchPage> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xff294880),
+                                    color: ZompadoBrand.darkPanel,
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: const Color(0xff608bde),
+                                      color: ZompadoBrand.wordmarkBlue,
                                       width: 2,
                                     ),
                                   ),

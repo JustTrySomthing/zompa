@@ -5,6 +5,7 @@ Play Drop Four against the computer or take turns on the same phone. Install off
 - [Download the Android ARM64 APK](https://github.com/JustTrySomthing/zompado/releases/latest)
 - [Official games and standalone cartridges](https://github.com/JustTrySomthing/zompado-games)
 - [Build plan](docs/BUILD-PLAN.md)
+- [Brand kit and production assets](docs/brand/README.md)
 - [Resume this project from GitHub](docs/RECOVERY.md)
 
 ## Updates

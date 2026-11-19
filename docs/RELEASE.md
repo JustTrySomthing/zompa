@@ -1,5 +1,14 @@
 # Releases
 
+
+## GitHub publishing workflow
+
+To ship from the connected GitHub account, commit the code and increase the version in both `pubspec.yaml` and `lib/app_updates.dart`. Then explicitly update [the release request](../.github/release-request.json) on `main` with that version, build number, and release notes. Use a new version and build for each release.
+
+The workflow builds and signs on GitHub, publishes the verified APK, downloads the public asset to verify it, and then updates the in-app feed. Routine code changes and manual test runs do not publish a release. If the publish job fails after creating a release, rerun the failed jobs so the same signed artifact is used.
+
+## Manual release fallback
+
 1. Increase the version and Android build code in `pubspec.yaml`. Set `installedVersion` and `installedBuild` to the same values in `lib/app_updates.dart`.
 2. Build a signed ARM64 APK using [the GitHub Actions workflow or the original local keystore](RECOVERY.md). Run `bash tools/verify_release_apk.sh APK X.Y.Z BUILD` against the candidate. The script checks the published certificate fingerprint, package, version, build, and ABI. Install the APK over the previous public build on a test device and check that saved data survives.
 3. Publish the APK to GitHub Releases under the matching `vX.Y.Z` tag at the commit used to build it. Use the filename `Zompado-X.Y.Z-ARM64.apk`.

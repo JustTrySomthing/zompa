@@ -1,10 +1,12 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'github_distribution.dart';
 
-const installedVersion = '0.3.0';
-const installedBuild = 3;
+const installedVersion = '0.4.0';
+const installedBuild = 4;
 
 class AppUpdates extends ChangeNotifier {
   AppUpdates(this.distribution, this.host, this.data, this.write);
