@@ -207,10 +207,21 @@ public final class ChatSyncJob extends JobService {
                     }
                     synchronized (OWNER) {
                         if (stopped || appOwnsCore) return;
+                        String text = msg.optString("text");
+                        String kind = call ? "calls" : text.startsWith("ZOMPADO_MATCH_V1 ") ? "invites" : "messages";
+                        if (!ChatAlerts.allowed(ChatSyncJob.this, kind)) continue;
                         String title = call ? "Missed Zompado call" : "New friend activity";
-                        ChatAlerts.post(ChatSyncJob.this, chat, id, title);
+                        if ("invites".equals(kind)) {
+                            try {
+                                String type = new JSONObject(text.substring("ZOMPADO_MATCH_V1 ".length())).optString("type");
+                                if ("invite".equals(type)) title = "New game invitation";
+                                if ("pause".equals(type) || "resume".equals(type)) continue;
+                            } catch (org.json.JSONException ignored) {
+                                // Unknown payloads keep the generic alert title.
+                            }
+                        }
+                        if (ChatAlerts.post(ChatSyncJob.this, chat, id, title, kind)) notified.add(chat);
                     }
-                    notified.add(chat);
                 }
             }
         }

@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'chatmail.dart';
+import 'chat_avatar.dart';
+import 'chat_chrome.dart';
 
 class ContactsPage extends StatefulWidget {
   const ContactsPage({
@@ -9,11 +13,15 @@ class ContactsPage extends StatefulWidget {
     required this.invite,
     required this.acceptInvite,
     required this.open,
+    required this.pins,
+    required this.savePins,
   });
 
   final Chatmail chatmail;
   final Future<void> Function() invite, acceptInvite;
   final Future<void> Function(ChatContact) open;
+  final Set<int> pins;
+  final ValueChanged<Set<int>> savePins;
 
   @override
   State<ContactsPage> createState() => _ContactsPageState();
@@ -25,33 +33,56 @@ class _ContactsPageState extends State<ContactsPage> {
   String _query = '';
   String? _error;
   bool _loading = true;
+  int _request = 0;
+  StreamSubscription<void>? _changes;
+  Timer? _refresh;
   bool _showBlocked = false;
+  late final _pins = {...widget.pins};
 
   @override
   void initState() {
     super.initState();
+    _changes = widget.chatmail.changes.listen((_) {
+      _refresh?.cancel();
+      _refresh = Timer(
+        const Duration(milliseconds: 300),
+        () => _load(quiet: true),
+      );
+    });
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _changes?.cancel();
+    _refresh?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool quiet = false}) async {
+    if (!mounted) return;
+    final request = ++_request;
+    if (!quiet)
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
     try {
       final lists = await Future.wait([
         widget.chatmail.contacts(),
         widget.chatmail.contacts(blocked: true),
       ]);
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
+        _error = null;
         _contacts = lists[0];
         _blocked = lists[1];
       });
     } catch (_) {
-      if (mounted) setState(() => _error = 'Couldn’t load contacts.');
+      if (mounted && request == _request && !quiet)
+        setState(() => _error = 'Couldn’t load contacts.');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && request == _request) setState(() => _loading = false);
     }
   }
 
@@ -83,6 +114,8 @@ class _ContactsPageState extends State<ContactsPage> {
     }
     try {
       await widget.chatmail.manageContact(contact.id, action);
+      if (action == 'delete' && _pins.remove(contact.id))
+        widget.savePins(_pins);
       if (mounted) await _load();
     } catch (_) {
       if (mounted) setState(() => _error = 'Couldn’t update this contact.');
@@ -99,12 +132,22 @@ class _ContactsPageState extends State<ContactsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visible = (_showBlocked ? _blocked : _contacts).where(
-      (contact) =>
-          '${contact.name} ${contact.address}'.toLowerCase().contains(_query),
-    );
+    final matching = (_showBlocked ? _blocked : _contacts)
+        .where((contact) => contact.name.toLowerCase().contains(_query))
+        .toList();
+    final visible = [
+      ...matching.where(
+        (contact) => !_showBlocked && _pins.contains(contact.id),
+      ),
+      ...matching.where(
+        (contact) => _showBlocked || !_pins.contains(contact.id),
+      ),
+    ];
     return Scaffold(
-      appBar: AppBar(title: const Text('Contacts')),
+      appBar: AppBar(
+        title: const Text('Contacts'),
+        actions: chatActions(context, contacts: false),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -127,14 +170,14 @@ class _ContactsPageState extends State<ContactsPage> {
                     await widget.invite();
                     if (mounted) await _load();
                   },
-                  label: const Text('Add contact'),
+                  label: const Text('Create Invite'),
                 ),
                 OutlinedButton(
                   onPressed: () async {
                     await widget.acceptInvite();
                     if (mounted) await _load();
                   },
-                  child: const Text('Accept invite'),
+                  child: const Text('Accept Invite'),
                 ),
               ],
             ),
@@ -157,32 +200,54 @@ class _ContactsPageState extends State<ContactsPage> {
               ),
             for (final contact in visible)
               ListTile(
-                leading: const Icon(Icons.person_outline),
+                leading: ChatAvatar(contact.name, photo: contact.photo),
                 title: Text(contact.name),
-                subtitle: contact.address.isEmpty
-                    ? null
-                    : Text(
-                        contact.address,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                 onTap: _showBlocked ? null : () => _open(contact),
-                trailing: PopupMenuButton<String>(
-                  tooltip: 'Manage contact',
-                  onSelected: (value) => _manage(contact, value),
-                  itemBuilder: (_) => [
-                    if (_showBlocked)
-                      const PopupMenuItem(
-                        value: 'unblock',
-                        child: Text('Unblock'),
-                      )
-                    else ...[
-                      const PopupMenuItem(value: 'block', child: Text('Block')),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!_showBlocked)
+                      IconButton(
+                        tooltip: _pins.contains(contact.id)
+                            ? 'Unpin contact'
+                            : 'Pin contact',
+                        icon: Icon(
+                          _pins.contains(contact.id)
+                              ? Icons.push_pin
+                              : Icons.push_pin_outlined,
+                          color: _pins.contains(contact.id)
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (!_pins.add(contact.id))
+                              _pins.remove(contact.id);
+                          });
+                          widget.savePins(_pins);
+                        },
                       ),
-                    ],
+                    PopupMenuButton<String>(
+                      tooltip: 'Manage contact',
+                      onSelected: (value) => _manage(contact, value),
+                      itemBuilder: (_) => [
+                        if (_showBlocked)
+                          const PopupMenuItem(
+                            value: 'unblock',
+                            child: Text('Unblock'),
+                          )
+                        else ...[
+                          const PopupMenuItem(
+                            value: 'block',
+                            child: Text('Block'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete'),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),

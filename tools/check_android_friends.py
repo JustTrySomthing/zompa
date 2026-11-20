@@ -117,14 +117,16 @@ class Phone:
         self.type(self.name)
         self.back()
         self.press("Create chat profile")
-        self.see("Invite friend", 120)
+        self.see("Inbox", 120)
 
     def invite(self):
-        self.press("Invite friend")
+        self.press("Contacts")
+        self.press("Create Invite")
         self.see("Invite a friend")
         detector = cv2.QRCodeDetector()
         link = wait("a decodable invite QR", lambda: detector.detectAndDecode(self.image())[0], 30)
         self.press("Done")
+        self.back()
         return link
 
     def turn(self):
@@ -211,7 +213,8 @@ def main():
     alice, bob = Phone(5554, "Alice"), Phone(5556, "Bob")
     alice.profile()
     bob.profile()
-    bob.press("Accept invite")
+    bob.press("Contacts")
+    bob.press("Accept Invite")
     bob.press("Scan QR code")
     bob.shell("input", "tap", *wait("the camera permission denial button",
         lambda: bob.find("Don’t allow") or bob.find("Don't allow")))

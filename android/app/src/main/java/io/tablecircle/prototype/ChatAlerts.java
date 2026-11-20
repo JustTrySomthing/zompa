@@ -1,5 +1,6 @@
 package io.tablecircle.prototype;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -9,9 +10,12 @@ import android.net.Uri;
 import android.os.Build;
 import androidx.core.app.NotificationCompat;
 import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
 
 final class ChatAlerts {
     private static final String CHANNEL = "friend_activity";
+    private static final String INVITE_CHANNEL = "game_invites";
     private static final String CALL_CHANNEL = "incoming_calls";
     static final String OPEN_CHATS = "io.zompado.OPEN_CHATS";
     static final String ALERT_CHAT = "alertChat";
@@ -22,38 +26,83 @@ final class ChatAlerts {
     static void setup(Context context) {
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationManager manager = context.getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(
-                new NotificationChannel(CHANNEL, "Friend activity", NotificationManager.IMPORTANCE_DEFAULT));
-            manager.createNotificationChannel(
-                new NotificationChannel(CALL_CHANNEL, "Incoming calls", NotificationManager.IMPORTANCE_HIGH));
+            channel(manager, CHANNEL, "Chat messages", NotificationManager.IMPORTANCE_DEFAULT);
+            channel(manager, INVITE_CHANNEL, "Game invites", NotificationManager.IMPORTANCE_DEFAULT);
+            channel(manager, CALL_CHANNEL, "Incoming calls", NotificationManager.IMPORTANCE_HIGH);
         }
     }
 
+    private static void channel(NotificationManager manager, String id, String name, int importance) {
+        var channel = new NotificationChannel(id, name, importance);
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        manager.createNotificationChannel(channel);
+    }
+
+    static Map<String, Boolean> settings(Context context) {
+        var prefs = context.getSharedPreferences("chat_alerts", Context.MODE_PRIVATE);
+        var values = new HashMap<String, Boolean>();
+        for (String key : new String[] {"muted", "messages", "invites", "calls", "updates"}) {
+            values.put(key, prefs.getBoolean(key, !"muted".equals(key)));
+        }
+        return values;
+    }
+
+    static boolean allowed(Context context, String key) {
+        var prefs = context.getSharedPreferences("chat_alerts", Context.MODE_PRIVATE);
+        return !prefs.getBoolean("muted", false) && prefs.getBoolean(key, true);
+    }
+
+    static synchronized boolean set(Context context, String key, boolean value) {
+        if (!settings(context).containsKey(key)) return false;
+        boolean saved = context.getSharedPreferences("chat_alerts", Context.MODE_PRIVATE)
+            .edit().putBoolean(key, value).commit();
+        if (!saved || ("muted".equals(key) ? !value : value)) return saved;
+        var manager = context.getSystemService(NotificationManager.class);
+        for (var posted : manager.getActiveNotifications()) {
+            var notification = posted.getNotification();
+            if ((notification.flags & Notification.FLAG_FOREGROUND_SERVICE) != 0) continue;
+            var channel = Build.VERSION.SDK_INT >= 26 ? notification.getChannelId() : null;
+            if ("muted".equals(key) || channelFor(key).equals(channel)) {
+                manager.cancel(posted.getTag(), posted.getId());
+            }
+        }
+        return true;
+    }
+
+    private static String channelFor(String kind) {
+        if ("calls".equals(kind)) return CALL_CHANNEL;
+        if ("invites".equals(kind)) return INVITE_CHANNEL;
+        if ("updates".equals(kind)) return "app_updates";
+        return CHANNEL;
+    }
+
     static boolean enabled(Context context) {
-        return enabled(context, CHANNEL);
+        return enabled(context, "messages") || enabled(context, "invites");
     }
 
     static boolean callsEnabled(Context context) {
-        return enabled(context, CALL_CHANNEL);
+        return enabled(context, "calls");
     }
 
-    private static boolean enabled(Context context, String channel) {
+    private static boolean enabled(Context context, String kind) {
         NotificationManager manager = context.getSystemService(NotificationManager.class);
-        if (!manager.areNotificationsEnabled()) return false;
+        if (!allowed(context, kind) || !manager.areNotificationsEnabled()) return false;
         if (Build.VERSION.SDK_INT < 26) return true;
         setup(context);
-        return manager.getNotificationChannel(channel).getImportance() != NotificationManager.IMPORTANCE_NONE;
+        return manager.getNotificationChannel(channelFor(kind)).getImportance() != NotificationManager.IMPORTANCE_NONE;
     }
 
-    static synchronized void post(Context context, int chat, int message, String title) {
-        if (chat <= 0 || message <= 0 || !enabled(context)) return;
+    static synchronized boolean post(Context context, int chat, int message, String title, String kind) {
+        if (kind == null) kind = "messages";
+        if (chat <= 0 || message <= 0 || !enabled(context, kind)) return false;
         var history = context.getSharedPreferences("chat_alerts", Context.MODE_PRIVATE);
         String key = "last_" + chat;
-        if (history.getInt(key, 0) >= message) return;
+        if (history.getInt(key, 0) >= message) return true;
         PendingIntent open = alertIntent(context, chat, message, false);
         context.getSystemService(NotificationManager.class).notify("friend-activity", chat,
-            notification(context, title, CHANNEL, open).build());
+            notification(context, title, channelFor(kind), open).build());
         history.edit().putInt(key, message).apply();
+        return true;
     }
 
     static void incoming(Context context, int chat, int message, long secondsLeft) {
@@ -107,11 +156,17 @@ final class ChatAlerts {
 
     private static NotificationCompat.Builder notification(Context context, String title, String channel,
             PendingIntent open) {
+        var publicVersion = new NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.zompado_icon_monochrome)
+            .setContentTitle(title)
+            .setContentIntent(open)
+            .build();
         return new NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.zompado_icon_monochrome)
             .setContentTitle(title)
             .setContentText("Open Zompado to see what’s new.")
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
             .setContentIntent(open)
             .setAutoCancel(true);
     }

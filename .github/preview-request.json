@@ -1,5 +1,5 @@
 {
-  "version": "0.5.14",
-  "build": 23,
-  "purpose": "Verify the complete invitation and readiness flow, with pause synchronized to the embedded LÖVE runtime."
+  "version": "0.5.15",
+  "build": 24,
+  "purpose": "Verify chat controls, Saved, attachment preparation, contact pins, and notification settings."
 }

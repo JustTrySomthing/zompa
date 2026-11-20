@@ -7,11 +7,13 @@ import 'package:flutter/services.dart';
 import 'chatmail.dart';
 import 'chat_files.dart';
 import 'chat_emoji.dart';
-import 'contacts_page.dart';
+import 'chat_avatar.dart';
+import 'chat_chrome.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
+import 'saved_messages.dart';
 import 'voice_calls.dart';
 
 String _failure(Object error) => switch (error) {
@@ -27,14 +29,12 @@ class FriendsPane extends StatefulWidget {
   const FriendsPane({
     super.key,
     required this.chatmail,
-    required this.share,
     required this.pickGameLink,
     required this.openGameLink,
     required this.prepareGame,
   });
 
   final Chatmail chatmail;
-  final Future<void> Function(String) share;
   final Future<String?> Function() pickGameLink;
   final Future<void> Function(GameLink) openGameLink;
   final Future<GameRelease?> Function(GameLink) prepareGame;
@@ -49,6 +49,7 @@ class _FriendsPaneState extends State<FriendsPane> {
   StreamSubscription<void>? _events;
   Timer? _refreshTimer;
   bool _ready = false;
+  bool _archived = false;
   bool _busy = true;
   bool _refreshing = false;
   bool _refreshQueued = false;
@@ -74,7 +75,7 @@ class _FriendsPaneState extends State<FriendsPane> {
 
   Future<void> _initialize() => _perform(() async {
     _ready = await widget.chatmail.restore();
-    if (_ready) _chats = await widget.chatmail.chats();
+    if (_ready) _chats = await widget.chatmail.chats(archived: _archived);
   });
 
   Future<void> _perform(Future<void> Function() operation) async {
@@ -99,8 +100,9 @@ class _FriendsPaneState extends State<FriendsPane> {
     }
     _refreshing = true;
     try {
-      final chats = await widget.chatmail.chats();
-      if (mounted)
+      final archived = _archived;
+      final chats = await widget.chatmail.chats(archived: archived);
+      if (mounted && archived == _archived)
         setState(() {
           _chats = chats;
           if (!_busy) _error = null;
@@ -125,19 +127,217 @@ class _FriendsPaneState extends State<FriendsPane> {
     _perform(() async {
       await widget.chatmail.createProfile(name);
       _ready = true;
-      _chats = await widget.chatmail.chats();
+      _chats = await widget.chatmail.chats(archived: _archived);
     });
   }
 
-  Future<void> _invite() => _perform(() async {
-    final invite = await widget.chatmail.invite();
+  Future<void> _open(int chat, String name) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => FriendConversation(
+          chatmail: widget.chatmail,
+          id: chat,
+          initialName: name,
+          pickGameLink: widget.pickGameLink,
+          openGameLink: widget.openGameLink,
+          prepareGame: widget.prepareGame,
+        ),
+      ),
+    );
+    await _refresh();
+  }
+
+  void _selectArchive(bool archived) {
+    if (_archived == archived) return;
+    setState(() {
+      _archived = archived;
+      _chats = [];
+    });
+    unawaited(_refresh());
+  }
+
+  Future<void> _chatMenu(FriendChat chat) async {
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialog) => SimpleDialog(
+        title: Text(chat.name),
+        children: [
+          for (final (value, label, icon) in [
+            (
+              chat.archived ? 'restore' : 'archive',
+              chat.archived ? 'Restore' : 'Archive',
+              Icons.archive_outlined,
+            ),
+            (
+              chat.unread > 0 ? 'read' : 'unread',
+              chat.unread > 0 ? 'Mark read' : 'Mark unread',
+              Icons.mark_email_unread_outlined,
+            ),
+            (
+              chat.muted ? 'unmute' : 'mute',
+              chat.muted ? 'Unmute notifications' : 'Mute notifications',
+              Icons.notifications_off_outlined,
+            ),
+            ('block', 'Block sender', Icons.block),
+            ('delete', 'Delete chat', Icons.delete_outline),
+          ])
+            ListTile(
+              leading: Icon(icon),
+              title: Text(label),
+              onTap: () => Navigator.pop(dialog, value),
+            ),
+        ],
+      ),
+    );
+    if (!mounted || selected == null) return;
+    if (selected == 'block' || selected == 'delete') {
+      final deleting = selected == 'delete';
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(deleting ? 'Delete this chat?' : 'Block ${chat.name}?'),
+          content: Text(
+            deleting
+                ? 'This removes the chat history from this profile.'
+                : 'Messages and calls from this sender will be blocked.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: Text(deleting ? 'Delete' : 'Block'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+    }
+    await _perform(() => widget.chatmail.manageChat(chat.id, selected));
+    if (mounted) await _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (_busy) const LinearProgressIndicator(),
+        if (!_ready) ...[
+          Text('Set up chats', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 8),
+          const Text(
+            'Create a profile on Chatmail to connect with friends. Use any display name you want to share.',
+          ),
+          const SizedBox(height: 18),
+          TextField(
+            controller: _name,
+            enabled: !_busy,
+            maxLength: 40,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Display name'),
+            onSubmitted: (_) {
+              if (!_busy) _setup();
+            },
+          ),
+          FilledButton(
+            onPressed: _busy ? null : _setup,
+            child: const Text('Create chat profile'),
+          ),
+        ] else ...[
+          Row(
+            children: [
+              ChoiceChip(
+                label: const Text('Inbox'),
+                selected: !_archived,
+                onSelected: (_) => _selectArchive(false),
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Archived'),
+                selected: _archived,
+                onSelected: (_) => _selectArchive(true),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_chats.isEmpty)
+            Text(
+              _archived
+                  ? 'No archived chats.'
+                  : 'Use Contacts to connect with a friend.',
+            ),
+          for (final chat in _chats)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Card(
+                child: ListTile(
+                  leading: ChatAvatar(chat.name, photo: chat.photo),
+                  title: Text(chat.name),
+                  subtitle: chat.preview.isEmpty
+                      ? null
+                      : Text(
+                          chat.preview.startsWith(matchMarker.trimRight())
+                              ? 'Cats vs Dogs match update'
+                              : chat.preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                  trailing: chat.unread > 0
+                      ? Semantics(
+                          label: '${chat.unread} unread messages',
+                          child: Badge.count(count: chat.unread),
+                        )
+                      : const Icon(Icons.chevron_right),
+                  onTap: _busy ? null : () => _open(chat.id, chat.name),
+                  onLongPress: _busy ? null : () => _chatMenu(chat),
+                ),
+              ),
+            ),
+        ],
+        if (_error case final error?) ...[
+          const SizedBox(height: 12),
+          Text(error, style: TextStyle(color: theme.colorScheme.error)),
+          TextButton(
+            onPressed: _busy ? null : _initialize,
+            child: const Text('Retry connection'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class ContactInvites {
+  ContactInvites(this.context, this.chatmail, this.open, this.share);
+
+  final BuildContext context;
+  final Chatmail chatmail;
+  final Future<void> Function(int, String) open;
+  final Future<void> Function(String) share;
+
+  Future<void> _perform(Future<void> Function() operation) async {
+    try {
+      await operation();
+    } catch (error) {
+      if (context.mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_failure(error))));
+    }
+  }
+
+  Future<void> create() => _perform(() async {
+    final invite = await chatmail.invite();
     List<(int, int)> modules = const [];
     try {
-      modules = await widget.chatmail.qrModules(invite);
+      modules = await chatmail.qrModules(invite);
     } catch (_) {
       // Sharing the original invite link remains available.
     }
-    if (!mounted) return;
+    if (!context.mounted) return;
     await showDialog<void>(
       context: context,
       builder: (dialog) => AlertDialog(
@@ -180,9 +380,9 @@ class _FriendsPaneState extends State<FriendsPane> {
             onPressed: () async {
               Navigator.pop(dialog);
               try {
-                await widget.share(invite);
+                await share(invite);
               } catch (_) {
-                if (mounted)
+                if (context.mounted)
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Sharing is unavailable. Use Copy link.'),
@@ -197,143 +397,16 @@ class _FriendsPaneState extends State<FriendsPane> {
     );
   });
 
-  Future<void> _accept() async {
+  Future<void> accept() async {
     final invite = await showDialog<String>(
       context: context,
       builder: (_) => const _AcceptInviteDialog(),
     );
-    if (!mounted || invite == null) return;
+    if (!context.mounted || invite == null) return;
     await _perform(() async {
-      final chat = await widget.chatmail.acceptInvite(invite);
-      if (mounted) await _open(chat, 'Friend');
+      final chat = await chatmail.acceptInvite(invite);
+      if (context.mounted) await open(chat, 'Friend');
     });
-  }
-
-  Future<void> _open(int chat, String name) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => FriendConversation(
-          chatmail: widget.chatmail,
-          id: chat,
-          initialName: name,
-          pickGameLink: widget.pickGameLink,
-          openGameLink: widget.openGameLink,
-          prepareGame: widget.prepareGame,
-        ),
-      ),
-    );
-    await _refresh();
-  }
-
-  Future<void> _contacts() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => ContactsPage(
-          chatmail: widget.chatmail,
-          invite: _invite,
-          acceptInvite: _accept,
-          open: (contact) async {
-            final chat = await widget.chatmail.openContact(contact.id);
-            if (mounted) await _open(chat, contact.name);
-          },
-        ),
-      ),
-    );
-    if (mounted) await _refresh();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        if (_busy) const LinearProgressIndicator(),
-        if (!_ready) ...[
-          Text('Set up chats', style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          const Text(
-            'Create a profile on Chatmail to connect with friends. Use any display name you want to share.',
-          ),
-          const SizedBox(height: 18),
-          TextField(
-            controller: _name,
-            enabled: !_busy,
-            maxLength: 40,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Display name'),
-            onSubmitted: (_) {
-              if (!_busy) _setup();
-            },
-          ),
-          FilledButton(
-            onPressed: _busy ? null : _setup,
-            child: const Text('Create chat profile'),
-          ),
-        ] else ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton.tonalIcon(
-                onPressed: _busy ? null : _contacts,
-                icon: const Icon(Icons.contacts_outlined),
-                label: const Text('Contacts'),
-              ),
-              FilledButton.icon(
-                onPressed: _busy ? null : _invite,
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Invite friend'),
-              ),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _accept,
-                icon: const Icon(Icons.link),
-                label: const Text('Accept invite'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_chats.isEmpty)
-            const Text(
-              'Your conversations will appear here after you connect with a friend.',
-            ),
-          for (final chat in _chats)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Card(
-                child: ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(chat.name),
-                  subtitle: chat.preview.isEmpty
-                      ? null
-                      : Text(
-                          chat.preview.startsWith(matchMarker.trimRight())
-                              ? 'Cats vs Dogs match update'
-                              : chat.preview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                  trailing: chat.unread > 0
-                      ? Semantics(
-                          label: '${chat.unread} unread messages',
-                          child: Badge.count(count: chat.unread),
-                        )
-                      : const Icon(Icons.chevron_right),
-                  onTap: _busy ? null : () => _open(chat.id, chat.name),
-                ),
-              ),
-            ),
-        ],
-        if (_error case final error?) ...[
-          const SizedBox(height: 12),
-          Text(error, style: TextStyle(color: theme.colorScheme.error)),
-          TextButton(
-            onPressed: _busy ? null : _initialize,
-            child: const Text('Retry connection'),
-          ),
-        ],
-      ],
-    );
   }
 }
 
@@ -471,7 +544,7 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
           enabled: !_scanning,
           controller: _input,
           maxLength: 4096,
-          decoration: const InputDecoration(labelText: 'Friend invite link'),
+          decoration: const InputDecoration(labelText: 'Paste invite link'),
           onSubmitted: (_) => _accept(),
         ),
       ],
@@ -635,6 +708,7 @@ class _FriendConversationState extends State<FriendConversation>
     await showModalBottomSheet<void>(
       context: context,
       builder: (_) => ChatEmojiPicker(
+        draft: _composer,
         insert: (value) {
           final current = _composer.value;
           final selection = current.selection;
@@ -653,6 +727,131 @@ class _FriendConversationState extends State<FriendConversation>
     );
   }
 
+  final _updatingMessages = <int>{};
+
+  Future<void> _updateMessage(
+    FriendMessage message,
+    Future<void> Function() update,
+  ) async {
+    if (!_updatingMessages.add(message.id)) return;
+    try {
+      await update();
+      await _load();
+    } catch (error) {
+      if (mounted) setState(() => _sendError = _failure(error));
+    } finally {
+      _updatingMessages.remove(message.id);
+    }
+  }
+
+  Future<void> _chooseReaction(FriendMessage message) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    String? chosen;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) =>
+          ChatEmojiPicker(single: true, insert: (emoji) => chosen = emoji),
+    );
+    if (!mounted || chosen == null) return;
+    final repeat = message.reactions.any(
+      (reaction) => reaction.mine && reaction.emoji == chosen,
+    );
+    await _updateMessage(
+      message,
+      () => widget.chatmail.react(message.id, repeat ? null : chosen),
+    );
+  }
+
+  Widget _messageHeader(FriendMessage message, String peer, bool canSend) {
+    final name = message.sender?.name.trim();
+    final author = name == null || name.isEmpty
+        ? (message.outgoing ? 'You' : peer)
+        : name;
+    final theme = Theme.of(context);
+    final time = chatTime(context, message.timestamp);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        children: [
+          ChatAvatar(author, photo: message.sender?.photo, radius: 14),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  author,
+                  style: theme.textTheme.labelLarge,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (time.isNotEmpty)
+                  Text(
+                    time,
+                    style: theme.textTheme.labelSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'React to message',
+            onPressed: canSend ? () => _chooseReaction(message) : null,
+            iconSize: 19,
+            icon: const Icon(Icons.add_reaction_outlined),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: message.savedId == null
+                ? 'Save message'
+                : 'Unsave message',
+            onPressed: () => _updateMessage(
+              message,
+              () => widget.chatmail.toggleSaved(message),
+            ),
+            iconSize: 20,
+            icon: Icon(
+              message.savedId == null ? Icons.star_border : Icons.star,
+              color: message.savedId == null ? null : theme.colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reactions(FriendMessage message, bool canSend) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Wrap(
+        spacing: 5,
+        children: [
+          for (final reaction in message.reactions)
+            ActionChip(
+              label: Text(
+                reaction.count == 1
+                    ? reaction.emoji
+                    : '${reaction.emoji} ${reaction.count}',
+              ),
+              backgroundColor: reaction.mine
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : null,
+              onPressed: canSend
+                  ? () => _updateMessage(
+                      message,
+                      () => widget.chatmail.react(
+                        message.id,
+                        reaction.mine ? null : reaction.emoji,
+                      ),
+                    )
+                  : null,
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _chooseAttachment() async {
     FocusManager.instance.primaryFocus?.unfocus();
     final choice = await showModalBottomSheet<String>(
@@ -664,20 +863,27 @@ class _FriendConversationState extends State<FriendConversation>
           children: [
             const ListTile(title: Text('Add attachment')),
             for (final (label, icon, value) in const [
-              ('Other File Type', Icons.insert_drive_file_outlined, '*/*'),
               ('Take photo', Icons.photo_camera_outlined, 'capture-photo'),
               ('Record video', Icons.videocam_outlined, 'capture-video'),
               ('Record audio', Icons.mic_none, 'capture-audio'),
-              ('Photos', Icons.photo_library_outlined, 'image/*'),
-              ('Videos', Icons.video_library_outlined, 'video/*'),
-              ('Audio', Icons.audiotrack_outlined, 'audio/*'),
-              ('Contact card (.vcf)', Icons.contact_page_outlined, 'contact'),
+              ('Attach File', Icons.attach_file, '*/*'),
             ])
               ListTile(
                 leading: Icon(icon),
                 title: Text(label),
                 onTap: () => Navigator.pop(sheet, value),
               ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.file_present_outlined),
+              title: const Text('Attach Original File'),
+              subtitle: const Text(
+                'Keeps the original quality and may use more data.',
+              ),
+              textColor: Theme.of(sheet).colorScheme.onSurfaceVariant,
+              iconColor: Theme.of(sheet).colorScheme.onSurfaceVariant,
+              onTap: () => Navigator.pop(sheet, 'original'),
+            ),
             if (widget.pickGameLink != null)
               ListTile(
                 leading: const Icon(Icons.link),
@@ -694,9 +900,24 @@ class _FriendConversationState extends State<FriendConversation>
       return;
     }
     try {
-      final file = choice == 'contact'
-          ? await _chooseContactCard()
-          : await ChatFile.pick(choice);
+      if (choice == 'capture-photo' || choice == 'capture-video') {
+        final granted = await const MethodChannel('io.zompado.host')
+            .invokeMethod<bool>('requestCallCamera');
+        if (granted != true) {
+          if (mounted)
+            setState(
+              () => _sendError = 'Allow camera access in Setup to take a photo or record a video.',
+            );
+          return;
+        }
+      }
+      if (!mounted) return;
+      final file = choice == 'capture-audio'
+          ? await ChatFile.record(context)
+          : await ChatFile.pick(
+              choice == 'original' ? '*/*' : choice,
+              original: choice == 'original',
+            );
       if (file == null) return;
       if (!mounted) {
         await file.discard();
@@ -713,34 +934,6 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
-  Future<ChatFile?> _chooseContactCard() async {
-    final contacts = await widget.chatmail.contacts();
-    if (!mounted) return null;
-    final selected = await showModalBottomSheet<int>(
-      context: context,
-      builder: (sheet) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            ListTile(
-              title: const Text('Choose a .vcf file'),
-              onTap: () => Navigator.pop(sheet, 0),
-            ),
-            for (final contact in contacts)
-              ListTile(
-                title: Text(contact.name),
-                onTap: () => Navigator.pop(sheet, contact.id),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (selected == null) return null;
-    return selected == 0
-        ? ChatFile.pick('text/vcard')
-        : ChatFile.card(await widget.chatmail.contactCard(selected));
-  }
-
   Future<bool> _send({String? gameLink}) async {
     final original = _composer.text;
     final text = gameLink ?? original.trim();
@@ -753,12 +946,26 @@ class _FriendConversationState extends State<FriendConversation>
       _sending = true;
       _sendError = null;
     });
+    ChatFile? prepared;
     try {
+      if (attachment != null &&
+          !attachment.original &&
+          !attachment.voice &&
+          (attachment.mediaType == 'Audio' ||
+              attachment.mediaType == 'Video')) {
+        prepared = await attachment.prepare(await widget.chatmail.dataSaver());
+      }
+      if (!mounted) {
+        await attachment?.discard();
+        return false;
+      }
+      final outgoing = prepared ?? attachment;
       await widget.chatmail.send(
         widget.id,
         text,
-        file: attachment?.path,
-        filename: attachment?.name,
+        file: outgoing?.path,
+        filename: outgoing?.name,
+        mediaType: outgoing?.mediaType,
       );
       await attachment?.discard();
       if (!mounted) return false;
@@ -778,6 +985,7 @@ class _FriendConversationState extends State<FriendConversation>
       if (!mounted) await attachment?.discard();
       return false;
     } finally {
+      await prepared?.discard();
       if (mounted) setState(() => _sending = false);
     }
   }
@@ -895,6 +1103,7 @@ class _FriendConversationState extends State<FriendConversation>
       primary: !docked,
       title: Text(thread?.name ?? widget.initialName),
       actions: [
+        if (!docked) ...chatActions(context),
         if (!docked && voice != null)
           IconButton(
             tooltip: 'Voice call',
@@ -983,126 +1192,158 @@ class _FriendConversationState extends State<FriendConversation>
                             alignment: message.outgoing
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 7),
-                              constraints: const BoxConstraints(maxWidth: 340),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onLongPress: () => showMessageActions(
+                                context,
+                                widget.chatmail,
+                                message,
                               ),
-                              decoration: BoxDecoration(
-                                color: message.outgoing
-                                    ? colors.secondaryContainer
-                                    : colors.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (invitation != null) ...[
-                                    Text(
-                                      message.outgoing
-                                          ? 'You invited ${thread.name} to play Cats vs Dogs.'
-                                          : '${thread.name} invited you to play Cats vs Dogs.',
+                              child: Container(
+                                margin: EdgeInsets.only(
+                                  bottom: 9,
+                                  left: message.outgoing ? 32 : 0,
+                                  right: message.outgoing ? 0 : 32,
+                                ),
+                                constraints: const BoxConstraints(
+                                  maxWidth: 350,
+                                  minWidth: 210,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: message.outgoing
+                                      ? colors.secondaryContainer
+                                      : colors.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(17),
+                                    topRight: const Radius.circular(17),
+                                    bottomLeft: Radius.circular(
+                                      message.outgoing ? 17 : 4,
                                     ),
-                                    if (!message.outgoing &&
-                                        !invitation.accepted &&
-                                        !invitation.finished)
-                                      Wrap(
-                                        spacing: 8,
-                                        children: [
-                                          TextButton(
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: colors.error,
-                                            ),
-                                            onPressed: _sending
-                                                ? null
-                                                : () => _send(
-                                                    gameLink: invitation.invite
-                                                        .decline()
-                                                        .wire,
-                                                  ),
-                                            child: const Text('Decline'),
-                                          ),
-                                          FilledButton(
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor: const Color(
-                                                0xff1b663c,
-                                              ),
-                                              foregroundColor: Colors.white,
-                                            ),
-                                            onPressed: _sending
-                                                ? null
-                                                : () => _openMatch(
-                                                    invitation.invite.id,
-                                                    accept: true,
-                                                  ),
-                                            child: const Text('Accept'),
-                                          ),
-                                        ],
-                                      )
-                                    else if (!invitation.finished)
-                                      TextButton(
-                                        onPressed: () => _openMatch(
-                                          invitation.invite.id,
-                                          play: invitation.accepted,
-                                        ),
-                                        child: Text(
-                                          invitation.accepted
-                                              ? 'Play Now'
-                                              : 'Open Cats vs Dogs match',
-                                        ),
-                                      )
-                                    else
-                                      Text(invitation.status),
-                                  ] else if (gameLink != null &&
-                                      widget.openGameLink != null)
-                                    OutlinedButton.icon(
-                                      onPressed: () =>
-                                          widget.openGameLink!(gameLink),
-                                      icon: const Icon(
-                                        Icons.sports_esports_outlined,
-                                      ),
-                                      label: Text(
-                                        gameLink.id == 'drop-four'
-                                            ? 'Open Cats vs Dogs'
-                                            : 'Open game',
-                                      ),
-                                    )
-                                  else ...[
-                                    if (message.file case final path?
-                                        when message.mime?.startsWith(
-                                              'image/',
-                                            ) ==
-                                            true)
-                                      Image.file(
-                                        File(path),
-                                        fit: BoxFit.contain,
-                                        cacheWidth: 640,
-                                        errorBuilder: (_, _, _) =>
-                                            const SizedBox.shrink(),
-                                      ),
-                                    if (message.filename case final name?)
+                                    bottomRight: Radius.circular(
+                                      message.outgoing ? 4 : 17,
+                                    ),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _messageHeader(
+                                      message,
+                                      thread.name,
+                                      thread.canSend,
+                                    ),
+                                    if (invitation != null) ...[
                                       Text(
-                                        name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                        message.outgoing
+                                            ? 'You invited ${thread.name} to play Cats vs Dogs.'
+                                            : '${thread.name} invited you to play Cats vs Dogs.',
+                                      ),
+                                      if (!message.outgoing &&
+                                          !invitation.accepted &&
+                                          !invitation.finished)
+                                        Wrap(
+                                          spacing: 8,
+                                          children: [
+                                            TextButton(
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: colors.error,
+                                              ),
+                                              onPressed: _sending
+                                                  ? null
+                                                  : () => _send(
+                                                      gameLink: invitation
+                                                          .invite
+                                                          .decline()
+                                                          .wire,
+                                                    ),
+                                              child: const Text('Decline'),
+                                            ),
+                                            FilledButton(
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xff1b663c,
+                                                ),
+                                                foregroundColor: Colors.white,
+                                              ),
+                                              onPressed: _sending
+                                                  ? null
+                                                  : () => _openMatch(
+                                                      invitation.invite.id,
+                                                      accept: true,
+                                                    ),
+                                              child: const Text('Accept'),
+                                            ),
+                                          ],
+                                        )
+                                      else if (!invitation.finished)
+                                        TextButton(
+                                          onPressed: () => _openMatch(
+                                            invitation.invite.id,
+                                            play: invitation.accepted,
+                                          ),
+                                          child: Text(
+                                            invitation.accepted
+                                                ? 'Play Now'
+                                                : 'Open Cats vs Dogs match',
+                                          ),
+                                        )
+                                      else
+                                        Text(invitation.status),
+                                    ] else if (gameLink != null &&
+                                        widget.openGameLink != null)
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            widget.openGameLink!(gameLink),
+                                        icon: const Icon(
+                                          Icons.sports_esports_outlined,
+                                        ),
+                                        label: Text(
+                                          gameLink.id == 'drop-four'
+                                              ? 'Open Cats vs Dogs'
+                                              : 'Open game',
+                                        ),
+                                      )
+                                    else ...[
+                                      if (message.file case final path?
+                                          when message.mime?.startsWith(
+                                                'image/',
+                                              ) ==
+                                              true)
+                                        Image.file(
+                                          File(path),
+                                          fit: BoxFit.contain,
+                                          cacheWidth: 640,
+                                          errorBuilder: (_, _, _) =>
+                                              const SizedBox.shrink(),
+                                        ),
+                                      if (message.filename case final name?)
+                                        Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      if (message.text.isNotEmpty ||
+                                          message.filename == null)
+                                        Text(text),
+                                    ],
+                                    if (message.reactions.isNotEmpty)
+                                      _reactions(message, thread.canSend),
+                                    if (message.delivery case final delivery?)
+                                      Text(
+                                        delivery,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: colors.onSecondaryContainer,
                                         ),
                                       ),
-                                    if (message.text.isNotEmpty ||
-                                        message.filename == null)
-                                      SelectableText(text),
                                   ],
-                                  if (message.delivery case final delivery?)
-                                    Text(
-                                      delivery,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: colors.onSecondaryContainer,
-                                      ),
-                                    ),
-                                ],
+                                ),
                               ),
                             ),
                           );
@@ -1132,6 +1373,7 @@ class _FriendConversationState extends State<FriendConversation>
               ],
             ),
           ),
+          if (_sending && _attachment != null) const LinearProgressIndicator(),
           if (_sendError case final error?)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1156,6 +1398,16 @@ class _FriendConversationState extends State<FriendConversation>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  IconButton(
+                    tooltip: 'Add attachment',
+                    onPressed: _sending ? null : _chooseAttachment,
+                    icon: const Icon(Icons.attach_file),
+                  ),
+                  IconButton(
+                    tooltip: 'Emoji',
+                    onPressed: _sending ? null : _showEmoji,
+                    icon: const Icon(Icons.emoji_emotions_outlined),
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _composer,
@@ -1167,16 +1419,6 @@ class _FriendConversationState extends State<FriendConversation>
                         counterText: '',
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Add attachment',
-                    onPressed: _sending ? null : _chooseAttachment,
-                    icon: const Icon(Icons.attach_file),
-                  ),
-                  IconButton(
-                    tooltip: 'Emoji',
-                    onPressed: _sending ? null : _showEmoji,
-                    icon: const Icon(Icons.emoji_emotions_outlined),
                   ),
                   IconButton(
                     tooltip: 'Send message',

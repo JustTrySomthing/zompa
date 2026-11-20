@@ -1,3 +1,5 @@
+import 'chat_chrome.dart';
+
 import 'package:flutter/material.dart';
 
 import 'game_audio.dart';
@@ -35,6 +37,7 @@ class _GamePlayPageState extends State<GamePlayPage> {
     appBar: AppBar(
       title: Text(widget.title),
       actions: [
+        ...chatActions(context),
         const GameAudioButton(),
         IconButton(
           tooltip: 'Pause game',

@@ -1,3 +1,5 @@
+import 'chat_chrome.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -82,7 +84,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Setup')),
+    appBar: AppBar(title: const Text('Setup'), actions: chatActions(context)),
     body: SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -107,6 +109,13 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
                 ? () => _open('requestUpdateNotifications')
                 : null,
             button: 'Allow alerts',
+          ),
+          _SetupCard(
+            icon: Icons.lock_outline,
+            title: 'Lock-screen alerts',
+            text: 'Allow Zompado notifications on the lock screen in Android settings.',
+            action: !_working ? () => _open('openNotificationSettings') : null,
+            button: 'Open notification settings',
           ),
           _SetupCard(
             icon: Icons.mic_none_outlined,
@@ -307,19 +316,27 @@ const _topics = [
     answers: [
       (
         'How do I connect with a friend?',
-        'Open Chats and create a profile. In Contacts, tap Add contact to share your invite link or accept one. On the other phone, open Chats → Accept invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
+        'Open Chats and create a profile. Open Contacts from the top bar. Tap Create Invite to share your link, or Accept Invite to scan or paste a friend’s link. On the other phone, open Contacts → Accept Invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
       ),
       (
         'How do I manage contacts?',
-        'Open Chats → Contacts. Search by name or address. Use the menu beside a contact to block or delete them. Open Blocked to unblock someone.',
+        'Tap Contacts in the top bar. Search by name, or tap the pin to keep someone at the top. Use the menu to block or delete them. Turn on Show blocked contacts to unblock someone.',
       ),
       (
         'How do I edit my profile?',
-        'Open Settings → My profile to change your name, photo, or optional bio.',
+        'Open Settings → My Profile to change your name, photo, or optional bio.',
       ),
       (
         'How do I call a friend?',
         'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, turn on video, or end the call. Camera stays off until you turn it on. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
+      ),
+      (
+        'How do I send files or keep their original quality?',
+        'Use the paperclip to capture or attach media. Settings → Compression lets you choose Balanced or Data saver. Use Attach Original File to send the original bytes.',
+      ),
+      (
+        'Where are my saved messages?',
+        'Tap the star on a message to save it. Tap Saved in the top bar to search and filter your saved messages and attachments.',
       ),
       (
         'When can I send a message?',
@@ -342,7 +359,7 @@ const _topics = [
       ),
       (
         'What alerts can I turn on?',
-        'Setup offers app update and friend activity alerts. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
+        'Open Settings → Notifications for alert categories and Android lock screen settings. Tap the bell in the top bar to silence all Zompado alerts. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
       ),
     ],
   ),
@@ -384,7 +401,7 @@ class _HelpPageState extends State<HelpPage> {
         )
         .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Help')),
+      appBar: AppBar(title: const Text('Help'), actions: chatActions(context)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),

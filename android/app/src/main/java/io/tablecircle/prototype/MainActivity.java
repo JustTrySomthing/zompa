@@ -95,6 +95,19 @@ public final class MainActivity extends FlutterActivity {
                     case "pickChatFile":
                         chatFiles.pick((String) call.arguments, result);
                         break;
+                    case "prepareChatMedia":
+                        chatFiles.prepare(call.argument("path"), call.argument("name"), call.argument("mime"),
+                            Boolean.TRUE.equals(call.argument("dataSaver")), result);
+                        break;
+                    case "downloadChatFile":
+                        chatFiles.download(call.argument("path"), call.argument("name"), call.argument("mime"), result);
+                        break;
+                    case "startChatRecording":
+                        chatFiles.startRecording(result);
+                        break;
+                    case "stopChatRecording":
+                        result.success(chatFiles.stopRecording(Boolean.TRUE.equals(call.argument("keep"))));
+                        break;
                     case "stageContactCard":
                         chatFiles.card((String) call.arguments, result);
                         break;
@@ -134,12 +147,29 @@ public final class MainActivity extends FlutterActivity {
                             call.method.equals("shareGameLink") ? "Share game" : "Share friend invite"));
                         result.success(null);
                         break;
+                    case "chatNotificationSettings":
+                        result.success(ChatAlerts.settings(this));
+                        break;
+                    case "setChatNotification":
+                        String notificationKey = call.argument("key");
+                        boolean notificationValue = Boolean.TRUE.equals(call.argument("value"));
+                        if (!ChatAlerts.set(this, notificationKey, notificationValue)) {
+                            result.error("NOTIFICATION_SETTINGS", "Couldn’t save notifications.", null);
+                            break;
+                        }
+                        if (!ChatAlerts.allowed(this, "calls")) stopRinging();
+                        result.success(null);
+                        break;
+                    case "openNotificationSettings":
+                        openNotificationSettings();
+                        result.success(null);
+                        break;
                     case "showChatNotification":
                         Integer chat = call.argument("chat");
                         Integer message = call.argument("message");
                         String label = call.argument("label");
                         if (chat != null && message != null && label != null) {
-                            ChatAlerts.post(MainActivity.this, chat, message, label);
+                            ChatAlerts.post(MainActivity.this, chat, message, label, call.argument("kind"));
                         }
                         result.success(null);
                         break;
@@ -237,12 +267,7 @@ public final class MainActivity extends FlutterActivity {
                                 REQUEST_NOTIFICATIONS);
                         } else {
                             if (!updateAlertsEnabled()) {
-                                Intent notificationSettings = Build.VERSION.SDK_INT >= 26
-                                    ? new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                        .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
-                                    : new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        Uri.parse("package:" + getPackageName()));
-                                startActivity(notificationSettings);
+                                openNotificationSettings();
                             }
                             result.success(null);
                         }
@@ -404,11 +429,19 @@ public final class MainActivity extends FlutterActivity {
         }
     }
 
+    private void openNotificationSettings() {
+        Intent settings = Build.VERSION.SDK_INT >= 26
+            ? new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
+            : new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()));
+        startActivity(settings);
+    }
+
     private void ring(int chat, int message, int secondsLeft) {
         stopRinging();
         ringingId = message;
         ringingChat = chat;
         ringDeadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L;
+        if (!ChatAlerts.allowed(this, "calls")) return;
         if (getSystemService(AudioManager.class).getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
         try {
             Ringtone tone = RingtoneManager.getRingtone(this,
@@ -441,6 +474,7 @@ public final class MainActivity extends FlutterActivity {
     @Override
     protected void onStop() {
         if (voice != null) voice.setVisible(false);
+        chatFiles.stopRecording(false);
         long remaining = ringDeadline - SystemClock.elapsedRealtime();
         if (ringingId > 0 && remaining > 0) {
             ChatAlerts.incoming(this, ringingChat, ringingId, (remaining + 999) / 1000);

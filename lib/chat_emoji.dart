@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 Future<Map<String, List<(String, String)>>>? _catalog;
@@ -19,7 +20,14 @@ Future<Map<String, List<(String, String)>>> _loadEmoji() async {
 }
 
 class ChatEmojiPicker extends StatefulWidget {
-  const ChatEmojiPicker({super.key, required this.insert});
+  const ChatEmojiPicker({
+    super.key,
+    required this.insert,
+    this.draft,
+    this.single = false,
+  });
+  final ValueListenable<TextEditingValue>? draft;
+  final bool single;
   final ValueChanged<String> insert;
 
   @override
@@ -28,6 +36,30 @@ class ChatEmojiPicker extends StatefulWidget {
 
 class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
   String? _selected;
+  String? _emoji;
+
+  void _pick(String emoji) {
+    setState(() => _emoji = emoji);
+    if (!widget.single) widget.insert(emoji);
+  }
+
+  Widget _preview(BuildContext context, String value) => Container(
+    margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(
+      value.isEmpty
+          ? (widget.single ? 'Choose a reaction' : 'Selected emoji appear here')
+          : value,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 17),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -47,6 +79,13 @@ class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
           final selected = _selected ?? groups.keys.first;
           return Column(
             children: [
+              if (widget.draft case final draft?)
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: draft,
+                  builder: (context, value, _) => _preview(context, value.text),
+                )
+              else
+                _preview(context, _emoji ?? ''),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -69,14 +108,11 @@ class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   children: [
                     for (final (emoji, label) in groups[selected]!)
-                      TextButton(
-                        style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                        onPressed: () => widget.insert(emoji),
-                        child: Text(
-                          emoji,
-                          semanticsLabel: label,
-                          style: const TextStyle(fontSize: 23),
-                        ),
+                      _EmojiTile(
+                        emoji: emoji,
+                        label: label,
+                        selected: widget.single && _emoji == emoji,
+                        onTap: () => _pick(emoji),
                       ),
                   ],
                 ),
@@ -84,13 +120,64 @@ class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: widget.single && _emoji == null
+                      ? null
+                      : () {
+                          if (widget.single) widget.insert(_emoji!);
+                          Navigator.pop(context);
+                        },
                   child: const Text('Done'),
                 ),
               ),
             ],
           );
         },
+      ),
+    ),
+  );
+}
+
+class _EmojiTile extends StatefulWidget {
+  const _EmojiTile({
+    required this.emoji,
+    required this.label,
+    required this.onTap,
+    required this.selected,
+  });
+  final String emoji, label;
+  final VoidCallback onTap;
+  final bool selected;
+
+  @override
+  State<_EmojiTile> createState() => _EmojiTileState();
+}
+
+class _EmojiTileState extends State<_EmojiTile> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: widget.label,
+    child: Material(
+      color: widget.selected
+          ? Theme.of(context).colorScheme.secondaryContainer
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onHighlightChanged: (value) => setState(() => _pressed = value),
+        onTap: widget.onTap,
+        child: Center(
+          child: AnimatedScale(
+            duration: Duration(milliseconds: _pressed ? 55 : 140),
+            curve: Curves.easeOutCubic,
+            scale: _pressed ? .74 : 1,
+            child: ExcludeSemantics(
+              child: Text(widget.emoji, style: const TextStyle(fontSize: 23)),
+            ),
+          ),
+        ),
       ),
     ),
   );

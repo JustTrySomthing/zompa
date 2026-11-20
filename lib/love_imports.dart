@@ -1,3 +1,5 @@
+import 'chat_chrome.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -76,7 +78,10 @@ class _LoveImportsState extends State<LoveImports> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: Scaffold(
-      appBar: AppBar(title: const Text('Import a Game')),
+      appBar: AppBar(
+        title: const Text('Import a Game'),
+        actions: chatActions(context),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),

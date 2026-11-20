@@ -202,6 +202,7 @@ class Chatmail {
               kind.startsWith('Msg') ||
               kind.startsWith('Securejoin') ||
               kind.startsWith('IncomingMsg') ||
+              kind.contains('Reaction') ||
               kind == 'ConnectivityChanged';
         }
         if (hasChanges) _changes.add(null);
@@ -216,11 +217,11 @@ class Chatmail {
     return _account!;
   }
 
-  Future<List<FriendChat>> chats() async {
+  Future<List<FriendChat>> chats({bool archived = false}) async {
     final account = _accountId;
     final ids = (await _call('get_chatlist_entries', [
       account,
-      2,
+      archived ? 3 : 2,
       null,
       null,
     ]) as List).cast<int>();
@@ -240,7 +241,105 @@ class Chatmail {
             chat['name'] as String,
             chat['summaryText2'] as String,
             chat['freshMessageCounter'] as int,
+            photo: chat['avatarPath'] as String?,
+            archived: chat['isArchived'] == true,
+            muted: chat['isMuted'] == true,
           ),
+    ];
+  }
+
+  void _changed() {
+    if (!_closed) _changes.add(null);
+  }
+
+  Future<void> manageChat(int chat, String action) async {
+    final account = _accountId;
+    final (method, extra) = switch (action) {
+      'archive' => ('set_chat_visibility', ['Archived']),
+      'restore' => ('set_chat_visibility', ['Normal']),
+      'mute' => (
+        'set_chat_mute_duration',
+        [
+          {'kind': 'Forever'},
+        ],
+      ),
+      'unmute' => (
+        'set_chat_mute_duration',
+        [
+          {'kind': 'NotMuted'},
+        ],
+      ),
+      'read' => ('marknoticed_chat', []),
+      'unread' => ('markfresh_chat', []),
+      'block' => ('block_chat', []),
+      'delete' => ('delete_chat', []),
+      _ => throw ArgumentError.value(action),
+    };
+    await _call(method, [account, chat, ...extra]);
+    _changed();
+  }
+
+  Future<bool> dataSaver() async =>
+      await _call('get_config', [_accountId, 'media_quality']) == '1';
+
+  Future<void> setDataSaver(bool value) async {
+    await _call('set_config', [_accountId, 'media_quality', value ? '1' : '0']);
+  }
+
+  Future<void> react(int id, String? emoji) async {
+    await _call('send_reaction', [
+      _accountId,
+      id,
+      [if (emoji != null) emoji],
+    ]);
+    _changed();
+  }
+
+  Future<void> deleteMessage(int id) async {
+    await _call('delete_messages', [
+      _accountId,
+      [id],
+    ]);
+    _changed();
+  }
+
+  Future<void> toggleSaved(FriendMessage message) async {
+    if (message.savedId case final id?) {
+      await deleteMessage(id);
+    } else {
+      await _call('save_msgs', [
+        _accountId,
+        [message.id],
+      ]);
+      _changed();
+    }
+  }
+
+  Future<List<FriendMessage>> savedMessages() async {
+    final account = _accountId;
+    final chat = await _call('get_chat_id_by_contact_id', [account, 1]) as int?;
+    if (chat == null || chat == 0) return [];
+    final ids = (await _call('get_message_ids', [
+      account,
+      chat,
+      false,
+      false,
+    ]) as List).cast<int>();
+    final saved = <FriendMessage>[];
+    for (var offset = 0; offset < ids.length; offset += 80) {
+      final batch = ids.reversed.skip(offset).take(80).toList();
+      saved.addAll(await _messages(account, batch));
+    }
+    return saved;
+  }
+
+  Future<List<FriendMessage>> _messages(int account, List<int> ids) async {
+    if (ids.isEmpty) return [];
+    final result = await _call('get_messages', [account, ids]) as Json;
+    return [
+      for (final id in ids)
+        if (result['$id'] case final Json row when row['kind'] == 'message')
+          FriendMessage.fromJson(row),
     ];
   }
 
@@ -331,18 +430,10 @@ class Chatmail {
     final recent = ids
         .skip(ids.length > limit ? ids.length - limit : 0)
         .toList();
-    final messages = recent.isEmpty
-        ? <String, dynamic>{}
-        : await _call('get_messages', [account, recent]) as Json;
     return FriendThread(
       info['name'] as String,
       info['isEncrypted'] == true && info['canSend'] == true,
-      [
-        for (final id in recent)
-          if (messages['$id'] case final Json message
-              when message['kind'] == 'message')
-            FriendMessage.fromJson(message),
-      ],
+      await _messages(account, recent),
       ids.length > recent.length,
     );
   }
@@ -491,6 +582,7 @@ class Chatmail {
     String message, {
     String? file,
     String? filename,
+    String? mediaType,
   }) async {
     final account = _accountId;
     final info = await _call('get_full_chat_by_id', [account, chat]) as Json;
@@ -502,14 +594,15 @@ class Chatmail {
     if (file == null) {
       await _call('misc_send_text_message', [account, chat, message]);
     } else {
-      await _call('misc_send_msg', [
+      await _call('send_msg', [
         account,
         chat,
-        message,
-        file,
-        filename,
-        null,
-        null,
+        {
+          'text': message,
+          'file': file,
+          'filename': filename,
+          'viewtype': mediaType ?? 'File',
+        },
       ]);
     }
   }
@@ -537,10 +630,20 @@ class ChatContact {
 }
 
 class FriendChat {
-  const FriendChat(this.id, this.name, this.preview, this.unread);
+  const FriendChat(
+    this.id,
+    this.name,
+    this.preview,
+    this.unread, {
+    this.photo,
+    this.archived = false,
+    this.muted = false,
+  });
   final int id;
   final String name, preview;
   final int unread;
+  final String? photo;
+  final bool archived, muted;
 }
 
 class FriendThread {
@@ -559,12 +662,32 @@ class FriendMessage {
       filename = message['fileName'] as String?,
       file = message['file'] as String?,
       mime = message['fileMime'] as String?,
+      timestamp = message['timestamp'] as int? ?? 0,
+      viewType = message['viewType'] as String? ?? 'Text',
+      sender = message['sender'] is Json
+          ? ChatContact.fromJson(message['sender'] as Json)
+          : null,
+      savedId = message['savedMessageId'] as int?,
+      reactions = [
+        for (final row
+            in ((message['reactions'] as Json?)?['reactions'] as List? ??
+                    const [])
+                .cast<Json>())
+          (
+            emoji: row['emoji'] as String,
+            count: row['count'] as int,
+            mine: row['isFromSelf'] == true,
+          ),
+      ],
       outgoing = message['fromId'] == 1,
       info = message['isInfo'] == true,
       encrypted = message['showPadlock'] == true;
 
-  final int id, state, chat;
-  final String text;
+  final int id, state, chat, timestamp;
+  final int? savedId;
+  final ChatContact? sender;
+  final List<({String emoji, int count, bool mine})> reactions;
+  final String text, viewType;
   final String? file, filename, mime;
   final bool outgoing, info, encrypted;
 

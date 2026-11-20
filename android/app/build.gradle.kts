@@ -98,6 +98,8 @@ flutter {
 
 dependencies {
     implementation("androidx.core:core:1.13.1")
+    implementation("androidx.media3:media3-transformer:1.6.1")
+    implementation("androidx.media3:media3-effect:1.6.1")
     implementation("io.github.webrtc-sdk:android:150.7871.01")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }

@@ -87,6 +87,7 @@ public final class UpdateCheckJob extends JobService {
         throws android.content.pm.PackageManager.NameNotFoundException {
         int installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
         if (build <= installed || build <= prefs.getInt(NOTIFIED, 0)) return;
+        if (!ChatAlerts.allowed(this, "updates")) return;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (!manager.areNotificationsEnabled()) return;
         if (Build.VERSION.SDK_INT >= 33

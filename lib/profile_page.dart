@@ -1,3 +1,5 @@
+import 'chat_chrome.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -115,7 +117,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final photo = _remove ? null : _draft?.path ?? _photo;
     return Scaffold(
-      appBar: AppBar(title: const Text('My profile')),
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        actions: chatActions(context),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),

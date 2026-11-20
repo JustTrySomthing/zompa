@@ -1,3 +1,5 @@
+import 'chat_chrome.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -313,6 +315,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                 : 'Match with ${widget.friendName}',
           ),
           actions: [
+            ...chatActions(context),
             const GameAudioButton(),
             IconButton(
               tooltip: _chatOpen

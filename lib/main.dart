@@ -12,6 +12,10 @@ import 'app_updates.dart';
 import 'github_distribution.dart';
 import 'game_link.dart';
 import 'chatmail.dart';
+import 'chat_chrome.dart';
+import 'contacts_page.dart';
+import 'compression_page.dart';
+import 'saved_messages.dart';
 import 'friends.dart';
 import 'profile_page.dart';
 import 'setup_help.dart';
@@ -59,6 +63,8 @@ class Zompado extends StatefulWidget {
 
 class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   ThemeMode mode = ThemeMode.dark;
+  final _home = GlobalKey<_HomeState>();
+  final _notifications = ChatNotificationSettings(bridge);
   File? storage;
   Map<String, dynamic> data = {};
   Future<void> pendingWrite = Future.value();
@@ -86,6 +92,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         await _openChatsIfRequested();
       }
     });
+    unawaited(_notifications.load());
     load();
   }
 
@@ -162,7 +169,9 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       final message = (await chatmail.notificationMessage(chat, id))?.message;
       if (message == null || !mounted || !_background) return;
       final event = message.encrypted ? MatchEvent.parse(message.text) : null;
-      var label = 'New message';
+      var label = message.viewType == 'Call'
+          ? 'Zompado call activity'
+          : 'New message';
       if (event != null) {
         switch (event.kind) {
           case 'invite':
@@ -188,6 +197,9 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         'chat': chat,
         'message': id,
         'label': label,
+        'kind': event == null
+            ? (message.viewType == 'Call' ? 'calls' : 'messages')
+            : 'invites',
       });
     } catch (_) {
       // Receiving a message still works when Android suppresses its alert.
@@ -216,6 +228,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     bridge.setMethodCallHandler(null);
     _voice?.dispose();
     _gameAudio?.dispose();
+    _notifications.dispose();
     chatmail?.close();
     super.dispose();
   }
@@ -254,9 +267,18 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
                 ),
         );
         final audio = _gameAudio;
-        return audio == null
-            ? launch
-            : GameAudioScope(audio: audio, child: launch);
+        return ChatChrome(
+          notifications: _notifications,
+          openContacts: chatmail == null || data['setupComplete'] != true
+              ? null
+              : (route) => _home.currentState?.openContacts(route),
+          openSaved: chatmail == null || data['setupComplete'] != true
+              ? null
+              : (route) => _home.currentState?.openSaved(route),
+          child: audio == null
+              ? launch
+              : GameAudioScope(audio: audio, child: launch),
+        );
       },
       themeMode: mode,
       home: !loaded
@@ -264,6 +286,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
           : data['setupComplete'] != true
           ? SetupPage(host: bridge, firstRun: true, onDone: finishSetup)
           : Home(
+              key: _home,
               data: data,
               write: write,
               distribution: distribution,
@@ -710,7 +733,10 @@ class _HomeState extends State<Home> {
         final openChats = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (page) => Scaffold(
-              appBar: AppBar(title: const Text('Online matches')),
+              appBar: AppBar(
+                title: const Text('Online matches'),
+                actions: chatActions(page),
+              ),
               body: SafeArea(
                 child: ListView(
                   padding: const EdgeInsets.all(16),
@@ -801,6 +827,83 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<void> _conversation(BuildContext route, int id, String name) =>
+      Navigator.of(route).push<void>(
+        MaterialPageRoute(
+          builder: (_) => FriendConversation(
+            chatmail: widget.chatmail!,
+            id: id,
+            initialName: name,
+            pickGameLink: _installedGameLink,
+            openGameLink: _openGameLink,
+            prepareGame: _prepareOnlineGame,
+          ),
+        ),
+      );
+
+  Future<void> openContacts(BuildContext route) async {
+    final chatmail = widget.chatmail;
+    if (chatmail == null) return;
+    try {
+      if (!await chatmail.restore()) {
+        if (route.mounted)
+          ScaffoldMessenger.of(route).showSnackBar(
+            const SnackBar(
+              content: Text('Create your chat profile in Chats first.'),
+            ),
+          );
+        return;
+      }
+      if (!mounted || !route.mounted) return;
+      final pins =
+          (widget.data['pinnedContacts'] as List?)?.whereType<int>().toSet() ??
+          <int>{};
+      await Navigator.of(route).push<void>(
+        MaterialPageRoute(
+          builder: (contacts) {
+            final invites = ContactInvites(
+              contacts,
+              chatmail,
+              (chat, name) => _conversation(contacts, chat, name),
+              (invite) => bridge.invokeMethod<void>('shareFriendInvite', {
+                'invite': invite,
+              }),
+            );
+            return ContactsPage(
+              chatmail: chatmail,
+              invite: invites.create,
+              acceptInvite: invites.accept,
+              open: (contact) async {
+                final id = await chatmail.openContact(contact.id);
+                if (contacts.mounted)
+                  await _conversation(contacts, id, contact.name);
+              },
+              pins: pins,
+              savePins: (values) =>
+                  widget.write('pinnedContacts', values.toList()),
+            );
+          },
+        ),
+      );
+    } catch (_) {
+      if (route.mounted)
+        ScaffoldMessenger.of(route).showSnackBar(
+          const SnackBar(content: Text('Couldn’t open Contacts.')),
+        );
+    }
+  }
+
+  void openSaved(BuildContext route) {
+    final chatmail = widget.chatmail;
+    if (chatmail == null) return;
+    Navigator.of(route).push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            SavedMessagesPage(chatmail: chatmail, openGame: _openGameLink),
+      ),
+    );
+  }
+
   void settings() => Navigator.push(
     context,
     MaterialPageRoute<void>(
@@ -836,25 +939,30 @@ class _HomeState extends State<Home> {
         ),
         actions: [
           if (isGames)
-            IconButton(
-              tooltip: 'Open game link',
-              onPressed: _pasteGameLink,
-              icon: const Icon(Icons.link_rounded),
+            PopupMenuButton<String>(
+              tooltip: 'Game actions',
+              onSelected: (action) {
+                if (action == 'link') {
+                  _pasteGameLink();
+                } else {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => LoveImports(
+                        host: bridge,
+                        read: () =>
+                            widget.data['loveImports'] as List? ?? const [],
+                        save: (files) => widget.write('loveImports', files),
+                      ),
+                    ),
+                  );
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'link', child: Text('Open game link')),
+                PopupMenuItem(value: 'import', child: Text('Import a Game')),
+              ],
             ),
-          if (isGames)
-            IconButton(
-              tooltip: 'Import a Game',
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (_) => LoveImports(
-                    host: bridge,
-                    read: () => widget.data['loveImports'] as List? ?? const [],
-                    save: (files) => widget.write('loveImports', files),
-                  ),
-                ),
-              ),
-              icon: const Icon(Icons.file_open_outlined),
-            ),
+          ...chatActions(context),
           IconButton(
             tooltip: 'Settings',
             onPressed: settings,
@@ -892,10 +1000,6 @@ class _HomeState extends State<Home> {
                     pickGameLink: _installedGameLink,
                     openGameLink: _openGameLink,
                     prepareGame: _prepareOnlineGame,
-                    share: (invite) => bridge.invokeMethod<void>(
-                      'shareFriendInvite',
-                      {'invite': invite},
-                    ),
                   ),
           ),
         ],
@@ -1285,10 +1389,48 @@ class Preferences extends StatefulWidget {
 class _PreferencesState extends State<Preferences> {
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Settings')),
+    appBar: AppBar(
+      title: const Text('Settings'),
+      actions: chatActions(context),
+    ),
     body: ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
+        if (widget.chatmail case final chatmail?)
+          ListTile(
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('My Profile'),
+            subtitle: const Text('Name, photo, and bio'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => ProfilePage(chatmail: chatmail),
+              ),
+            ),
+          ),
+        if (ChatChrome.of(context) case final chrome?)
+          ListTile(
+            leading: const Icon(Icons.notifications_none),
+            title: const Text('Notifications'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) =>
+                    NotificationsPage(settings: chrome.notifications),
+              ),
+            ),
+          ),
+        if (widget.chatmail case final chatmail?)
+          ListTile(
+            leading: const Icon(Icons.compress),
+            title: const Text('Compression'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => CompressionPage(chatmail: chatmail),
+              ),
+            ),
+          ),
         ListTile(
           leading: const Icon(Icons.tune_rounded),
           title: const Text('Setup'),
@@ -1313,18 +1455,6 @@ class _PreferencesState extends State<Preferences> {
           onTap: () => Navigator.of(context)
               .push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
         ),
-        if (widget.chatmail case final chatmail?)
-          ListTile(
-            leading: const Icon(Icons.account_circle_outlined),
-            title: const Text('My profile'),
-            subtitle: const Text('Name, photo, and bio'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => ProfilePage(chatmail: chatmail),
-              ),
-            ),
-          ),
         SwitchListTile(
           secondary: const Icon(Icons.palette_outlined),
           title: const Text('Appearance'),
