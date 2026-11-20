@@ -1,5 +1,5 @@
 {
-  "version": "0.5.8",
-  "build": 14,
-  "purpose": "Verify Android game playback and persisted volume, music, and effects controls."
+  "version": "0.5.13",
+  "build": 19,
+  "purpose": "Verify call setup, speaker and mute, camera upgrade, and interoperability with stock Delta Chat."
 }

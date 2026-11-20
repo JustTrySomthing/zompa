@@ -147,15 +147,22 @@ def check_voice(alice, bob):
     bob.see("Incoming call from Alice", 75)
     alice.see("Calling Bob…", 20)
     bob.press("Answer")
-    alice.see("Voice call with Bob", 65)
-    bob.see("Voice call with Alice", 65)
+    alice.see("Voice call with Bob", 75)
+    bob.see("Voice call with Alice", 75)
     bob.press("Mute microphone")
     bob.press("Unmute microphone")
     bob.press("Turn on speaker")
     bob.press("Turn off speaker")
+    bob.press("Turn on camera")
+    bob.see("Video call with Alice", 30)
+    alice.see("Video call with Bob", 30)
+    wait("Alice to render Bob’s camera", lambda:
+         b"Remote camera frame rendered" in alice.adb("logcat", "-d", "-s", "ZompadoCall:I"), 30)
+    bob.press("Turn off camera")
+    alice.see("Voice call with Bob", 30)
     bob.press("End call")
     wait("remote call closure", lambda: not alice.find("End call"))
-    print("PASS: two Android WebRTC endpoints connected, mute and speaker controls responded, and remote hangup cleared.", flush=True)
+    print("PASS: two Android WebRTC endpoints connected, received video from an enabled camera, toggled mute and speaker, and cleared remote hangup.", flush=True)
 
 
 def check_match(alice, bob):

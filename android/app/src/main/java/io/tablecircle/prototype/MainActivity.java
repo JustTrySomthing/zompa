@@ -44,6 +44,7 @@ public final class MainActivity extends FlutterActivity {
     private long ringDeadline;
     private MethodChannel.Result inviteScan;
     private MethodChannel.Result cameraSetup;
+    private MethodChannel.Result cameraCall;
     private static final int PICK_LOVE = 392;
     private MethodChannel.Result gamePicker;
 
@@ -57,6 +58,14 @@ public final class MainActivity extends FlutterActivity {
         readChatIntent(getIntent());
         host = new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompado.host");
         voice = new VoicePeer(this, host);
+        flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
+            "io.zompado.callVideo", new io.flutter.plugin.platform.PlatformViewFactory(
+                io.flutter.plugin.common.StandardMessageCodec.INSTANCE) {
+                @Override public io.flutter.plugin.platform.PlatformView create(
+                        android.content.Context context, int viewId, Object args) {
+                    return voice.videoView();
+                }
+            });
         host.setMethodCallHandler(new MethodChannel.MethodCallHandler() {
                 @Override
                 public void onMethodCall(MethodCall call, MethodChannel.Result result) {
@@ -169,6 +178,21 @@ public final class MainActivity extends FlutterActivity {
                         break;
                     case "voiceAnswer":
                         voice.answer(call.argument("token"), call.argument("answer"), result);
+                        break;
+                    case "requestCallCamera":
+                        if (hasCameraPermission()) {
+                            result.success(true);
+                        } else if (!cameraAvailable() || cameraBlocked()) {
+                            result.success(false);
+                        } else if (inviteScan == null && cameraSetup == null && cameraCall == null) {
+                            cameraCall = result;
+                            requestPermissions(new String[] { Manifest.permission.CAMERA }, REQUEST_CAMERA);
+                        } else {
+                            result.success(false);
+                        }
+                        break;
+                    case "voiceCamera":
+                        result.success(voice.camera(call.argument("token"), Boolean.TRUE.equals(call.argument("value"))));
                         break;
                     case "voiceEnd":
                         voice.end(call.argument("token"));
@@ -330,7 +354,7 @@ public final class MainActivity extends FlutterActivity {
     private void requestCameraForSetup(MethodChannel.Result result) {
         if (!cameraAvailable() || hasCameraPermission()) {
             result.success(null);
-        } else if (inviteScan != null || cameraSetup != null) {
+        } else if (inviteScan != null || cameraSetup != null || cameraCall != null) {
             result.error("CAMERA_BUSY", "A camera request is already open.", null);
         } else if (cameraBlocked()) {
             openAppSettings();
@@ -342,7 +366,7 @@ public final class MainActivity extends FlutterActivity {
     }
 
     private void scanFriendInvite(MethodChannel.Result result) {
-        if (inviteScan != null || cameraSetup != null) {
+        if (inviteScan != null || cameraSetup != null || cameraCall != null) {
             result.error("CAMERA_BUSY", "A camera request is already open.", null);
         } else if (!cameraAvailable()) {
             result.error("CAMERA_UNAVAILABLE", "This device has no camera.", null);
@@ -401,7 +425,14 @@ public final class MainActivity extends FlutterActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        if (voice != null) voice.setVisible(true);
+    }
+
+    @Override
     protected void onStop() {
+        if (voice != null) voice.setVisible(false);
         long remaining = ringDeadline - SystemClock.elapsedRealtime();
         if (ringingId > 0 && remaining > 0) {
             ChatAlerts.incoming(this, ringingChat, ringingId, (remaining + 999) / 1000);
@@ -487,6 +518,10 @@ public final class MainActivity extends FlutterActivity {
                 MethodChannel.Result result = cameraSetup;
                 cameraSetup = null;
                 result.success(null);
+            } else if (cameraCall != null) {
+                MethodChannel.Result result = cameraCall;
+                cameraCall = null;
+                result.success(granted);
             } else if (inviteScan != null) {
                 if (granted) {
                     openInviteScanner();

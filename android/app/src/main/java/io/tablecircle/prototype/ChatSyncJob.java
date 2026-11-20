@@ -192,7 +192,7 @@ public final class ChatSyncJob extends JobService {
                     if (call) {
                         JSONObject details = (JSONObject) rpc.call("call_info", account, id);
                         String state = details.getJSONObject("state").optString("kind");
-                        if (details.optBoolean("hasVideo") || !info.optBoolean("canSend")) continue;
+                        if (!info.optBoolean("canSend")) continue;
                         if ("Alerting".equals(state)) {
                             long secondsLeft = Math.min(120, msg.optLong("timestamp") + 120
                                 - System.currentTimeMillis() / 1000);
@@ -207,7 +207,7 @@ public final class ChatSyncJob extends JobService {
                     }
                     synchronized (OWNER) {
                         if (stopped || appOwnsCore) return;
-                        String title = call ? "Missed Zompado voice call" : "New friend activity";
+                        String title = call ? "Missed Zompado call" : "New friend activity";
                         ChatAlerts.post(ChatSyncJob.this, chat, id, title);
                     }
                     notified.add(chat);

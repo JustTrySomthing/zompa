@@ -10,6 +10,7 @@
 
 | Build | Scope |
 |---|---|
+| Android 0.5.13 call preview | Call panel with Answer, Decline, mute, speaker, and a camera toggle. Uses Chatmail ICE service credentials and Delta Chat’s negotiated ICE and media-state channels. Video starts only when enabled in the call. |
 | Android 0.5.12 | Match invites open the waiting screen for the sender. Acceptance prepares the correct online board on each phone. My Games and the Play menu list active matches and whose turn it is. |
 | Android 0.5.11 | Built-in QR scanner and an optional Camera permission in Setup. Cats vs Dogs has its own title, cover, and downloadable .zomp filename. |
 | [Public APK 0.5.10](https://github.com/JustTrySomthing/zompado/releases/tag/v0.5.10) | Built-in LÖVE player, official `.zomp` downloads, manual `.love` imports, encrypted friend chats with verified Delta Chat messaging, voice calls, online turns, and scheduled alerts. Android voice interoperability remains under test. |

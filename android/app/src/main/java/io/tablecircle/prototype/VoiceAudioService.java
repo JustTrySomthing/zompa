@@ -15,8 +15,9 @@ public final class VoiceAudioService extends Service {
 
     static void begin(Context context) {
         Intent service = new Intent(context, VoiceAudioService.class);
-        if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(service);
-        else context.startService(service);
+        // The call starts from the visible Activity. startService avoids the
+        // foreground-start deadline if the user hangs up before the service starts.
+        context.startService(service);
     }
 
     static void finish(Context context) {
@@ -28,7 +29,7 @@ public final class VoiceAudioService extends Service {
             getSystemService(NotificationManager.class).createNotificationChannel(
                 new NotificationChannel(CHANNEL, "Ongoing calls", NotificationManager.IMPORTANCE_LOW));
         }
-        var notification = ChatAlerts.notification(this, "Zompado voice call", CHANNEL, NOTICE);
+        var notification = ChatAlerts.notification(this, "Zompado call", CHANNEL, NOTICE);
         notification.flags |= android.app.Notification.FLAG_ONGOING_EVENT;
         notification.flags &= ~android.app.Notification.FLAG_AUTO_CANCEL;
         try {

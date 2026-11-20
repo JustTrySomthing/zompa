@@ -78,9 +78,13 @@ def main():
         zompado_call_button(zompado, "Answer")
         zompado.see("Voice call with " + delta.name, 65)
         delta.see("Connected", 65)
+        delta.press("Camera")
+        zompado.see("Video call with " + delta.name, 35)
+        wait("Zompado to render Delta Chat camera frames", lambda:
+             b"Remote camera frame rendered" in zompado.adb("logcat", "-d", "-s", "ZompadoCall:I"), 30)
         zompado_call_button(zompado, "End call")
         wait("Delta Chat to close the remote call", lambda: not delta.find("End Call"))
-        print("PASS: Delta Chat called Zompado and both clients connected.", flush=True)
+        print("PASS: Delta Chat called Zompado, both clients connected, and Zompado rendered Delta Chat’s camera.", flush=True)
 
         delta_chat_with(delta, zompado.name)
         zompado.press("Voice call")

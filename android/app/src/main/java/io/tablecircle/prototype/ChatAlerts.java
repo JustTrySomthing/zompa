@@ -60,7 +60,7 @@ final class ChatAlerts {
         if (chat <= 0 || message <= 0 || secondsLeft <= 0 || !callsEnabled(context)) return;
         PendingIntent open = alertIntent(context, chat, message, true);
         context.getSystemService(NotificationManager.class).notify("voice", message,
-            notification(context, "Incoming Zompado voice call", CALL_CHANNEL, open)
+            notification(context, "Incoming Zompado call", CALL_CHANNEL, open)
                 .setContentText("Open Zompado to answer.")
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)

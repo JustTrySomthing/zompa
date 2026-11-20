@@ -1,5 +1,5 @@
 /// Delta Chat offers video and data alongside audio even when calling without video.
-/// The signaling flag guards video calls and the native answer stops the video section.
+/// Accept one encrypted audio section and optional video and data sections.
 bool validVoiceSdp(Object? value) {
   if (value is! String || value.length > 24576) return false;
   final lines = value.split('\n').map((line) => line.trimRight());

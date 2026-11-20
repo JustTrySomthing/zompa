@@ -174,9 +174,11 @@ class Chatmail {
   Future<void> _listenForChanges(Process process) async {
     try {
       while (!_closed && _process == process) {
-        final batch =
-            await _call('get_next_event_batch', const [], timeout: null)
-                as List;
+        final batch = await _call(
+          'get_next_event_batch',
+          const [],
+          timeout: null,
+        ) as List;
         if (_closed || _process != process) return;
         var hasChanges = false;
         for (final entry in batch.cast<Json>()) {
@@ -216,9 +218,12 @@ class Chatmail {
 
   Future<List<FriendChat>> chats() async {
     final account = _accountId;
-    final ids =
-        (await _call('get_chatlist_entries', [account, 2, null, null]) as List)
-            .cast<int>();
+    final ids = (await _call('get_chatlist_entries', [
+      account,
+      2,
+      null,
+      null,
+    ]) as List).cast<int>();
     if (ids.isEmpty) return const [];
     final result =
         await _call('get_chatlist_items_by_entries', [account, ids]) as Json;
@@ -265,9 +270,12 @@ class Chatmail {
   Future<FriendThread> thread(int chat, {int limit = 60}) async {
     final account = _accountId;
     final info = await _call('get_full_chat_by_id', [account, chat]) as Json;
-    final ids =
-        (await _call('get_message_ids', [account, chat, false, false]) as List)
-            .cast<int>();
+    final ids = (await _call('get_message_ids', [
+      account,
+      chat,
+      false,
+      false,
+    ]) as List).cast<int>();
     final recent = ids
         .skip(ids.length > limit ? ids.length - limit : 0)
         .toList();
@@ -325,12 +333,10 @@ class Chatmail {
         (forDelivery && info['isMuted'] == true) ||
         info['isContactRequest'] == true)
       return null;
-    final messages =
-        await _call('get_messages', [
-              account,
-              [id],
-            ])
-            as Json;
+    final messages = await _call('get_messages', [
+      account,
+      [id],
+    ]) as Json;
     if (messages['$id'] case final Json message
         when message['kind'] == 'message') {
       final result = FriendMessage.fromJson(message);
@@ -367,7 +373,8 @@ class Chatmail {
     return info;
   }
 
-  Future<({String name, String offer, int secondsLeft})?> incomingVoiceCall(
+  Future<({String name, String offer, int secondsLeft, bool video})?>
+  incomingVoiceCall(
     int chat,
     int message, {
     bool fromNotification = false,
@@ -379,12 +386,10 @@ class Chatmail {
                 '2')) {
       return null;
     }
-    final entries =
-        await _call('get_messages', [
-              _accountId,
-              [message],
-            ])
-            as Json;
+    final entries = await _call('get_messages', [
+      _accountId,
+      [message],
+    ]) as Json;
     if (entries['$message'] case final Json call
         when call['kind'] == 'message' &&
             call['chatId'] == chat &&
@@ -397,13 +402,13 @@ class Chatmail {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final remaining = ((call['timestamp'] as int) + 120 - now).clamp(0, 118);
       if ((details['state'] as Json)['kind'] == 'Alerting' &&
-          details['hasVideo'] == false &&
           details['sdpOffer'] is String &&
           remaining > 0) {
         return (
           name: info['name'] as String,
           offer: details['sdpOffer'] as String,
           secondsLeft: remaining,
+          video: details['hasVideo'] == true,
         );
       }
     }

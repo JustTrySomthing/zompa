@@ -120,10 +120,10 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           ),
           _SetupCard(
             icon: Icons.camera_alt_outlined,
-            title: 'Camera for QR codes',
+            title: 'Camera for QR codes and calls',
             text: _status?['cameraAvailable'] == false
                 ? 'This device has no camera. You can paste invite links in Chats.'
-                : 'Scan a friend’s invite QR code. You can also paste their invite link.',
+                : 'Scan invite QR codes or turn on video during a call. You can also paste invite links.',
             enabled: _status?['camera'],
             action:
                 !_working &&
@@ -307,7 +307,7 @@ const _topics = [
       ),
       (
         'How do I call a friend?',
-        'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The call bar includes microphone mute, speaker, and End call. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
+        'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, turn on video, or end the call. Camera stays off until you turn it on. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
       ),
       (
         'When can I send a message?',

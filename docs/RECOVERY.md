@@ -30,6 +30,8 @@ Cats vs Dogs retains the `drop-four` game ID for saves and older match links. St
 
 The match invitation opens an online waiting screen for the sender. Acceptance prepares the exact game before sending the acceptance. The online match list is available from My Games and the Play menu, including while the friend has the next turn.
 
+The call preview uses Chatmail Core signaling, Relay Lab’s UDP/TCP fallback for Chatmail TURN URLs, and the negotiated Delta Chat ICE and mute-state channels. See the [two-Zompado test](../.github/workflows/android-friends-smoke.yml) and [stock Delta Chat test](../.github/workflows/android-delta-chat-smoke.yml) for device coverage. The camera starts on user action and stops when the activity leaves the foreground.
+
 The Android friend invite scanner uses the bundled ZXing decoder and the Android Camera permission. Setup offers this permission, and the scanner also requests access when first used. Paste remains available on devices without a camera.
 
 For instant Android wakeups, Zompado needs an authorized push registration for `io.tablecircle.prototype` and a compatible Chatmail notifier that can send to that registration. The pinned Core has a push token API in its native interface; Zompado's JSON-RPC bridge would need to expose it. Keep provider credentials with the notifier. Current builds use Android's scheduled fetch. [Chatmail push behavior](https://delta.chat/en/help#instant-message-delivery-and-push-notifications).
