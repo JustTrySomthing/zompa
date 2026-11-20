@@ -18,6 +18,7 @@ Both repositories use `main`. Check the latest published APK and the current `up
 | Voice calls and scheduled Android chat alerts | [Call state and UI](../lib/voice_calls.dart), [Android WebRTC bridge](../android/app/src/main/java/io/tablecircle/prototype/VoicePeer.java), [Chat sync job](../android/app/src/main/java/io/tablecircle/prototype/ChatSyncJob.java) |
 | Manual `.love` staging and Lua template | [Android archive validation](../android/app/src/main/java/io/tablecircle/prototype/LoveImport.java), [Lua SDK](../sdk/README.md) |
 | Embedded LÖVE and online match validation | [Runtime pin and hashes](../tools/install_love_runtime.sh), [Android player](../android/app/src/main/java/io/tablecircle/prototype/LovePlayer.java), [Flutter view](../lib/love_player.dart), [match validation](../lib/online_match.dart) |
+| Game audio and Android test workflow | [Flutter settings](../lib/game_audio.dart), [Lua mixer](../sdk/zompado.lua), [Android emulator workflow](../.github/workflows/android-game-smoke.yml) |
 | Implemented features and next milestones | [README](../README.md), [build plan](BUILD-PLAN.md) |
 | Public download page | [GitHub Pages source](index.html), published from `main:/docs` |
 | Release preparation and feed update order | [RELEASE.md](RELEASE.md) |

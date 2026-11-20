@@ -15,7 +15,7 @@
 | [Preview 0.5.5](https://github.com/JustTrySomthing/zompado/actions/runs/44631165902#artifacts) | Camera QR scanning through Google Play services with a paste fallback. Online Drop Four has a conversation dock and a Your turn shortcut in My Games. Friend activity can trigger private Android alerts while the app stays running in the background. The Games file picker checks and stores manually selected `.love` files. The first [Lua SDK](../sdk/README.md) includes saves, music and effects controls, and a sample game. |
 | [Preview 0.5.6](https://github.com/JustTrySomthing/zompado/actions/runs/44635690236#artifacts) | One-to-one voice calls from a friend chat, an app-wide call bar, and scheduled friend activity notifications after Android closes Zompado’s process. |
 | [Preview 0.5.7](https://github.com/JustTrySomthing/zompado/actions/runs/44641489452#artifacts) | Built-in LÖVE playback of downloaded official `.zomp` games and manual `.love` imports. New libraries start empty. Games install and remove individually. Drop Four 1.2.1 provides solo, pass and play, and online mode. |
-| Preview 0.5.8 | Persistent game volume, Music, and Sound effects controls from Settings and the player. Games on the SDK use separate buses, and other imports have master volume. |
+| [Preview 0.5.8](https://github.com/JustTrySomthing/zompado/actions/runs/44646518299#artifacts) | Persistent game volume, Music, and Sound effects controls from Settings and the player. Games on the SDK use separate buses, and other imports have master volume. |
 | Still open | Android hardware verification, immediate incoming ringing after Android has stopped the app, broader LÖVE package compatibility, and automatic lowering of game audio during calls. |
 
 Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. Preview 0.5.5 compiles the ARM64 JSON-RPC executable with NDK r28. All native code in the APK passed the 16 KB ELF alignment check. See the published [source and license](https://github.com/chatmail/core/tree/v2.69.0). The account is separate from saved games and old local preview messages.
@@ -23,6 +23,8 @@ Chatmail Core 2.69.0 supplies the messaging protocol and relay transport. Previe
 The [live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44613099059) configured two fresh Chatmail Core profiles, established their encrypted conversations through SecureJoin, and verified messages in both directions. The test used the Linux build of the same Core release. Android installation and delivery still need device verification.
 
 The [0.5.6 live relay test](https://github.com/JustTrySomthing/zompado/actions/runs/44634766582) verified encrypted call offers, answers and hangup. A separate Core process detected fresh encrypted activity after restarting the receiving profile. Android audio and notification delivery still require device tests.
+
+The [Android emulator run](https://github.com/JustTrySomthing/zompado/actions/runs/44646518195) verified first-run setup, an empty library, catalog download, LÖVE touch input, save restoration after restarting, and game removal. The [live relay run](https://github.com/JustTrySomthing/zompado/actions/runs/44646518262) verified that two profiles recovered each other’s moves for Drop Four build 5. The x86_64 emulator workflow exercises the library and player. The relay workflow exercises the messaging backend.
 
 ### Verify the Chatmail preview
 
