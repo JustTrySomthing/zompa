@@ -1,5 +1,6 @@
 {
-  "version": "0.5.16",
-  "build": 25,
-  "notes": "- Fix a release packaging issue that could close Zompado when you tap the phone button.\n- Find App Log at the bottom of Settings. Copy or clear call diagnostics that survive an app restart.\n- Pin contacts, react to messages, and find starred messages in Saved.\n- Choose media compression or attach the original file. Manage alerts in Notifications and mute them with the top-bar bell."
+  "version": "0.5.19",
+  "build": 28,
+  "preview_run": 44803403814,
+  "notes": "- Pause, resume, quit, and adjust audio from the game toolbar. In online matches, message your opponent or hide and reopen a call while playing.\n- Resume Game in My Games opens the board directly. In-game chat slides down, and new messages briefly appear on the board while chat is closed.\n- Chats now support inline audio, photo and video previews, reply reminders, and Trash. Settings adds Quiet Hours, encrypted Chatmail backups, and connection details.\n- Adjust message text size in Appearance, and use the improved call answer layout and video self-view controls."
 }
