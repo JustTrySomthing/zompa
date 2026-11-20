@@ -129,6 +129,35 @@ void main() {
     deliveredWin.finished && !deliveredWin.active,
     'A delivered winning move leaves the active match list',
   );
+  final pause = invite.control('pause', 2);
+  final resume = invite.control('resume', 3);
+  final failedPause = replay([
+    message(start, outgoing: true),
+    message(pause, outgoing: true, state: 24),
+  ]);
+  check(
+    failedPause.pending?.text == pause.wire,
+    'A failed pause is available to retry',
+  );
+  final failedResume = replay([
+    message(start, outgoing: true),
+    message(pause, outgoing: true),
+    message(resume, outgoing: true, state: 24),
+  ]);
+  check(
+    failedResume.paused && failedResume.pending?.text == resume.wire,
+    'A failed resume preserves the confirmed pause and can be retried',
+  );
+  final retriedResume = replay([
+    message(start, outgoing: true),
+    message(resume, outgoing: true),
+    message(pause, outgoing: true),
+    message(resume, outgoing: true, state: 24),
+  ]);
+  check(
+    !retriedResume.paused && retriedResume.pending == null,
+    'A delivered resume supersedes an older pause and its own failed retry',
+  );
   print(
     'PASS: match readiness, start and quit delivery, retry, and legacy replay.',
   );

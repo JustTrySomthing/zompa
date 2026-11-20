@@ -487,8 +487,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   @override
   Widget build(BuildContext context) {
     final match = _match;
-    final pendingQuit =
-        MatchEvent.parse(match?.pending?.text ?? '')?.kind == 'quit';
+    final pendingAction = MatchEvent.parse(match?.pending?.text ?? '');
+    final pendingControl = pendingAction?.revision != null;
+    final pendingQuit = pendingAction?.kind == 'quit';
     return PopScope(
       canPop: !_chatOpen,
       onPopInvokedWithResult: (didPop, _) {
@@ -508,7 +509,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                 paused: match!.pausedByMe,
                 onPause:
                     _sending ||
-                        pendingQuit ||
+                        pendingControl ||
                         match.finished ||
                         (match.pausedByFriend && !match.pausedByMe)
                     ? null
@@ -595,7 +596,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                 ],
                               ),
                               if (match.paused ||
-                                  pendingQuit ||
+                                  pendingControl ||
                                   _error != null ||
                                   (match.pending?.state == 24 && !_sending))
                                 Center(
@@ -607,7 +608,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                         children: [
                                           Text(
                                             _error ??
-                                                (pendingQuit
+                                                (pendingControl
                                                     ? match.status
                                                     : match.pausedByMe
                                                     ? 'You paused the game.'
