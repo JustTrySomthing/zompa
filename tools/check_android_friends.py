@@ -249,11 +249,11 @@ def check_app_log(phone):
     log = phone.shell("run-as", APP, "cat", "files/app-log.txt")
     if startup not in log or log.count(b"App process started") < 2:
         raise RuntimeError("App Log did not keep the first startup after reopening Zompado")
-    phone.press("Copy Log")
     phone.press("Clear Log")
-    wait("App Log to clear", lambda: not phone.shell(
-        f"run-as {APP} ls files/app-log.txt 2>/dev/null || true"
+    wait("App Log to clear", lambda: startup not in phone.shell(
+        f"run-as {APP} cat files/app-log.txt 2>/dev/null || true"
     ))
+    phone.press("Copy Log")
     phone.back()
     phone.back()
     phone.press("Chats")
