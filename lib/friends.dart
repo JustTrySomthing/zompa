@@ -9,6 +9,7 @@ import 'chat_files.dart';
 import 'chat_emoji.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
+import 'message_bubble.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
@@ -762,7 +763,12 @@ class _FriendConversationState extends State<FriendConversation>
     );
   }
 
-  Widget _messageHeader(FriendMessage message, String peer, bool canSend) {
+  Widget _messageHeader(
+    BuildContext context,
+    FriendMessage message,
+    String peer,
+    bool canSend,
+  ) {
     final name = message.sender?.name.trim();
     final author = name == null || name.isEmpty
         ? (message.outgoing ? 'You' : peer)
@@ -781,13 +787,17 @@ class _FriendConversationState extends State<FriendConversation>
               children: [
                 Text(
                   author,
-                  style: theme.textTheme.labelLarge,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (time.isNotEmpty)
                   Text(
                     time,
-                    style: theme.textTheme.labelSmall,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -799,6 +809,7 @@ class _FriendConversationState extends State<FriendConversation>
             tooltip: 'React to message',
             onPressed: canSend ? () => _chooseReaction(message) : null,
             iconSize: 19,
+            color: theme.colorScheme.onSurfaceVariant,
             icon: const Icon(Icons.add_reaction_outlined),
           ),
           IconButton(
@@ -813,7 +824,9 @@ class _FriendConversationState extends State<FriendConversation>
             iconSize: 20,
             icon: Icon(
               message.savedId == null ? Icons.star_border : Icons.star,
-              color: message.savedId == null ? null : theme.colorScheme.primary,
+              color: message.savedId == null
+                  ? theme.colorScheme.onSurfaceVariant
+                  : theme.colorScheme.primary,
             ),
           ),
         ],
@@ -1057,6 +1070,8 @@ class _FriendConversationState extends State<FriendConversation>
         }).toList() ??
         const <FriendMessage>[];
     final colors = Theme.of(context).colorScheme;
+    final messageTextSize =
+        ChatChrome.of(context)?.messageTextSize ?? defaultMessageTextSize;
     final history = <String, List<FriendMessage>>{};
     for (final message in thread?.messages ?? const <FriendMessage>[]) {
       if (MatchEvent.parse(message.text) case final event?) {
@@ -1070,7 +1085,6 @@ class _FriendConversationState extends State<FriendConversation>
       primary: !docked,
       title: Text(thread?.name ?? widget.initialName),
       actions: [
-        if (!docked) ...chatActions(context),
         if (!docked && voice != null)
           IconButton(
             tooltip: 'Voice call',
@@ -1079,6 +1093,7 @@ class _FriendConversationState extends State<FriendConversation>
                 ? null
                 : () => voice.dial(widget.id, thread!.name),
           ),
+        if (!docked) ...chatActions(context),
         if (docked)
           IconButton(
             tooltip: 'Close match chat',
@@ -1168,7 +1183,7 @@ class _FriendConversationState extends State<FriendConversation>
                               ),
                               child: Container(
                                 margin: EdgeInsets.only(
-                                  bottom: 9,
+                                  bottom: 14,
                                   left: message.outgoing ? 32 : 0,
                                   right: message.outgoing ? 0 : 32,
                                 ),
@@ -1176,140 +1191,139 @@ class _FriendConversationState extends State<FriendConversation>
                                   maxWidth: 350,
                                   minWidth: 210,
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: message.outgoing
-                                      ? colors.secondaryContainer
-                                      : colors.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: const Radius.circular(17),
-                                    topRight: const Radius.circular(17),
-                                    bottomLeft: Radius.circular(
-                                      message.outgoing ? 17 : 4,
-                                    ),
-                                    bottomRight: Radius.circular(
-                                      message.outgoing ? 4 : 17,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _messageHeader(
-                                      message,
-                                      thread.name,
-                                      thread.canSend,
-                                    ),
-                                    if (invitation != null) ...[
-                                      Text(
-                                        message.outgoing
-                                            ? 'You invited ${thread.name} to play Cats vs Dogs.'
-                                            : '${thread.name} invited you to play Cats vs Dogs.',
-                                      ),
-                                      if (!message.outgoing &&
-                                          !invitation.accepted &&
-                                          !invitation.finished)
-                                        Wrap(
-                                          spacing: 8,
-                                          children: [
-                                            TextButton(
-                                              style: TextButton.styleFrom(
-                                                foregroundColor: colors.error,
-                                              ),
-                                              onPressed: _sending
-                                                  ? null
-                                                  : () => _send(
-                                                      gameLink: invitation
-                                                          .invite
-                                                          .decline()
-                                                          .wire,
-                                                    ),
-                                              child: const Text('Decline'),
-                                            ),
-                                            FilledButton(
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: const Color(
-                                                  0xff1b663c,
+                                child: MessageBubble(
+                                  outgoing: message.outgoing,
+                                  builder: (bubble) {
+                                    final bubbleColors = Theme.of(bubble)
+                                        .colorScheme;
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _messageHeader(
+                                          bubble,
+                                          message,
+                                          thread.name,
+                                          thread.canSend,
+                                        ),
+                                        if (invitation != null) ...[
+                                          MessageBody(
+                                            message.outgoing
+                                                ? 'You invited ${thread.name} to play Cats vs Dogs.'
+                                                : '${thread.name} invited you to play Cats vs Dogs.',
+                                            size: messageTextSize,
+                                          ),
+                                          if (!message.outgoing &&
+                                              !invitation.accepted &&
+                                              !invitation.finished)
+                                            Wrap(
+                                              spacing: 8,
+                                              children: [
+                                                TextButton(
+                                                  style: TextButton.styleFrom(
+                                                    foregroundColor:
+                                                        bubbleColors.error,
+                                                  ),
+                                                  onPressed: _sending
+                                                      ? null
+                                                      : () => _send(
+                                                          gameLink: invitation
+                                                              .invite
+                                                              .decline()
+                                                              .wire,
+                                                        ),
+                                                  child: const Text('Decline'),
                                                 ),
-                                                foregroundColor: Colors.white,
+                                                FilledButton(
+                                                  style: FilledButton.styleFrom(
+                                                    backgroundColor:
+                                                        const Color(0xff1b663c),
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                  ),
+                                                  onPressed: _sending
+                                                      ? null
+                                                      : () => _openMatch(
+                                                          invitation.invite.id,
+                                                          accept: true,
+                                                        ),
+                                                  child: const Text('Accept'),
+                                                ),
+                                              ],
+                                            )
+                                          else if (!invitation.finished)
+                                            TextButton(
+                                              onPressed: () => _openMatch(
+                                                invitation.invite.id,
+                                                play: invitation.accepted,
                                               ),
-                                              onPressed: _sending
-                                                  ? null
-                                                  : () => _openMatch(
-                                                      invitation.invite.id,
-                                                      accept: true,
-                                                    ),
-                                              child: const Text('Accept'),
+                                              child: Text(
+                                                invitation.accepted
+                                                    ? 'Play Now'
+                                                    : 'Open Cats vs Dogs match',
+                                              ),
+                                            )
+                                          else
+                                            MessageBody(
+                                              invitation.status,
+                                              size: messageTextSize,
                                             ),
-                                          ],
-                                        )
-                                      else if (!invitation.finished)
-                                        TextButton(
-                                          onPressed: () => _openMatch(
-                                            invitation.invite.id,
-                                            play: invitation.accepted,
+                                        ] else if (gameLink != null &&
+                                            widget.openGameLink != null)
+                                          OutlinedButton.icon(
+                                            onPressed: () =>
+                                                widget.openGameLink!(gameLink),
+                                            icon: const Icon(
+                                              Icons.sports_esports_outlined,
+                                            ),
+                                            label: Text(
+                                              gameLink.id == 'drop-four'
+                                                  ? 'Open Cats vs Dogs'
+                                                  : 'Open game',
+                                            ),
+                                          )
+                                        else ...[
+                                          if (message.file case final path?
+                                              when message.mime?.startsWith(
+                                                    'image/',
+                                                  ) ==
+                                                  true)
+                                            Image.file(
+                                              File(path),
+                                              fit: BoxFit.contain,
+                                              cacheWidth: 640,
+                                              errorBuilder: (_, _, _) =>
+                                                  const SizedBox.shrink(),
+                                            ),
+                                          if (message.filename case final name?)
+                                            MessageBody(
+                                              name,
+                                              size: messageTextSize,
+                                              bold: true,
+                                            ),
+                                          if (message.text.isNotEmpty ||
+                                              message.filename == null)
+                                            MessageBody(
+                                              text,
+                                              size: messageTextSize,
+                                            ),
+                                        ],
+                                        if (message.reactions.isNotEmpty)
+                                          _reactions(message, thread.canSend),
+                                        if (message.delivery
+                                            case final delivery?)
+                                          Text(
+                                            delivery,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color:
+                                                  bubbleColors.onSurfaceVariant,
+                                            ),
                                           ),
-                                          child: Text(
-                                            invitation.accepted
-                                                ? 'Play Now'
-                                                : 'Open Cats vs Dogs match',
-                                          ),
-                                        )
-                                      else
-                                        Text(invitation.status),
-                                    ] else if (gameLink != null &&
-                                        widget.openGameLink != null)
-                                      OutlinedButton.icon(
-                                        onPressed: () =>
-                                            widget.openGameLink!(gameLink),
-                                        icon: const Icon(
-                                          Icons.sports_esports_outlined,
-                                        ),
-                                        label: Text(
-                                          gameLink.id == 'drop-four'
-                                              ? 'Open Cats vs Dogs'
-                                              : 'Open game',
-                                        ),
-                                      )
-                                    else ...[
-                                      if (message.file case final path?
-                                          when message.mime?.startsWith(
-                                                'image/',
-                                              ) ==
-                                              true)
-                                        Image.file(
-                                          File(path),
-                                          fit: BoxFit.contain,
-                                          cacheWidth: 640,
-                                          errorBuilder: (_, _, _) =>
-                                              const SizedBox.shrink(),
-                                        ),
-                                      if (message.filename case final name?)
-                                        Text(
-                                          name,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      if (message.text.isNotEmpty ||
-                                          message.filename == null)
-                                        Text(text),
-                                    ],
-                                    if (message.reactions.isNotEmpty)
-                                      _reactions(message, thread.canSend),
-                                    if (message.delivery case final delivery?)
-                                      Text(
-                                        delivery,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: colors.onSecondaryContainer,
-                                        ),
-                                      ),
-                                  ],
+                                      ],
+                                    );
+                                  },
                                 ),
                               ),
                             ),

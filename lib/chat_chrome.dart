@@ -60,11 +60,14 @@ class ChatChrome extends InheritedWidget {
     required this.notifications,
     required this.openContacts,
     required this.openSaved,
+    required this.openSettings,
+    required this.messageTextSize,
     required super.child,
   });
 
   final ChatNotificationSettings notifications;
-  final void Function(BuildContext)? openContacts, openSaved;
+  final void Function(BuildContext)? openContacts, openSaved, openSettings;
+  final double messageTextSize;
 
   static ChatChrome? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ChatChrome>();
@@ -73,22 +76,25 @@ class ChatChrome extends InheritedWidget {
   bool updateShouldNotify(ChatChrome oldWidget) =>
       notifications != oldWidget.notifications ||
       (openContacts == null) != (oldWidget.openContacts == null) ||
-      (openSaved == null) != (oldWidget.openSaved == null);
+      (openSaved == null) != (oldWidget.openSaved == null) ||
+      (openSettings == null) != (oldWidget.openSettings == null) ||
+      messageTextSize != oldWidget.messageTextSize;
 }
 
 List<Widget> chatActions(
   BuildContext context, {
   bool contacts = true,
   bool saved = true,
+  bool settings = true,
 }) {
   final chrome = ChatChrome.of(context);
   if (chrome == null) return [];
   return [
-    if ((saved ? chrome.openSaved : null) case final open?)
+    if (chrome.openSaved case final open?)
       IconButton(
         tooltip: 'Saved',
         icon: const Icon(Icons.star_outline),
-        onPressed: () => open(context),
+        onPressed: saved ? () => open(context) : null,
       ),
     ListenableBuilder(
       listenable: chrome.notifications,
@@ -107,11 +113,17 @@ List<Widget> chatActions(
         );
       },
     ),
-    if ((contacts ? chrome.openContacts : null) case final open?)
+    if (chrome.openContacts case final open?)
       IconButton(
         tooltip: 'Contacts',
-        icon: const Icon(Icons.contacts_outlined),
-        onPressed: () => open(context),
+        icon: const Icon(Icons.person_outline_rounded),
+        onPressed: contacts ? () => open(context) : null,
+      ),
+    if (chrome.openSettings case final open?)
+      IconButton(
+        tooltip: 'Settings',
+        icon: const Icon(Icons.settings_outlined),
+        onPressed: settings ? () => open(context) : null,
       ),
   ];
 }

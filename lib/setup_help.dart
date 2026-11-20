@@ -327,7 +327,11 @@ const _topics = [
         'Open Settings → My Profile to change your name, photo, or optional bio.',
       ),
       (
-        'Where can I get a log if a call crashes?',
+        'How do I make messages easier to read?',
+        'Open Settings → Appearance. Use Message text size to adjust the text inside chat bubbles and see the change in the preview. The screen also has a Dark theme switch.',
+      ),
+      (
+        'Where can I get a log if a call is slow or crashes?',
         'Reopen Zompado and go to Settings → App Log. Tap Copy Log to share the recorded call stages and available Android crash details. Tap Clear Log to erase the entries.',
       ),
       (

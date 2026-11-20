@@ -268,11 +268,17 @@ final class VoicePeer {
         final List<IceCandidate> gatheredCandidates = new ArrayList<>();
         boolean waitForRelay;
         boolean relayCandidate;
+        boolean remoteUdpRelay;
         boolean mediaStarted;
         AudioFocusRequest focus;
         final AudioDeviceInfo priorDevice = Build.VERSION.SDK_INT >= 31
             ? audio.getCommunicationDevice() : null;
         final Runnable iceTimeout = () -> sendDescription(true);
+        boolean callerRelayGraceElapsed;
+        final Runnable answerWithRemoteRelay = () -> {
+            callerRelayGraceElapsed = true;
+            sendDescription(false, true);
+        };
         final Runnable lostConnection = () -> fail("The call lost its connection.");
         boolean localSet;
 
@@ -294,6 +300,7 @@ final class VoicePeer {
                         main.post(() -> {
                             if (session != Session.this) return;
                             try {
+                                remoteUdpRelay = UDP_RELAY_CANDIDATE.matcher(offer).find();
                                 remoteDescription(offer);
                                 if (hasMedia(offer, "application")) setupChannels();
                                 addLocalTracks(true, videoNegotiated);
@@ -443,7 +450,12 @@ final class VoicePeer {
                                             peer.iceGatheringState() == PeerConnection.IceGatheringState.COMPLETE) {
                                         sendDescription(false);
                                     }
-                                    if (preparing != null) main.postDelayed(iceTimeout, 12000);
+                                    if (preparing != null) {
+                                        // The caller's relay can complete ICE with a local UDP candidate.
+                                        // Give local TURN a short head start, then signal the answer.
+                                        if (remoteUdpRelay) main.postDelayed(answerWithRemoteRelay, 1500);
+                                        main.postDelayed(iceTimeout, 12000);
+                                    }
                                 });
                             }
                             @Override public void onSetFailure(String ignored) {
@@ -461,6 +473,10 @@ final class VoicePeer {
         }
 
         void sendDescription(boolean deadline) {
+            sendDescription(deadline, false);
+        }
+
+        void sendDescription(boolean deadline, boolean useRemoteRelay) {
             if (session != this || preparing == null || !localSet) return;
             var description = peer.getLocalDescription();
             if (description == null && !deadline) return;
@@ -472,14 +488,18 @@ final class VoicePeer {
             // As in Delta Chat, signal a valid description even after the ICE
             // deadline. The other endpoint can still connect via its own relay.
             String sdp = description.description;
+            if (useRemoteRelay && !UDP_CANDIDATE.matcher(sdp).find()) return;
             if (!sdp.contains("a=candidate:")) {
                 if (!deadline) return;
                 Log.w(TAG, "Initial ICE timed out without embedded candidates");
             }
             main.removeCallbacks(iceTimeout);
+            main.removeCallbacks(answerWithRemoteRelay);
             var result = preparing;
             preparing = null;
-            AppLog.record(activity, "Local call description prepared · relay candidate " + relayCandidate);
+            AppLog.record(activity, "Local call " + description.type.canonicalForm()
+                + " prepared · local relay " + relayCandidate
+                + (useRemoteRelay ? " · using caller relay" : deadline ? " · ICE deadline" : ""));
             Log.i(TAG, "Local " + description.type.canonicalForm() + " ICE candidates: "
                 + gatheredCandidates.size() + " (relay: " + relayCandidate + ")");
             result.success(sdp);
@@ -523,6 +543,7 @@ final class VoicePeer {
         @SuppressWarnings("deprecation")
         void close() {
             main.removeCallbacks(iceTimeout);
+            main.removeCallbacks(answerWithRemoteRelay);
             main.removeCallbacks(lostConnection);
             if (preparing != null) {
                 preparing.error("VOICE", "Call ended.", null);
@@ -597,6 +618,7 @@ final class VoicePeer {
                 flushCandidates();
                 if (candidate.sdp.contains(" typ relay ")) relayCandidate = true;
                 if (!waitForRelay || relayCandidate) sendDescription(false);
+                else if (callerRelayGraceElapsed) sendDescription(false, true);
             });
         }
         @Override public void onTrack(RtpTransceiver transceiver) {
@@ -626,6 +648,11 @@ final class VoicePeer {
     private interface JsonMessage {
         void read(JSONObject message) throws org.json.JSONException;
     }
+
+    private static final java.util.regex.Pattern UDP_CANDIDATE = java.util.regex.Pattern
+        .compile("(?im)^a=candidate:[^ \\r\\n]+ 1 udp ");
+    private static final java.util.regex.Pattern UDP_RELAY_CANDIDATE = java.util.regex.Pattern
+        .compile(UDP_CANDIDATE.pattern() + "[^\\r\\n]+ typ relay(?: |$)");
 
     private static boolean hasMedia(String sdp, String media) {
         return java.util.regex.Pattern.compile("(?m)^m=" + media + " [1-9][0-9]* ")

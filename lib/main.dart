@@ -15,6 +15,7 @@ import 'github_distribution.dart';
 import 'game_link.dart';
 import 'chatmail.dart';
 import 'chat_chrome.dart';
+import 'message_bubble.dart';
 import 'contacts_page.dart';
 import 'compression_page.dart';
 import 'saved_messages.dart';
@@ -282,6 +283,10 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         final audio = _gameAudio;
         return ChatChrome(
           notifications: _notifications,
+          messageTextSize: messageTextSizeFrom(data['messageTextSize']),
+          openSettings: data['setupComplete'] != true
+              ? null
+              : (route) => _home.currentState?.openSettings(route),
           openContacts: chatmail == null || data['setupComplete'] != true
               ? null
               : (route) => _home.currentState?.openContacts(route),
@@ -301,7 +306,10 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
           : Home(
               key: _home,
               data: data,
-              write: write,
+              write: (key, value) {
+                write(key, value);
+                if (key == 'messageTextSize') setState(() {});
+              },
               distribution: distribution,
               updates: updates,
               chatmail: chatmail,
@@ -917,8 +925,7 @@ class _HomeState extends State<Home> {
     );
   }
 
-  void settings() => Navigator.push(
-    context,
+  void openSettings(BuildContext context) => Navigator.of(context).push<void>(
     MaterialPageRoute<void>(
       builder: (_) => Preferences(
         data: widget.data,
@@ -944,9 +951,12 @@ class _HomeState extends State<Home> {
               excludeFromSemantics: true,
             ),
             const SizedBox(width: 10),
-            Text(
-              isGames ? 'Games' : 'Chats',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+            Flexible(
+              child: Text(
+                isGames ? 'Games' : 'Chats',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
@@ -976,12 +986,6 @@ class _HomeState extends State<Home> {
               ],
             ),
           ...chatActions(context),
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: settings,
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -991,7 +995,7 @@ class _HomeState extends State<Home> {
               content: Text('Zompado ${update.version} is available.'),
               actions: [
                 TextButton(
-                  onPressed: settings,
+                  onPressed: () => openSettings(context),
                   child: const Text('View update'),
                 ),
               ],
@@ -1404,135 +1408,255 @@ class _PreferencesState extends State<Preferences> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Settings'),
-      actions: chatActions(context),
+      actions: chatActions(context, settings: false),
     ),
-    body: ListView(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-      children: [
-        if (widget.chatmail case final chatmail?)
-          ListTile(
-            leading: const Icon(Icons.account_circle_outlined),
-            title: const Text('My Profile'),
-            subtitle: const Text('Name, photo, and bio'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => ProfilePage(chatmail: chatmail),
-              ),
-            ),
-          ),
-        if (ChatChrome.of(context) case final chrome?)
-          ListTile(
-            leading: const Icon(Icons.notifications_none),
-            title: const Text('Notifications'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) =>
-                    NotificationsPage(settings: chrome.notifications),
-              ),
-            ),
-          ),
-        if (widget.chatmail case final chatmail?)
-          ListTile(
-            leading: const Icon(Icons.compress),
-            title: const Text('Compression'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => CompressionPage(chatmail: chatmail),
-              ),
-            ),
-          ),
-        ListTile(
-          leading: const Icon(Icons.tune_rounded),
-          title: const Text('Setup'),
-          subtitle: const Text('Review permissions and update options'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (route) => SetupPage(
-                host: bridge,
-                onDone: () => Navigator.of(route).pop(),
-              ),
-            ),
-          ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.help_outline_rounded),
-          title: const Text('Help'),
-          subtitle: const Text(
-            'Find answers about games, friends, and updates',
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(context)
-              .push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
-        ),
-        SwitchListTile(
-          secondary: const Icon(Icons.palette_outlined),
-          title: const Text('Appearance'),
-          subtitle: Text(widget.data['theme'] == 'light' ? 'Light' : 'Dark'),
-          value: widget.data['theme'] != 'light',
-          onChanged: (dark) {
-            widget.onTheme(dark ? ThemeMode.dark : ThemeMode.light);
-            setState(() {});
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.volume_up_outlined),
-          title: const Text('Game audio'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => GameAudioButton.show(context),
-        ),
-        if (widget.updates case final updates?)
-          ListenableBuilder(
-            listenable: updates,
-            builder: (context, _) => Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('Automatic update checks'),
-                  subtitle: const Text(
-                    'Check GitHub daily and when you open the app.',
-                  ),
-                  value: updates.automatic,
-                  onChanged: updates.setAutomatic,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.system_update_alt),
-                  title: const Text('Check for updates'),
-                  subtitle: updates.status == null
-                      ? null
-                      : Text(updates.status!),
-                  enabled: !updates.checking && !updates.downloading,
-                  onTap: () => updates.check(),
-                ),
-                if (updates.available case final release?)
+    body: SafeArea(
+      top: false,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
+        children:
+            [
+                  if (widget.chatmail case final chatmail?)
+                    ListTile(
+                      leading: const Icon(Icons.account_circle_outlined),
+                      title: const Text('My Profile'),
+                      subtitle: const Text('Name, photo, and bio'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => ProfilePage(chatmail: chatmail),
+                        ),
+                      ),
+                    ),
+                  if (ChatChrome.of(context) case final chrome?)
+                    ListTile(
+                      leading: const Icon(Icons.notifications_none),
+                      title: const Text('Notifications'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              NotificationsPage(settings: chrome.notifications),
+                        ),
+                      ),
+                    ),
+                  if (widget.chatmail case final chatmail?)
+                    ListTile(
+                      leading: const Icon(Icons.compress),
+                      title: const Text('Compression'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => CompressionPage(chatmail: chatmail),
+                        ),
+                      ),
+                    ),
                   ListTile(
-                    title: Text('Version ${release.version}'),
-                    trailing: FilledButton(
-                      onPressed: updates.downloading ? null : updates.install,
-                      child: Text(
-                        updates.downloading ? 'Downloading…' : 'Update',
+                    leading: const Icon(Icons.tune_rounded),
+                    title: const Text('Setup'),
+                    subtitle: const Text(
+                      'Review permissions and update options',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (route) => SetupPage(
+                          host: bridge,
+                          onDone: () => Navigator.of(route).pop(),
+                        ),
                       ),
                     ),
                   ),
-              ],
+                  ListTile(
+                    leading: const Icon(Icons.help_outline_rounded),
+                    title: const Text('Help'),
+                    subtitle: const Text(
+                      'Find answers about games, friends, and updates',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const HelpPage()),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.palette_outlined),
+                    title: const Text('Appearance'),
+                    subtitle: const Text('Theme and message text size'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => _AppearancePage(
+                          data: widget.data,
+                          write: widget.write,
+                          onTheme: widget.onTheme,
+                        ),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.volume_up_outlined),
+                    title: const Text('Game audio'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => GameAudioButton.show(context),
+                  ),
+                  if (widget.updates case final updates?)
+                    ListenableBuilder(
+                      listenable: updates,
+                      builder: (context, _) => Column(
+                        children: [
+                          SwitchListTile(
+                            title: const Text('Automatic update checks'),
+                            subtitle: const Text(
+                              'Check GitHub daily and when you open the app.',
+                            ),
+                            value: updates.automatic,
+                            onChanged: updates.setAutomatic,
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.system_update_alt),
+                            title: const Text('Check for updates'),
+                            subtitle: updates.status == null
+                                ? null
+                                : Text(updates.status!),
+                            enabled: !updates.checking && !updates.downloading,
+                            onTap: () => updates.check(),
+                          ),
+                          if (updates.available case final release?)
+                            ListTile(
+                              title: Text('Version ${release.version}'),
+                              trailing: FilledButton(
+                                onPressed: updates.downloading
+                                    ? null
+                                    : updates.install,
+                                child: Text(
+                                  updates.downloading
+                                      ? 'Downloading…'
+                                      : 'Update',
+                                ),
+                              ),
+                            ),
+                        ].map((tile) => _settingsCard(context, tile)).toList(),
+                      ),
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('About this build'),
+                    subtitle: const Text(
+                      'Android prototype · $installedVersion',
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.receipt_long_outlined),
+                    title: const Text('App Log'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(builder: (_) => const AppLogPage()),
+                    ),
+                  ),
+                ]
+                .map(
+                  (tile) =>
+                      tile is ListTile ? _settingsCard(context, tile) : tile,
+                )
+                .toList(),
+      ),
+    ),
+  );
+}
+
+Widget _settingsCard(BuildContext context, Widget child) {
+  final colors = Theme.of(context).colorScheme;
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Card(
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.outlineVariant),
+      ),
+      child: child,
+    ),
+  );
+}
+
+class _AppearancePage extends StatefulWidget {
+  const _AppearancePage({
+    required this.data,
+    required this.write,
+    required this.onTheme,
+  });
+
+  final Map<String, dynamic> data;
+  final void Function(String, dynamic) write;
+  final ValueChanged<ThemeMode> onTheme;
+
+  @override
+  State<_AppearancePage> createState() => _AppearancePageState();
+}
+
+class _AppearancePageState extends State<_AppearancePage> {
+  late double _size = messageTextSizeFrom(widget.data['messageTextSize']);
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Appearance'),
+      actions: chatActions(context),
+    ),
+    body: SafeArea(
+      top: false,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
+        children: [
+          _settingsCard(
+            context,
+            SwitchListTile(
+              secondary: const Icon(Icons.dark_mode_outlined),
+              title: const Text('Dark theme'),
+              value: widget.data['theme'] != 'light',
+              onChanged: (dark) {
+                widget.onTheme(dark ? ThemeMode.dark : ThemeMode.light);
+                setState(() {});
+              },
             ),
           ),
-        ListTile(
-          leading: const Icon(Icons.info_outline),
-          title: const Text('About this build'),
-          subtitle: const Text('Android prototype · $installedVersion'),
-        ),
-        ListTile(
-          leading: const Icon(Icons.receipt_long_outlined),
-          title: const Text('App Log'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(
+          _settingsCard(
             context,
-          ).push<void>(MaterialPageRoute(builder: (_) => const AppLogPage())),
-        ),
-      ],
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Message text size',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Slider(
+                    value: _size,
+                    min: minMessageTextSize,
+                    max: maxMessageTextSize,
+                    divisions: (maxMessageTextSize - minMessageTextSize)
+                        .toInt(),
+                    label: _size.round().toString(),
+                    semanticFormatterCallback: (size) => '${size.round()}',
+                    onChanged: (size) => setState(() => _size = size),
+                    onChangeEnd: (size) =>
+                        widget.write('messageTextSize', size),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: MessageBubble(
+                      outgoing: true,
+                      builder: (_) =>
+                          MessageBody('See you in the game!', size: _size),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

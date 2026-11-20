@@ -71,6 +71,7 @@ class VoiceCalls extends ChangeNotifier {
   Future<void> accept() async {
     final call = _active;
     if (call == null || call.phase != VoicePhase.incoming) return;
+    recordAppEvent('Incoming call answer button pressed');
     _phase(call, VoicePhase.starting);
     await _start(call);
   }
@@ -114,9 +115,13 @@ class VoiceCalls extends ChangeNotifier {
         if (call.phase != VoicePhase.connected) {
           _phase(call, VoicePhase.connecting);
         }
+        recordAppEvent('Sending call answer through Chatmail');
         await _chatmail.acceptCall(call.message!, sdp!);
+        recordAppEvent('Chatmail queued the call answer');
       } else {
+        recordAppEvent('Sending call offer through Chatmail');
         final message = await _chatmail.placeCall(call.chat, sdp!);
+        recordAppEvent('Chatmail queued the call offer');
         if (_active != call) {
           unawaited(_signalEnd(message));
           return;
@@ -164,12 +169,14 @@ class VoiceCalls extends ChangeNotifier {
           _end(call, message: 'This call used an unsupported audio format.');
           return;
         }
+        recordAppEvent('Received the remote call answer');
         _phase(call, VoicePhase.connecting);
         try {
           await _host.invokeMethod<void>('voiceAnswer', {
             'token': call.token,
             'answer': answer,
           });
+          recordAppEvent('Applied the remote WebRTC answer');
         } catch (_) {
           _end(call, message: 'Couldn’t connect voice audio.');
         }
@@ -208,6 +215,7 @@ class VoiceCalls extends ChangeNotifier {
         unawaited(_signalEnd(id));
         return;
       }
+      recordAppEvent('Incoming call is ringing');
       _set(
         _Call(
           ++_nextToken,

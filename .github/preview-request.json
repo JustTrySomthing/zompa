@@ -1,5 +1,5 @@
 {
-  "version": "0.5.16",
-  "build": 25,
-  "purpose": "Verify the release-only WebRTC startup fix and persistent App Log using the verified R8 rules."
+  "version": "0.5.17",
+  "build": 26,
+  "purpose": "Verify chat readability, shared Settings access, and faster call answers using the caller's relay."
 }
