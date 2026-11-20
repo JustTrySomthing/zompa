@@ -92,6 +92,22 @@ class OnlineMatch {
       pending == null &&
       (board.turn == 1) == mine;
 
+  String get status {
+    if (conflict) return 'Conflicting turns. Start a new match.';
+    if (pending?.state == 20) return 'Sending match update…';
+    if (pending?.state == 24) return 'Couldn’t send this match update.';
+    if (!accepted) {
+      return mine
+          ? 'Waiting for your friend to accept.'
+          : 'Your friend invited you to a match.';
+    }
+    if (board.winner != 0) {
+      return (board.winner == 1) == mine ? 'You won!' : 'Your friend won.';
+    }
+    if (board.full) return 'Draw.';
+    return myTurn ? 'Your turn' : 'Your friend’s turn';
+  }
+
   static OnlineMatch? replay(String id, List<FriendMessage> records) {
     final events = [
       for (final m in records)

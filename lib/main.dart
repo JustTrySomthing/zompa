@@ -14,7 +14,7 @@ import 'game_link.dart';
 import 'chatmail.dart';
 import 'friends.dart';
 import 'setup_help.dart';
-import 'your_turn.dart';
+import 'online_matches.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
 import 'love_imports.dart';
@@ -354,7 +354,7 @@ class _HomeState extends State<Home> {
                   chat: alert.chat,
                   id: match.id,
                   prepareGame: _prepareOnlineGame,
-                  installedGame: installedGames['drop-four'],
+                  friendName: target.name,
                   buildChatDock: (close) => FriendConversation.docked(
                     chatmail: chatmail,
                     id: alert.chat,
@@ -465,9 +465,8 @@ class _HomeState extends State<Home> {
 
   void _gameNotice(String message) {
     if (mounted)
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<String?> _installedGameLink([GameRelease? game]) async {
@@ -526,6 +525,7 @@ class _HomeState extends State<Home> {
       }
       if (installed != null &&
           playable.build == installed.build &&
+          playable.asset.sha == installed.asset.sha &&
           await distribution.verifyGame(installed))
         return installed;
       if (installed != null && playable.build < installed.build) {
@@ -614,9 +614,9 @@ class _HomeState extends State<Home> {
     }
     openingGameLink = true;
     try {
-      final game = (await distribution.catalog(
-        includeArchive: true,
-      )).where(link.matches).firstOrNull;
+      final game = (await distribution.catalog(includeArchive: true))
+          .where(link.matches)
+          .firstOrNull;
       if (!mounted) return;
       if (game == null) {
         _gameNotice('This exact game version isn’t available in Get Games.');
@@ -662,7 +662,9 @@ class _HomeState extends State<Home> {
 
   Future<void> selectMode(GameRelease game) async {
     var mode = 'solo';
-    if (game.modes.contains('local')) {
+    final chatmail = widget.chatmail;
+    final online = game.modes.contains('online') && chatmail != null;
+    if (game.modes.contains('local') || online) {
       final choice = await showModalBottomSheet<String>(
         context: context,
         showDragHandle: true,
@@ -675,16 +677,50 @@ class _HomeState extends State<Home> {
                 title: const Text('Play solo'),
                 onTap: () => Navigator.pop(sheet, 'solo'),
               ),
-              ListTile(
-                leading: const Icon(Icons.people_outline),
-                title: const Text('Pass and play'),
-                onTap: () => Navigator.pop(sheet, 'local'),
-              ),
+              if (online)
+                ListTile(
+                  leading: const Icon(Icons.public),
+                  title: const Text('Online matches'),
+                  subtitle: const Text(
+                    'Take turns with a friend on their phone',
+                  ),
+                  onTap: () => Navigator.pop(sheet, 'matches'),
+                ),
+              if (game.modes.contains('local'))
+                ListTile(
+                  leading: const Icon(Icons.people_outline),
+                  title: const Text('Pass and play'),
+                  subtitle: const Text('Two players sharing this phone'),
+                  onTap: () => Navigator.pop(sheet, 'local'),
+                ),
             ],
           ),
         ),
       );
       if (choice == null || !mounted) return;
+      if (choice == 'matches' && chatmail != null) {
+        final openChats = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (page) => Scaffold(
+              appBar: AppBar(title: const Text('Online matches')),
+              body: SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    OnlineMatches(
+                      chatmail: chatmail,
+                      prepareGame: _prepareOnlineGame,
+                      onOpenChats: () => Navigator.pop(page, true),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        if (mounted && openChats == true) setState(() => tab = 0);
+        return;
+      }
       mode = choice;
     }
     await Navigator.of(context).push<void>(
@@ -845,19 +881,14 @@ class _HomeState extends State<Home> {
         const SizedBox(height: 20),
         if (!catalog)
           if (widget.chatmail case final Chatmail chatmail)
-            YourTurn(
-              chatmail: chatmail,
-              prepareGame: _prepareOnlineGame,
-              installedGame: installedGames['drop-four'],
-            ),
+            OnlineMatches(chatmail: chatmail, prepareGame: _prepareOnlineGame),
         Row(
           children: [
             Expanded(
               child: Text(
                 catalog ? 'Official game catalog' : 'Your library',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             if (catalog)
@@ -1213,9 +1244,8 @@ class _PreferencesState extends State<Preferences> {
             'Find answers about games, friends, and updates',
           ),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
+          onTap: () => Navigator.of(context)
+              .push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
         ),
         ListTile(
           leading: const Icon(Icons.palette_outlined),

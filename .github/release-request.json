@@ -1,5 +1,5 @@
 {
-  "version": "0.5.11",
-  "build": 17,
-  "notes": "- Scan friend invite QR codes with Zompado’s built-in camera scanner.\n- Allow camera access in Setup or the first time you scan. Copy and paste still works for friend invites.\n- Cats vs Dogs has its original cover art in Get Games and a matching catalog name and .zomp filename."
+  "version": "0.5.12",
+  "build": 18,
+  "notes": "- Invitations open the online match and show who’s waiting.\n- Accept and open match installs the required Cats vs Dogs version if needed and opens the online board.\n- Resume active games from Online matches in My Games or the Play menu. Pass and play is labeled for sharing one phone."
 }

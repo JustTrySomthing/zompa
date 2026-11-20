@@ -17,7 +17,7 @@ class OnlineMatchPage extends StatefulWidget {
     required this.id,
     required this.prepareGame,
     required this.buildChatDock,
-    this.installedGame,
+    this.friendName,
   });
 
   final Chatmail chatmail;
@@ -25,7 +25,7 @@ class OnlineMatchPage extends StatefulWidget {
   final String id;
   final Future<GameRelease?> Function(GameLink) prepareGame;
   final Widget Function(VoidCallback close) buildChatDock;
-  final GameRelease? installedGame;
+  final String? friendName;
 
   @override
   State<OnlineMatchPage> createState() => _OnlineMatchPageState();
@@ -36,9 +36,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   OnlineMatch? _match;
   GameRelease? _game;
   bool _preparing = false;
+  bool _triedPreparation = false;
+  bool _gameUnavailable = false;
+  int _boardGeneration = 0;
   StreamSubscription<void>? _events;
   Timer? _timer;
-  bool _loading = false, _again = false, _sending = false;
+  Completer<void>? _refreshing;
+  bool _again = false, _sending = false;
   String? _error;
   bool _chatOpen = false;
   bool _chatUnread = false;
@@ -78,11 +82,24 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   Future<void> _load() async {
     if (!mounted) return;
-    if (_loading) {
+    if (_refreshing case final refresh?) {
       _again = true;
+      await refresh.future;
       return;
     }
-    _loading = true;
+    final refresh = _refreshing = Completer<void>();
+    try {
+      do {
+        _again = false;
+        await _refresh();
+      } while (_again && mounted);
+    } finally {
+      _refreshing = null;
+      refresh.complete();
+    }
+  }
+
+  Future<void> _refresh() async {
     try {
       final records = await widget.chatmail.matchHistory(
         widget.chat,
@@ -92,15 +109,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         final match = OnlineMatch.replay(widget.id, records);
         setState(() {
           _match = match;
-          if (widget.installedGame case final game?
-              when match?.invite.game?.matches(game) == true &&
-                  game.modes.contains('online')) {
-            _game ??= game;
-          }
           _error = _match == null
               ? 'The match invitation is unavailable.'
               : null;
         });
+        if (match?.accepted == true && _game == null && !_triedPreparation) {
+          unawaited(_openBoard(match!.invite.game!));
+        }
       }
       if (!_chatOpen && mounted) {
         try {
@@ -125,12 +140,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'Couldn’t refresh this match.');
-    } finally {
-      _loading = false;
-      if (_again) {
-        _again = false;
-        unawaited(_load());
-      }
     }
   }
 
@@ -141,20 +150,22 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _error = null;
     });
     try {
-      if (prepare != null) {
-        final game = await widget.prepareGame(prepare);
-        if (!mounted || game == null) return;
-        setState(() => _game = game);
+      if (prepare != null && _game == null) {
+        await _openBoard(prepare);
+        if (_game == null) return;
       }
       if (!mounted) return;
       await widget.chatmail.send(widget.chat, message);
       await _load();
     } catch (_) {
-      if (mounted)
-        setState(
-          () =>
-              _error = 'Couldn’t send. Refresh the match before trying again.',
-        );
+      if (mounted) {
+        setState(() {
+          _error = 'Couldn’t send. Refresh the match before trying again.';
+          // The Lua player holds the submitted column until its board changes.
+          // Reopen it after a send error so an unchanged board can accept a retry.
+          if (MatchEvent.parse(message)?.kind == 'move') _boardGeneration++;
+        });
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -162,10 +173,21 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   Future<void> _openBoard(GameLink link) async {
     if (_preparing) return;
-    setState(() => _preparing = true);
+    setState(() {
+      _preparing = true;
+      _triedPreparation = true;
+      _gameUnavailable = false;
+    });
     try {
       final game = await widget.prepareGame(link);
-      if (mounted && game != null) setState(() => _game = game);
+      if (mounted) {
+        setState(() {
+          _game = game;
+          _gameUnavailable = game == null;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _gameUnavailable = true);
     } finally {
       if (mounted) setState(() => _preparing = false);
     }
@@ -185,23 +207,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     unawaited(_send(match.invite.move(match.moves, column).wire));
   }
 
-  String _status(OnlineMatch match) {
-    if (match.conflict) return 'Conflicting turns. Start a new match.';
-    if (match.pending?.state == 20) return 'Sending…';
-    if (match.pending?.state == 24) return 'Couldn’t send this match update.';
-    if (!match.accepted)
-      return match.mine
-          ? 'Waiting for your friend to accept.'
-          : 'Your friend invited you to a match.';
-    if (match.board.winner != 0) {
-      return (match.board.winner == 1) == match.mine
-          ? 'You won!'
-          : 'Your friend won.';
-    }
-    if (match.board.full) return 'Draw.';
-    return match.myTurn ? 'Your turn' : 'Your friend’s turn';
-  }
-
   @override
   Widget build(BuildContext context) {
     final match = _match;
@@ -212,7 +217,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Online Cats vs Dogs'),
+          title: Text(
+            widget.friendName == null
+                ? 'Online Cats vs Dogs'
+                : 'Match with ${widget.friendName}',
+          ),
           actions: [
             const GameAudioButton(),
             IconButton(
@@ -253,7 +262,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                     child: ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
-                        if (_sending || (match == null && _error == null))
+                        if (_sending ||
+                            _preparing ||
+                            (match == null && _error == null))
                           const LinearProgressIndicator(),
                         if (_error case final error?)
                           ListTile(
@@ -265,11 +276,24 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                           ),
                         if (match != null) ...[
                           Text(
-                            _status(match),
+                            match.status,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 12),
-                          if (!match.accepted && !match.mine && !match.conflict)
+                          if (_preparing)
+                            const Text('Getting Cats vs Dogs ready…'),
+                          if (_gameUnavailable)
+                            const Text(
+                              'Couldn’t prepare this match’s game. Check your connection and try again.',
+                            ),
+                          if (!match.accepted && match.mine && !match.conflict)
+                            const Text(
+                              'You go first. You can leave this screen and return from Online matches.',
+                            ),
+                          if (!match.accepted &&
+                              !match.mine &&
+                              !match.conflict &&
+                              match.pending == null)
                             FilledButton(
                               onPressed: _sending
                                   ? null
@@ -277,7 +301,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                       match.invite.accept().wire,
                                       prepare: match.invite.game,
                                     ),
-                              child: const Text('Install if needed and accept'),
+                              child: const Text('Accept and open match'),
                             ),
                           if (match.pending case final pending?
                               when pending.state == 24 && !match.conflict)
@@ -288,25 +312,25 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                               child: const Text('Retry send'),
                             ),
                           const SizedBox(height: 12),
-                          if (match.accepted)
+                          if (match.accepted && _game != null)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Text(
-                                match.mine
-                                    ? 'Your pieces are gold.'
-                                    : 'Your pieces are purple.',
+                                (_game?.build ?? 0) >= 6
+                                    ? (match.mine
+                                          ? 'You play as Cats'
+                                          : 'You play as Dogs')
+                                    : (match.mine
+                                          ? 'Your pieces are gold'
+                                          : 'Your pieces are purple'),
                               ),
                             ),
-                          if (match.accepted && _game == null)
+                          if (match.accepted && _gameUnavailable)
                             FilledButton(
                               onPressed: _preparing
                                   ? null
                                   : () => _openBoard(match.invite.game!),
-                              child: Text(
-                                _preparing
-                                    ? 'Preparing game…'
-                                    : 'Install if needed and open board',
-                              ),
+                              child: const Text('Try opening the board again'),
                             ),
                           if (_game case final GameRelease game
                               when match.accepted)
@@ -318,7 +342,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                 child: AspectRatio(
                                   aspectRatio: 540 / 620,
                                   child: LoveGameView.official(
-                                    key: ValueKey('${widget.id}/${game.build}'),
+                                    key: ValueKey(
+                                      '${widget.id}/${game.build}/$_boardGeneration',
+                                    ),
                                     game: game,
                                     mode: 'online',
                                     match:
@@ -332,7 +358,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                             const Padding(
                               padding: EdgeInsets.only(top: 12),
                               child: Text(
-                                'Tap a column to drop a piece. Use Back to return to the conversation.',
+                                'On your turn, tap a column to drop a piece.',
                               ),
                             ),
                         ],

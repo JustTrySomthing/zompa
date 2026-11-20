@@ -10,6 +10,7 @@
 
 | Build | Scope |
 |---|---|
+| Android 0.5.12 | Match invites open the waiting screen for the sender. Acceptance prepares the correct online board on each phone. My Games and the Play menu list active matches and whose turn it is. |
 | Android 0.5.11 | Built-in QR scanner and an optional Camera permission in Setup. Cats vs Dogs has its own title, cover, and downloadable .zomp filename. |
 | [Public APK 0.5.10](https://github.com/JustTrySomthing/zompado/releases/tag/v0.5.10) | Built-in LÖVE player, official `.zomp` downloads, manual `.love` imports, encrypted friend chats with verified Delta Chat messaging, voice calls, online turns, and scheduled alerts. Android voice interoperability remains under test. |
 | Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. Installed Drop Four can be shared by link or sent as a game card in friend chats. Receivers verify the exact catalog version before installing. Online Drop Four adds match invites, alternating turns, and match recovery from the conversation history. |
@@ -39,7 +40,7 @@ Install the signed preview on two ARM64 Android phones. Use a 16 KB Android phon
 
 Repeat on Wi-Fi and mobile data. Confirm that the sending state clears when the server accepts a message, that status changes do not duplicate messages, and that the profile remains usable offline and after reconnecting.
 
-- In an online Drop Four match, send a message from the chat dock, close it, and play a turn. On the other device, open **Games → My Games → Your turn** and confirm that it opens the same board.
+- In an online Drop Four match, send a message from the chat dock, close it, and play a turn. On the other device, open **Games → My Games → Online matches** and confirm that it opens the same board.
 - Tap notifications from two different conversations and check that each opens its own chat. Tap a turn alert while another game is open, then use Back to return to it. With the recipient's process stopped, repeat from a scheduled alert. Check that a match opens its installed board and offers installation for a missing version.
 - Allow notifications and microphone access in **Settings → Setup**. Place, answer, decline, and end calls from two phones. Verify two-way audio, mute, speaker, and that calls stay active while returning to a game or locking the phone. Try with each phone on a different network.
 - Background the receiving phone and send an encrypted message. Repeat after Android has stopped the receiving process. Use `adb shell am kill io.tablecircle.prototype` on a backgrounded preview for process-death testing. Inspect the Android job with `adb shell dumpsys jobscheduler`. The periodic check has a 15-minute nominal interval, requires a network, and may be deferred. A manual **Force stop** pauses delivery until the app is reopened.

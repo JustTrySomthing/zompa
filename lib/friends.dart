@@ -583,19 +583,20 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
-  Future<void> _send({String? gameLink}) async {
+  Future<bool> _send({String? gameLink}) async {
     final original = _composer.text;
     final text = gameLink ?? original.trim();
-    if (_sending || text.isEmpty || _thread?.canSend != true) return;
+    if (_sending || text.isEmpty || _thread?.canSend != true) return false;
     setState(() {
       _sending = true;
       _sendError = null;
     });
     try {
       await widget.chatmail.send(widget.id, text);
-      if (!mounted) return;
+      if (!mounted) return false;
       if (gameLink == null && _composer.text == original) _composer.clear();
       await _load();
+      return true;
     } catch (error) {
       if (mounted)
         setState(
@@ -604,6 +605,7 @@ class _FriendConversationState extends State<FriendConversation>
               : _failure(error),
         );
       if (error is TimeoutException) await _load();
+      return false;
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -666,8 +668,12 @@ class _FriendConversationState extends State<FriendConversation>
           ],
         ),
       );
-      if (mounted && yes == true)
-        await _send(gameLink: MatchEvent.invite(game).wire);
+      if (mounted && yes == true) {
+        final invite = MatchEvent.invite(game);
+        if (await _send(gameLink: invite.wire) && mounted) {
+          _openMatch(invite.id);
+        }
+      }
     } finally {
       if (mounted) setState(() => _pickingGame = false);
     }
@@ -680,6 +686,7 @@ class _FriendConversationState extends State<FriendConversation>
         chat: widget.id,
         id: id,
         prepareGame: widget.prepareGame!,
+        friendName: _thread?.name ?? widget.initialName,
         buildChatDock: (close) => FriendConversation.docked(
           chatmail: widget.chatmail,
           id: widget.id,
