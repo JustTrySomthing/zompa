@@ -1170,12 +1170,6 @@ class _FriendConversationState extends State<FriendConversation>
                 : () => voice.dial(widget.id, thread!.name),
           ),
         if (!docked) ...chatActions(context),
-        if (docked)
-          IconButton(
-            tooltip: 'Close match chat',
-            onPressed: widget.onClose,
-            icon: const Icon(Icons.close),
-          ),
       ],
     );
     final body = SafeArea(

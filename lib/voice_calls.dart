@@ -54,6 +54,33 @@ class VoiceCalls extends ChangeNotifier {
   _Call? _active;
   int _nextToken = 0;
   bool _disposed = false;
+  final _visibleGames = <Object>{};
+  bool _callHidden = false;
+
+  void setGameVisible(Object owner, bool visible) {
+    if (_disposed) return;
+    final wasInGame = _visibleGames.isNotEmpty;
+    if (visible) {
+      _visibleGames.add(owner);
+    } else {
+      _visibleGames.remove(owner);
+    }
+    if (_visibleGames.isEmpty) _callHidden = false;
+    if (wasInGame != _visibleGames.isNotEmpty && busy) notifyListeners();
+  }
+
+  void showCall() {
+    if (!_callHidden) return;
+    _callHidden = false;
+    notifyListeners();
+  }
+
+  void _hideCall() {
+    if (_visibleGames.isEmpty || _active?.phase == VoicePhase.incoming) return;
+    _callHidden = true;
+    notifyListeners();
+  }
+
   String? error;
 
   bool get busy => _active != null;
@@ -328,6 +355,7 @@ class VoiceCalls extends ChangeNotifier {
     // A chat composer may still own the keyboard when an incoming call covers it.
     FocusManager.instance.primaryFocus?.unfocus();
     _active = call;
+    _callHidden = false;
     error = null;
     _phase(call, call.phase);
   }
@@ -463,6 +491,7 @@ class VoicePanel extends StatelessWidget {
     }
 
     final controller = calls!;
+    if (controller._callHidden) return const SizedBox.shrink();
     final colors = Theme.of(context).colorScheme;
     final incoming = call.phase == VoicePhase.incoming;
     final connected = call.phase == VoicePhase.connected;
@@ -493,6 +522,15 @@ class VoicePanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (controller._visibleGames.isNotEmpty && !incoming)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      tooltip: 'Hide call and return to game',
+                      onPressed: controller._hideCall,
+                      icon: const Icon(Icons.phone_in_talk_outlined),
+                    ),
+                  ),
                 Expanded(
                   child: videoVisible
                       ? const _CallVideo()

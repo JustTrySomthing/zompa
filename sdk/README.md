@@ -18,6 +18,8 @@ Official packages use a ZIP archive with a root `zompado.json` and `main.lua`. U
 | `zompado.load(slot)` | Read the save string from the game's LÖVE save directory. Keep formats versioned and tolerate a missing save. |
 | `zompado.audio()` | Create a mixer for one game. Register sources on the `music` or `effects` bus, then call `mixer:update(dt)` from `love.update(dt)` to apply Zompado settings. `setGain` and `setMuted` apply game-level controls on top of the host settings. |
 
+Zompado provides Pause, Resume, and Quit in the game toolbar. Omit these controls from official game screens. Save progress through the SDK where the game supports continuing later. In an online game, the host also provides messaging and voice calls.
+
 Host music and effect gains multiply each source’s volume and any game-level adjustments. The host master volume applies to game audio after mixing, including games with no SDK integration. The game can run with desktop LÖVE and defaults to its own mix there.
 
 ```lua

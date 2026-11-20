@@ -110,13 +110,14 @@ class _OnlineMatchesState extends State<OnlineMatches>
     }
   }
 
-  Future<void> _open(FriendChat chat, String id) async {
+  Future<void> _open(FriendChat chat, OnlineMatch match) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => OnlineMatchPage(
           chatmail: widget.chatmail,
           chat: chat.id,
-          id: id,
+          id: match.invite.id,
+          playOnOpen: match.accepted && !match.conflict,
           prepareGame: widget.prepareGame,
           friendName: chat.name,
           buildChatDock: (close) => FriendConversation.docked(
@@ -177,8 +178,13 @@ class _OnlineMatchesState extends State<OnlineMatches>
               ),
               title: Text('Cats vs Dogs with ${entry.chat.name}'),
               subtitle: Text(entry.match.status),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _open(entry.chat, entry.match.invite.id),
+              trailing: entry.match.accepted && !entry.match.conflict
+                  ? FilledButton.tonal(
+                      onPressed: () => _open(entry.chat, entry.match),
+                      child: const Text('Resume Game'),
+                    )
+                  : const Icon(Icons.chevron_right),
+              onTap: () => _open(entry.chat, entry.match),
             ),
         ],
       ),

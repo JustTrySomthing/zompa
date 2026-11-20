@@ -1,5 +1,5 @@
 {
-  "version": "0.5.18",
-  "build": 27,
-  "purpose": "Verify video self-view, chat attachment and browser previews, Trash, Quiet Hours, reply reminders, and encrypted backup."
+  "version": "0.5.19",
+  "build": 28,
+  "purpose": "Verify the game toolbar, direct match resume, slide-down chat and message previews."
 }

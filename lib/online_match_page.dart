@@ -9,7 +9,7 @@ import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
 import 'love_player.dart';
-import 'game_audio.dart';
+import 'game_toolbar.dart';
 
 class OnlineMatchPage extends StatefulWidget {
   const OnlineMatchPage({
@@ -54,12 +54,90 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   String? _error;
   bool _chatOpen = false;
   bool _chatUnread = false;
+  StreamSubscription<(int, int)>? _messages;
+  Timer? _messageTimer;
+  int _latestMessage = 0;
+  String? _messagePreview;
+
+  bool get _boardOpen =>
+      _playing && _match != null && _game != null && !_match!.quit;
+
+  void _togglePause(OnlineMatch match) {
+    if (_sending ||
+        match.finished ||
+        (match.pausedByFriend && !match.pausedByMe))
+      return;
+    final action = match.pausedByMe ? 'resume' : 'pause';
+    unawaited(_send(match.invite.control(action, match.nextRevision).wire));
+  }
+
+  Future<void> _previewMessage(int chat, int id) async {
+    if (chat != widget.chat || !_boardOpen || _chatOpen) return;
+    try {
+      final target = await widget.chatmail.notificationMessage(chat, id);
+      if (!mounted ||
+          _chatOpen ||
+          !_boardOpen ||
+          target == null ||
+          id <= _latestMessage)
+        return;
+      final message = target.message;
+      if (message.info ||
+          message.viewType == 'Call' ||
+          MatchEvent.parse(message.text) != null)
+        return;
+      final text = message.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+      final mime = message.mime ?? '';
+      final kind = switch (message.viewType) {
+        'Image' || 'Sticker' => 'an image',
+        'Gif' => 'a GIF',
+        'Video' => 'a video',
+        'Audio' || 'Voice' => 'an audio file',
+        'Vcard' => 'a contact',
+        _ when mime.startsWith('image/') => 'an image',
+        _ when mime.startsWith('video/') => 'a video',
+        _ when mime.startsWith('audio/') => 'an audio file',
+        _
+            when message.file != null ||
+                message.filename != null ||
+                message.viewType == 'File' =>
+          'a file',
+        _ when GameLink.parse(text) != null => 'a game link',
+        _
+            when RegExp(
+              r'https?://|\bwww\.',
+              caseSensitive: false,
+            ).hasMatch(text) =>
+          'a link',
+        _ => null,
+      };
+      if (kind == null && text.isEmpty) return;
+      _latestMessage = id;
+      final name = message.sender?.name.trim();
+      final sender = name != null && name.isNotEmpty ? name : target.name;
+      _messageTimer?.cancel();
+      setState(() {
+        _messagePreview = kind == null
+            ? '$sender: $text'
+            : '$sender shared $kind';
+      });
+      _messageTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _messagePreview = null);
+      });
+    } catch (_) {
+      // A failed preview never interrupts the game.
+    }
+  }
 
   void _toggleChat() {
     if (_chatOpen) FocusScope.of(context).unfocus();
     setState(() {
       _chatOpen = !_chatOpen;
-      if (_chatOpen) _chatUnread = false;
+      if (_chatOpen) {
+        _chatUnread = false;
+        _messagePreview = null;
+        _messageTimer?.cancel();
+      }
     });
     unawaited(_load());
   }
@@ -68,6 +146,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   void initState() {
     super.initState();
     _playing = widget.playOnOpen;
+    _messages = widget.chatmail.incoming.listen((event) {
+      unawaited(_previewMessage(event.$1, event.$2));
+    });
     WidgetsBinding.instance.addObserver(this);
     _events = widget.chatmail.changes.listen((_) {
       _timer?.cancel();
@@ -94,6 +175,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     _timer?.cancel();
     _lobbyRefresh?.cancel();
     _events?.cancel();
+    _messages?.cancel();
+    _messageTimer?.cancel();
     super.dispose();
   }
 
@@ -308,34 +391,52 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         if (!didPop && _chatOpen) _toggleChat();
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.friendName == null
-                ? 'Online Cats vs Dogs'
-                : 'Match with ${widget.friendName}',
-          ),
-          actions: [
-            ...chatActions(context),
-            const GameAudioButton(),
-            IconButton(
-              tooltip: _chatOpen
-                  ? 'Close match chat'
-                  : _chatUnread
-                  ? 'Open match chat, unread messages'
-                  : 'Open match chat',
-              onPressed: _toggleChat,
-              icon: Badge(
-                isLabelVisible: _chatUnread,
-                child: const Icon(Icons.chat_bubble_outline),
+        appBar: _boardOpen
+            ? GameToolbar(
+                title: widget.friendName == null
+                    ? 'Cats vs Dogs'
+                    : 'Match with ${widget.friendName}',
+                chat: widget.chat,
+                friendName: widget.friendName,
+                onMessage: _toggleChat,
+                chatOpen: _chatOpen,
+                unread: _chatUnread,
+                paused: match!.pausedByMe,
+                onPause:
+                    _sending ||
+                        match.finished ||
+                        (match.pausedByFriend && !match.pausedByMe)
+                    ? null
+                    : () => _togglePause(match),
+                onQuit: _sending
+                    ? null
+                    : match.finished
+                    ? () => Navigator.of(context).pop()
+                    : () => _quit(match),
+              )
+            : AppBar(
+                title: Text(
+                  widget.friendName == null
+                      ? 'Online Cats vs Dogs'
+                      : 'Match with ${widget.friendName}',
+                ),
+                actions: [
+                  ...chatActions(context),
+                  IconButton(
+                    tooltip: _chatOpen ? 'Close match chat' : 'Open match chat',
+                    onPressed: _toggleChat,
+                    icon: Badge(
+                      isLabelVisible: _chatUnread,
+                      child: const Icon(Icons.chat_outlined),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh match',
+                    onPressed: _sending ? null : _load,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
               ),
-            ),
-            IconButton(
-              tooltip: 'Refresh match',
-              onPressed: _sending ? null : _load,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -404,46 +505,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                       ),
                                     ),
                                   ),
-                                  if (!match.finished)
-                                    Wrap(
-                                      alignment: WrapAlignment.center,
-                                      spacing: 12,
-                                      children: [
-                                        TextButton.icon(
-                                          onPressed:
-                                              _sending ||
-                                                  (match.pausedByFriend &&
-                                                      !match.pausedByMe)
-                                              ? null
-                                              : () => _send(
-                                                  match.invite
-                                                      .control(
-                                                        match.pausedByMe
-                                                            ? 'resume'
-                                                            : 'pause',
-                                                        match.nextRevision,
-                                                      )
-                                                      .wire,
-                                                ),
-                                          icon: Icon(
-                                            match.pausedByMe
-                                                ? Icons.play_arrow
-                                                : Icons.pause,
-                                          ),
-                                          label: Text(
-                                            match.pausedByMe
-                                                ? 'Resume'
-                                                : 'Pause',
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: _sending
-                                              ? null
-                                              : () => _quit(match),
-                                          child: const Text('Quit'),
-                                        ),
-                                      ],
-                                    ),
                                 ],
                               ),
                               if (match.paused ||
@@ -592,14 +653,113 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                             ),
                           ),
                   ),
-                  if (_chatOpen)
+                  if (_boardOpen)
                     Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: dockHeight,
-                      child: widget.buildChatDock(_toggleChat),
+                      left: 16,
+                      right: 16,
+                      bottom: 12,
+                      child: IgnorePointer(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          child: !_chatOpen && _messagePreview != null
+                              ? Semantics(
+                                  key: ValueKey(_latestMessage),
+                                  liveRegion: true,
+                                  child: Center(
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xe61b1c20),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 10,
+                                        ),
+                                        child: Text(
+                                          _messagePreview!,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                          ),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
                     ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: dockHeight,
+                    child: IgnorePointer(
+                      ignoring: !_chatOpen,
+                      child: ClipRect(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 280),
+                          reverseDuration: const Duration(milliseconds: 220),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          layoutBuilder: (current, previous) => Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ...previous,
+                              if (current != null) current,
+                            ],
+                          ),
+                          transitionBuilder: (child, animation) =>
+                              SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0, -1),
+                                  end: Offset.zero,
+                                ).animate(animation),
+                                child: child,
+                              ),
+                          child: _chatOpen
+                              ? Material(
+                                  key: const ValueKey('match-chat'),
+                                  elevation: 12,
+                                  clipBehavior: Clip.antiAlias,
+                                  borderRadius: const BorderRadius.vertical(
+                                    bottom: Radius.circular(18),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Expanded(
+                                        child: widget.buildChatDock(
+                                          _toggleChat,
+                                        ),
+                                      ),
+                                      Center(
+                                        child: TextButton(
+                                          onPressed: _toggleChat,
+                                          style: TextButton.styleFrom(
+                                            minimumSize: const Size(96, 44),
+                                          ),
+                                          child: Semantics(
+                                            label: 'Close chat panel',
+                                            child: ExcludeSemantics(
+                                              child: Icon(
+                                                Icons.horizontal_rule,
+                                                size: 36,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               );
             },

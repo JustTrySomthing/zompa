@@ -1,8 +1,6 @@
-import 'chat_chrome.dart';
-
 import 'package:flutter/material.dart';
 
-import 'game_audio.dart';
+import 'game_toolbar.dart';
 import 'github_distribution.dart';
 import 'love_player.dart';
 
@@ -32,19 +30,40 @@ class GamePlayPage extends StatefulWidget {
 class _GamePlayPageState extends State<GamePlayPage> {
   bool _paused = false;
 
+  Future<void> _quit() async {
+    final wasPaused = _paused;
+    setState(() => _paused = true);
+    final quit = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Quit this game?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Keep playing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Quit game'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (quit == true) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _paused = wasPaused);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.title),
-      actions: [
-        ...chatActions(context),
-        const GameAudioButton(),
-        IconButton(
-          tooltip: 'Pause game',
-          onPressed: _paused ? null : () => setState(() => _paused = true),
-          icon: const Icon(Icons.pause),
-        ),
-      ],
+    appBar: GameToolbar(
+      title: widget.title,
+      paused: _paused,
+      onPause: () => setState(() => _paused = !_paused),
+      onQuit: _quit,
     ),
     body: SafeArea(
       child: Stack(
@@ -79,7 +98,7 @@ class _GamePlayPageState extends State<GamePlayPage> {
                         child: const Text('Resume'),
                       ),
                       TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: _quit,
                         child: const Text('Quit game'),
                       ),
                     ],
