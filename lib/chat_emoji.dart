@@ -54,7 +54,7 @@ class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
     child: Text(
       value.isEmpty
           ? (widget.single ? 'Choose a reaction' : 'Selected emoji appear here')
-          : value,
+          : value.characters.takeLast(44).string,
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(fontSize: 17),

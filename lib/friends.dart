@@ -884,21 +884,11 @@ class _FriendConversationState extends State<FriendConversation>
               iconColor: Theme.of(sheet).colorScheme.onSurfaceVariant,
               onTap: () => Navigator.pop(sheet, 'original'),
             ),
-            if (widget.pickGameLink != null)
-              ListTile(
-                leading: const Icon(Icons.link),
-                title: const Text('Share a game link'),
-                onTap: () => Navigator.pop(sheet, 'game-link'),
-              ),
           ],
         ),
       ),
     );
     if (choice == null || !mounted) return;
-    if (choice == 'game-link') {
-      await _sendGame();
-      return;
-    }
     try {
       if (choice == 'capture-photo' || choice == 'capture-video') {
         final granted = await const MethodChannel('io.zompado.host')
@@ -990,36 +980,6 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
-  Future<void> _sendGame() async {
-    setState(() => _pickingGame = true);
-    try {
-      final link = await widget.pickGameLink!();
-      if (!mounted || link == null) return;
-      final send = await showDialog<bool>(
-        context: context,
-        builder: (dialog) => AlertDialog(
-          title: const Text('Share Cats vs Dogs?'),
-          content: const Text(
-            'Your friend will get a game card they can open to install or play Cats vs Dogs.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialog, true),
-              child: const Text('Send game'),
-            ),
-          ],
-        ),
-      );
-      if (mounted && send == true) await _send(gameLink: link);
-    } finally {
-      if (mounted) setState(() => _pickingGame = false);
-    }
-  }
-
   Future<void> _inviteMatch() async {
     if (_pickingGame || _sending || _thread?.canSend != true) return;
     setState(() => _pickingGame = true);
@@ -1028,7 +988,7 @@ class _FriendConversationState extends State<FriendConversation>
       if (!mounted || link == null) return;
       final game = GameLink.parse(link);
       if (game == null) return;
-      final yes = await showDialog<bool>(
+      final action = await showDialog<String>(
         context: context,
         builder: (dialog) => AlertDialog(
           title: const Text('Invite to Cats vs Dogs?'),
@@ -1037,17 +997,24 @@ class _FriendConversationState extends State<FriendConversation>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialog, false),
+              onPressed: () => Navigator.pop(dialog),
               child: const Text('Cancel'),
             ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, 'share'),
+              child: const Text('Share game link'),
+            ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialog, true),
+              onPressed: () => Navigator.pop(dialog, 'invite'),
               child: const Text('Send match invite'),
             ),
           ],
         ),
       );
-      if (mounted && yes == true) {
+      if (!mounted || action == null) return;
+      if (action == 'share') {
+        await _send(gameLink: link);
+      } else {
         final invite = MatchEvent.invite(game);
         if (await _send(gameLink: invite.wire) && mounted) {
           _openMatch(invite.id);

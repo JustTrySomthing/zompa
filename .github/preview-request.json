@@ -1,5 +1,5 @@
 {
   "version": "0.5.15",
   "build": 24,
-  "purpose": "Verify chat controls, Saved, attachment preparation, contact pins, and notification settings."
+  "purpose": "Verify chat controls, Saved, attachment preparation, contact pins, lock-screen alerts, and notification settings."
 }

@@ -168,6 +168,28 @@ def check_voice(alice, bob):
     print("PASS: two Android WebRTC endpoints connected, received video from an enabled camera, toggled mute and speaker, and cleared remote hangup.", flush=True)
 
 
+def check_message_tools(alice, bob):
+    alice.type("Saved chat check")
+    alice.back()
+    alice.press("Send message")
+    bob.see("Saved chat check", 100)
+    bob.press("Save message")
+    bob.see("Unsave message")
+    bob.press("Saved")
+    bob.see("Search saved messages")
+    bob.see("Saved chat check")
+    bob.back()
+    bob.press("React to message")
+    bob.press("grinning face happy smile grin")
+    bob.press("Done")
+    alice.see("😀", 100)
+    bob.press("Mute all notifications")
+    bob.see("Unmute all notifications")
+    bob.press("Unmute all notifications")
+    bob.see("Mute all notifications")
+    print("PASS: saved an incoming message, opened Saved, reacted across devices, and toggled the global bell.", flush=True)
+
+
 def check_match(alice, bob):
     alice.press("Invite to a Cats vs Dogs match")
     alice.press("Send match invite")
@@ -250,6 +272,7 @@ def main():
                     phone.shell("input", "tap", *point)
         print(f"Voice check failed: {error}", flush=True)
 
+    check_message_tools(alice, bob)
     alice.back()
     alice.press("Games")
     alice.install_game()

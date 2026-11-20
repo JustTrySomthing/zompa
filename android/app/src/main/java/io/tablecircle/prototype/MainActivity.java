@@ -148,16 +148,16 @@ public final class MainActivity extends FlutterActivity {
                         result.success(null);
                         break;
                     case "chatNotificationSettings":
-                        result.success(ChatAlerts.settings(this));
+                        result.success(ChatAlerts.settings(MainActivity.this));
                         break;
                     case "setChatNotification":
                         String notificationKey = call.argument("key");
                         boolean notificationValue = Boolean.TRUE.equals(call.argument("value"));
-                        if (!ChatAlerts.set(this, notificationKey, notificationValue)) {
+                        if (!ChatAlerts.set(MainActivity.this, notificationKey, notificationValue)) {
                             result.error("NOTIFICATION_SETTINGS", "Couldn’t save notifications.", null);
                             break;
                         }
-                        if (!ChatAlerts.allowed(this, "calls")) stopRinging();
+                        if (!ChatAlerts.allowed(MainActivity.this, "calls")) stopRinging();
                         result.success(null);
                         break;
                     case "openNotificationSettings":
