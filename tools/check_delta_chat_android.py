@@ -1,6 +1,8 @@
 """Verify bidirectional direct messages and audio calls with stock Delta Chat."""
 
+import re
 import shlex
+from xml.etree import ElementTree
 
 from check_android_friends import Phone, wait
 
@@ -36,6 +38,34 @@ class DeltaPhone(Phone):
         if label in {"Create New Profile", "Agree & Create Profile", "OK", "Answer", "End Call"}:
             return super().find(label.upper()) or super().find(label)
         return super().find(label)
+
+    def call_cards(self):
+        self.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
+        layout = self.shell("cat", "/sdcard/zompado-friends.xml")
+        cards = []
+        for node in ElementTree.fromstring(layout).iter("node"):
+            labels = node.get("text", "") + "\n" + node.get("content-desc", "")
+            if "Audio call" not in labels.splitlines():
+                continue
+            x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
+            if x1 < x2 and y1 < y2:
+                cards.append(((x1 + x2) // 2, (y1 + y2) // 2))
+        return sorted(set(cards), key=lambda point: point[1])
+
+    def answer_incoming(self, previous_cards):
+        def route():
+            if answer := self.find("Answer"):
+                return "answer", answer
+            cards = self.call_cards()
+            if len(cards) > previous_cards:
+                return "card", cards[-1]
+            return None
+
+        kind, coordinates = wait("Delta Chat to show the new incoming call", route, 80)
+        self.shell("input", "tap", *coordinates)
+        if kind == "card":
+            self.press("Answer", 15)
+            print("Opened the incoming call from Delta Chat’s conversation card.", flush=True)
 
     def start(self):
         self.shell("am", "start", "-W", "-n", DELTA_ACTIVITY)
@@ -87,8 +117,9 @@ def main():
         print("PASS: Delta Chat called Zompado, both clients connected, and Zompado rendered Delta Chat’s camera.", flush=True)
 
         delta_chat_with(delta, zompado.name)
+        previous_cards = len(delta.call_cards())
         zompado.press("Voice call")
-        delta.press("Answer", 85)
+        delta.answer_incoming(previous_cards)
         zompado.see("Voice call with " + delta.name, 65)
         delta.see("Connected", 65)
         delta.press("End Call")
@@ -100,7 +131,8 @@ def main():
                 print(f"{phone.name} screen:", phone.labels(), flush=True)
                 phone.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
                 layout = phone.shell("cat", "/sdcard/zompado-friends.xml")
-                from xml.etree import ElementTree
+                keyboard = phone.shell("dumpsys input_method | grep -E 'mInputShown|mShowRequested' || true")
+                print("Keyboard state:", keyboard.decode(errors="replace").strip(), flush=True)
                 for node in ElementTree.fromstring(layout).iter("node"):
                     if any(key in (node.get("content-desc"), node.get("text")) for key in ("Answer", "Decline")):
                         print("Visible call control:", node.get("bounds"), "clickable:", node.get("clickable"), flush=True)
