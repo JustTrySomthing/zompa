@@ -1,5 +1,5 @@
 {
   "version": "0.5.16",
   "build": 25,
-  "purpose": "Verify the release-only WebRTC startup fix and persistent App Log."
+  "purpose": "Verify the release-only WebRTC startup fix and persistent App Log using the verified R8 rules."
 }
