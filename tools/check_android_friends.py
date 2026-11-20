@@ -174,7 +174,7 @@ def check_match(alice, bob):
     alice.back()
     alice.press("Games")
     alice.press("Play")
-    alice.press("Online matches")
+    alice.press("Online Match")
     alice.press("Cats vs Dogs with Bob")
     alice.see("Waiting for your friend to accept.", 100)
 
