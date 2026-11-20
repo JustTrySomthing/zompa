@@ -1,5 +1,5 @@
 {
   "version": "0.5.13",
-  "build": 19,
+  "build": 20,
   "purpose": "Verify call setup and video using the Android camera surface and stock Delta Chat."
 }

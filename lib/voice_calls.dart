@@ -294,6 +294,8 @@ class VoiceCalls extends ChangeNotifier {
   }
 
   void _set(_Call call) {
+    // A chat composer may still own the keyboard when an incoming call covers it.
+    FocusManager.instance.primaryFocus?.unfocus();
     _active = call;
     error = null;
     _phase(call, call.phase);

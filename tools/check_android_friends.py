@@ -143,6 +143,7 @@ class Phone:
 
 
 def check_voice(alice, bob):
+    bob.press("<input>")
     alice.press("Voice call")
     bob.see("Incoming call from Alice", 75)
     alice.see("Calling Bob…", 20)
