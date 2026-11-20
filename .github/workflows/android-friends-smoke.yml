@@ -9,6 +9,9 @@ on:
       - "tools/check_android_friends.py"
       - "tools/check_voice_sdp.dart"
       - "lib/voice_calls.dart"
+      - "lib/friends.dart"
+      - "lib/online_match*.dart"
+      - "android/app/src/main/java/io/tablecircle/prototype/ChatFiles.java"
       - "android/app/src/main/java/io/tablecircle/prototype/VoicePeer.java"
 
 permissions:
