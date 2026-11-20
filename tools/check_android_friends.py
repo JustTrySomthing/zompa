@@ -232,7 +232,8 @@ def check_match(alice, bob):
 
 
 def check_app_log(phone):
-    phone.stop_background_process()
+    phone.shell("am", "force-stop", APP)
+    wait("the app process to exit", lambda: not phone.shell(f"pidof {APP} || true").strip())
     phone.start()
     phone.press("Settings")
     for _ in range(3):

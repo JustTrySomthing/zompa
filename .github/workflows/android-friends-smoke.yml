@@ -38,7 +38,8 @@ jobs:
           runs=$(gh api "$repo/workflows/android-friends-smoke.yml/runs?branch=main&status=completed&event=push&per_page=10")
           while read -r run source; do
             if ! git diff --quiet "$source" HEAD -- android lib assets pubspec.yaml pubspec.lock \
-              tools/install_love_runtime.sh tools/install_chatmail_core.sh tools/check_voice_sdp.dart; then
+              tools/install_love_runtime.sh tools/install_chatmail_core.sh tools/check_voice_sdp.dart \
+              ':!android/app/proguard-rules.pro'; then
               continue
             fi
             artifacts=$(gh api "$repo/runs/$run/artifacts")
