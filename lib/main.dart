@@ -16,6 +16,7 @@ import 'game_link.dart';
 import 'chatmail.dart';
 import 'chat_chrome.dart';
 import 'message_bubble.dart';
+import 'communication_settings.dart';
 import 'contacts_page.dart';
 import 'compression_page.dart';
 import 'saved_messages.dart';
@@ -960,33 +961,7 @@ class _HomeState extends State<Home> {
             ),
           ],
         ),
-        actions: [
-          if (isGames)
-            PopupMenuButton<String>(
-              tooltip: 'Game actions',
-              onSelected: (action) {
-                if (action == 'link') {
-                  _pasteGameLink();
-                } else {
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => LoveImports(
-                        host: bridge,
-                        read: () =>
-                            widget.data['loveImports'] as List? ?? const [],
-                        save: (files) => widget.write('loveImports', files),
-                      ),
-                    ),
-                  );
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'link', child: Text('Open game link')),
-                PopupMenuItem(value: 'import', child: Text('Import a Game')),
-              ],
-            ),
-          ...chatActions(context),
-        ],
+        actions: chatActions(context),
       ),
       body: Column(
         children: [
@@ -1026,8 +1001,8 @@ class _HomeState extends State<Home> {
         onDestinationSelected: (value) => setState(() => tab = value),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
+            icon: Icon(Icons.chat_outlined),
+            selectedIcon: Icon(Icons.chat),
             label: 'Chats',
           ),
           NavigationDestination(
@@ -1038,6 +1013,41 @@ class _HomeState extends State<Home> {
         ],
       ),
     );
+  }
+
+  Future<void> _openGameOptions() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialog) => SimpleDialog(
+        title: const Text('Import or Open Game Link'),
+        children: [
+          ListTile(
+            leading: const Icon(Icons.file_open_outlined),
+            title: const Text('Import a Game'),
+            onTap: () => Navigator.pop(dialog, 'import'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.link),
+            title: const Text('Open Game Link'),
+            onTap: () => Navigator.pop(dialog, 'link'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'link') {
+      await _pasteGameLink();
+    } else {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => LoveImports(
+            host: bridge,
+            read: () => widget.data['loveImports'] as List? ?? const [],
+            save: (files) => widget.write('loveImports', files),
+          ),
+        ),
+      );
+    }
   }
 
   Widget games() {
@@ -1063,7 +1073,13 @@ class _HomeState extends State<Home> {
             },
           ),
         ),
-        const SizedBox(height: 20),
+        Align(
+          child: TextButton(
+            onPressed: _openGameOptions,
+            child: const Text('Import or Open Game Link'),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (!catalog)
           if (widget.chatmail case final Chatmail chatmail)
             OnlineMatches(chatmail: chatmail, prepareGame: _prepareOnlineGame),
@@ -1109,20 +1125,12 @@ class _HomeState extends State<Home> {
               game.title,
               'Version ${game.version} · .zomp · ${game.asset.size < 1024 ? '${game.asset.size} B' : '${(game.asset.size / 1024).toStringAsFixed(1)} KB'}',
               (installedGames[game.id]?.build ?? 0) >= game.build
-                  ? 'Play'
+                  ? null
                   : installedGames.containsKey(game.id)
                   ? 'Update'
                   : 'Install',
-              downloadingGame
-                  ? null
-                  : () {
-                      final installed = installedGames[game.id];
-                      if (installed != null && installed.build >= game.build) {
-                        selectMode(installed);
-                      } else {
-                        installGame(game);
-                      }
-                    },
+              downloadingGame ? null : () => installGame(game),
+              installed: installedGames.containsKey(game.id),
               game: game,
             ),
             const SizedBox(height: 12),
@@ -1174,9 +1182,10 @@ class _HomeState extends State<Home> {
   Widget gameCard(
     String title,
     String description,
-    String button,
+    String? button,
     VoidCallback? action, {
     required GameRelease game,
+    bool installed = false,
     VoidCallback? share,
     VoidCallback? remove,
   }) => Card(
@@ -1208,6 +1217,20 @@ class _HomeState extends State<Home> {
                     ),
                     const SizedBox(height: 4),
                     Text(description),
+                    if (installed)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle_outline, size: 16),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Installed',
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1226,7 +1249,8 @@ class _HomeState extends State<Home> {
                       ),
                   ],
                 ),
-              FilledButton(onPressed: action, child: Text(button)),
+              if (button != null)
+                FilledButton(onPressed: action, child: Text(button)),
             ],
           ),
         ),
@@ -1437,6 +1461,36 @@ class _PreferencesState extends State<Preferences> {
                         MaterialPageRoute(
                           builder: (_) =>
                               NotificationsPage(settings: chrome.notifications),
+                        ),
+                      ),
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.bedtime_outlined),
+                    title: const Text('Quiet Hours'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(builder: (_) => const QuietHoursPage()),
+                    ),
+                  ),
+                  if (widget.chatmail case final chatmail?)
+                    ListTile(
+                      leading: const Icon(Icons.backup_outlined),
+                      title: const Text('Backup'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => BackupPage(chatmail: chatmail),
+                        ),
+                      ),
+                    ),
+                  if (widget.chatmail case final chatmail?)
+                    ListTile(
+                      leading: const Icon(Icons.hub_outlined),
+                      title: const Text('Connections'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => ConnectionsPage(chatmail: chatmail),
                         ),
                       ),
                     ),

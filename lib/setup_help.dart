@@ -343,6 +343,18 @@ const _topics = [
         'Use the paperclip to capture or attach media. Settings → Compression lets you choose Balanced or Data saver. Use Attach Original File to send the original bytes.',
       ),
       (
+        'Can I play media in chat?',
+        'GIFs play in the conversation. Tap a photo to enlarge and zoom it, Play video to watch an attachment, or the audio play button to listen in chat. Links open in Preview Browser. Use the top-right button to open the page in your default browser.',
+      ),
+      (
+        'How do I restore a deleted chat or set a reply reminder?',
+        'Go to Chats → Trash to restore conversations or permanently empty Trash. Long-press an incoming message and choose Remind me to reply to schedule an Android notification.',
+      ),
+      (
+        'How do I move my chats to a new phone?',
+        'Open Settings → Backup to save your Chatmail profile, messages, and attachments in a password-protected file. On the new phone, complete Zompado Setup and choose Restore backup before creating a chat profile.',
+      ),
+      (
         'Where are my saved messages?',
         'Tap the star on a message to save it. Tap Saved in the top bar to search and filter your saved messages and attachments.',
       ),
@@ -367,7 +379,7 @@ const _topics = [
       ),
       (
         'What alerts can I turn on?',
-        'Open Settings → Notifications for alert categories and Android lock screen settings. Tap the bell in the top bar to silence all Zompado alerts. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
+        'Open Settings → Notifications for alert categories and Android lock screen settings. Tap the bell in the top bar to mute all Zompado alerts. Choose Quiet Hours to schedule when alerts arrive silently. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
       ),
     ],
   ),

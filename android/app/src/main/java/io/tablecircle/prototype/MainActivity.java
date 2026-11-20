@@ -42,6 +42,7 @@ public final class MainActivity extends FlutterActivity {
     private Ringtone ringing;
     private int ringingId;
     private int ringingChat;
+    private final ChatPlayback playback = new ChatPlayback(this);
     private long ringDeadline;
     private MethodChannel.Result inviteScan;
     private MethodChannel.Result cameraSetup;
@@ -60,6 +61,10 @@ public final class MainActivity extends FlutterActivity {
         super.configureFlutterEngine(flutterEngine);
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
             "io.zompado.love", new LovePlayer.Factory(flutterEngine.getDartExecutor().getBinaryMessenger()));
+        flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
+            "io.zompado.chatVideo", playback.factory(false));
+        flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
+            "io.zompado.previewBrowser", playback.factory(true));
         ChatAlerts.setup(this);
         ChatSyncJob.schedule(this);
         readChatIntent(getIntent());
@@ -77,6 +82,24 @@ public final class MainActivity extends FlutterActivity {
                 @Override
                 public void onMethodCall(MethodCall call, MethodChannel.Result result) {
                 switch (call.method) {
+                    case "lastCallConnection":
+                        result.success(voice.lastCallConnection());
+                        break;
+                    case "quietHours":
+                        result.success(QuietHours.read(MainActivity.this));
+                        break;
+                    case "setQuietHours":
+                        boolean saved = QuietHours.save(MainActivity.this,
+                            Boolean.TRUE.equals(call.argument("enabled")), call.argument("start"),
+                            call.argument("end"), call.argument("days"));
+                        if (saved && QuietHours.active(MainActivity.this) && ringing != null) ringing.stop();
+                        result.success(saved);
+                        break;
+                    case "remindToReply":
+                        Number delay = call.argument("delay");
+                        result.success(ReplyReminderJob.schedule(MainActivity.this,
+                            call.argument("chat"), call.argument("message"), delay.longValue()));
+                        break;
                     case "readAppLog":
                         new Thread(() -> {
                             try {
@@ -119,6 +142,37 @@ public final class MainActivity extends FlutterActivity {
                                 runOnUiThread(() -> result.error("LOVE_IMPORT", error.getMessage(), null));
                             }
                         }, "zompado-love-check").start();
+                        break;
+                    case "chatVideoThumbnail":
+                        playback.thumbnail((String) call.arguments, result);
+                        break;
+                    case "chatAudioToggle":
+                        playback.playAudio(call.argument("path"), call.argument("token"));
+                        result.success(null);
+                        break;
+                    case "chatAudioStatus":
+                        result.success(playback.audioStatus((Integer) call.arguments));
+                        break;
+                    case "chatAudioSeek":
+                        playback.seekAudio(call.argument("token"), call.argument("position"));
+                        result.success(null);
+                        break;
+                    case "chatAudioStop":
+                        playback.stopAudio((Integer) call.arguments);
+                        result.success(null);
+                        break;
+                    case "openPreviewExternal":
+                        result.success(playback.openExternal(call.argument("id"), call.argument("url")));
+                        break;
+                    case "backupCache":
+                        result.success(getCacheDir().getAbsolutePath());
+                        break;
+                    case "backupCipher":
+                        chatFiles.backupCipher(call.argument("source"), call.argument("destination"),
+                            call.argument("password"), Boolean.TRUE.equals(call.argument("encrypt")), result);
+                        break;
+                    case "saveBackup":
+                        chatFiles.saveBackup((String) call.arguments, result);
                         break;
                     case "pickChatFile":
                         chatFiles.pick((String) call.arguments, result);
@@ -238,7 +292,12 @@ public final class MainActivity extends FlutterActivity {
                             result.success(false);
                         }
                         break;
+                    case "voiceSelfPreview":
+                        voice.selfPreview(Boolean.TRUE.equals(call.arguments));
+                        result.success(null);
+                        break;
                     case "voiceStart":
+                        playback.pause();
                         AppLog.record(MainActivity.this, "Android received the voice-start request");
                         voice.start(call.argument("token"), call.argument("ice"), call.argument("offer"), result);
                         break;
@@ -470,7 +529,7 @@ public final class MainActivity extends FlutterActivity {
         ringingId = message;
         ringingChat = chat;
         ringDeadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L;
-        if (!ChatAlerts.allowed(this, "calls")) return;
+        if (!ChatAlerts.allowed(this, "calls") || QuietHours.active(this)) return;
         if (getSystemService(AudioManager.class).getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
         try {
             Ringtone tone = RingtoneManager.getRingtone(this,
@@ -498,11 +557,13 @@ public final class MainActivity extends FlutterActivity {
     protected void onStart() {
         super.onStart();
         if (voice != null) voice.setVisible(true);
+        playback.resume();
     }
 
     @Override
     protected void onStop() {
         if (voice != null) voice.setVisible(false);
+        playback.pause();
         chatFiles.stopRecording(false);
         long remaining = ringDeadline - SystemClock.elapsedRealtime();
         if (ringingId > 0 && remaining > 0) {

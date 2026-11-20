@@ -185,17 +185,78 @@ final class ChatFiles {
                     || !source.getParentFile().getName().endsWith("-blobs")) {
                 throw new IOException("Invalid chat attachment");
             }
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                .setType(mime == null ? mimeForName(name) : mime)
-                .putExtra(Intent.EXTRA_TITLE, name.replace('/', '_').replace('\\', '_'));
-            saver = result;
-            download = source;
-            activity.startActivityForResult(intent, SAVE_REQUEST);
+            saveFile(source, name, mime, result);
         } catch (Exception failure) {
             saver = null;
             download = null;
             result.error("ATTACHMENT", "Couldn’t open a destination.", null);
         }
+    }
+
+    void saveBackup(String path, MethodChannel.Result result) {
+        try {
+            File source = new File(path).getCanonicalFile();
+            verifyBackupFile(source);
+            if (!source.isFile() || !"archive.zompbackup".equals(source.getName())) {
+                throw new IOException("Invalid backup file");
+            }
+            saveFile(source, "Zompado-Backup.zompbackup", "application/octet-stream", result);
+        } catch (Exception failure) {
+            result.error("BACKUP", "Couldn’t open a destination for the backup.", null);
+        }
+    }
+
+    private void saveFile(File source, String name, String mime, MethodChannel.Result result) {
+        if (saver != null) throw new IllegalStateException("File picker already open");
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(mime == null ? mimeForName(name) : mime)
+            .putExtra(Intent.EXTRA_TITLE, name.replace('/', '_').replace('\\', '_'));
+        saver = result;
+        download = source;
+        try {
+            activity.startActivityForResult(intent, SAVE_REQUEST);
+        } catch (RuntimeException failure) {
+            saver = null;
+            download = null;
+            throw failure;
+        }
+    }
+
+    private void verifyBackupFile(File file) throws IOException {
+        File parent = file.getParentFile();
+        if (parent == null || !parent.getName().startsWith("zompado-backup-")
+                || !activity.getCacheDir().getCanonicalFile().equals(parent.getParentFile())) {
+            throw new IOException("Invalid backup location");
+        }
+    }
+
+    void backupCipher(String input, String output, String passphrase, boolean encrypt, MethodChannel.Result result) {
+        new Thread(() -> {
+            File target = null;
+            char[] password = passphrase == null ? new char[0] : passphrase.toCharArray();
+            try {
+                File source = new File(input).getCanonicalFile();
+                File candidate = new File(output).getCanonicalFile();
+                verifyBackupFile(candidate);
+                if (encrypt) {
+                    verifyBackupFile(source);
+                    if (!"archive.zompbackup".equals(candidate.getName())) throw new IOException("Invalid backup destination");
+                } else if (!directory().getCanonicalFile().equals(source.getParentFile())
+                        || !"restore.tar".equals(candidate.getName())) {
+                    throw new IOException("Invalid backup source");
+                }
+                if (source.equals(candidate) || !source.isFile()) throw new IOException("Invalid backup file");
+                target = candidate;
+                BackupCipher.transfer(source, target, password, encrypt);
+                activity.runOnUiThread(() -> result.success(null));
+            } catch (Exception failure) {
+                if (target != null) target.delete();
+                activity.runOnUiThread(() -> result.error("BACKUP", encrypt
+                    ? "Couldn’t encrypt the backup." : "Couldn’t unlock the backup. Check the password and file.", null));
+            } finally {
+                java.util.Arrays.fill(password, '\0');
+            }
+        }, "zompado-backup").start();
     }
 
     private boolean saved(int status, Intent data) {

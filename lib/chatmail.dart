@@ -149,6 +149,47 @@ class Chatmail {
     return true;
   }
 
+  Future<void> exportBackup(String directory) async {
+    if (!await restore()) throw ChatmailIssue.unavailable;
+    await _call('export_backup', [_accountId, directory, null], timeout: null);
+  }
+
+  Future<void> importBackup(String file) async {
+    if (await restore()) throw ChatmailIssue.request;
+    final id = _account ?? await _call('add_account', const []) as int;
+    _account = id;
+    try {
+      await _call('import_backup', [id, file, null], timeout: null);
+      if (await _call('is_configured', [id]) != true)
+        throw ChatmailIssue.request;
+    } catch (_) {
+      await _call('remove_account', [id]);
+      _account = null;
+      rethrow;
+    }
+    await _activate(id);
+    _changed();
+  }
+
+  Future<({String address, String server, int status})?>
+  connectionInfo() async {
+    if (!await restore()) return null;
+    final account = _accountId;
+    final self = await _call('get_contact', [account, 1]) as Json;
+    final address = self['address'] as String? ?? '';
+    final server = await _call('get_config', [
+      account,
+      'configured_mail_server',
+    ]) as String?;
+    return (
+      address: address,
+      server: server == null || server.isEmpty
+          ? address.split('@').last
+          : server,
+      status: await _call('get_connectivity', [account]) as int,
+    );
+  }
+
   Future<void> createProfile(String name) async {
     if (_ready) return;
     final id = _account ??= await _call('add_account', const []) as int;
@@ -217,14 +258,67 @@ class Chatmail {
     return _account!;
   }
 
-  Future<List<FriendChat>> chats({bool archived = false}) async {
+  Future<void> _trashWrite = Future.value();
+
+  File _trashFile(int account) =>
+      File('${accountsDirectory.parent.path}/chat-trash-$account.json');
+
+  Future<Set<int>> _trashedChats(int account) async {
+    final file = _trashFile(account);
+    if (!await file.exists()) return {};
+    return (jsonDecode(await file.readAsString()) as List).cast<int>().toSet();
+  }
+
+  Future<void> _changeTrash(int account, Set<int> chats, {required bool add}) {
+    final operation = _trashWrite.then((_) async {
+      final ids = await _trashedChats(account);
+      if (add) {
+        ids.addAll(chats);
+      } else {
+        ids.removeAll(chats);
+      }
+      final file = _trashFile(account);
+      final staging = File('${file.path}.tmp');
+      await staging.writeAsString(jsonEncode(ids.toList()), flush: true);
+      await staging.rename(file.path);
+      _changed();
+    });
+    _trashWrite = operation.catchError((Object _) {});
+    return operation;
+  }
+
+  Future<void> restoreTrash(int? chat) async {
     final account = _accountId;
-    final ids = (await _call('get_chatlist_entries', [
-      account,
-      archived ? 3 : 2,
-      null,
-      null,
-    ]) as List).cast<int>();
+    final ids = chat == null ? await _trashedChats(account) : {chat};
+    for (final id in ids) {
+      // Restored chats return to Inbox, even when moved from Archive.
+      await _call('set_chat_visibility', [account, id, 'Normal']);
+      await _changeTrash(account, {id}, add: false);
+    }
+  }
+
+  Future<void> emptyTrash() async {
+    final account = _accountId;
+    for (final id in await _trashedChats(account)) {
+      await _call('delete_chat', [account, id]);
+      await _changeTrash(account, {id}, add: false);
+    }
+  }
+
+  Future<List<FriendChat>> chats({
+    bool archived = false,
+    bool trash = false,
+  }) async {
+    final account = _accountId;
+    final hidden = await _trashedChats(account);
+    final ids = trash
+        ? hidden.toList().reversed.toList()
+        : (await _call('get_chatlist_entries', [
+            account,
+            archived ? 3 : 2,
+            null,
+            null,
+          ]) as List).cast<int>().where((id) => !hidden.contains(id)).toList();
     if (ids.isEmpty) return const [];
     final result =
         await _call('get_chatlist_items_by_entries', [account, ids]) as Json;
@@ -254,6 +348,10 @@ class Chatmail {
 
   Future<void> manageChat(int chat, String action) async {
     final account = _accountId;
+    if (action == 'delete') {
+      await _changeTrash(account, {chat}, add: true);
+      return;
+    }
     final (method, extra) = switch (action) {
       'archive' => ('set_chat_visibility', ['Archived']),
       'restore' => ('set_chat_visibility', ['Normal']),
@@ -272,7 +370,6 @@ class Chatmail {
       'read' => ('marknoticed_chat', []),
       'unread' => ('markfresh_chat', []),
       'block' => ('block_chat', []),
-      'delete' => ('delete_chat', []),
       _ => throw ArgumentError.value(action),
     };
     await _call(method, [account, chat, ...extra]);

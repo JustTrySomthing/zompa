@@ -20,7 +20,8 @@ class ChatFile {
   String get mediaType {
     if (original) return 'File';
     if (voice) return 'Voice';
-    if (mime == 'image/gif') return 'Gif';
+    if (mime == 'image/gif' || name.toLowerCase().endsWith('.gif'))
+      return 'Gif';
     if (mime.startsWith('image/') && mime != 'image/svg+xml') return 'Image';
     if (mime.startsWith('audio/')) return 'Audio';
     if (mime.startsWith('video/')) return 'Video';

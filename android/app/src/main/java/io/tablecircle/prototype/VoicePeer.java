@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -34,6 +35,7 @@ final class VoicePeer {
     private PeerConnectionFactory factory;
     private EglBase egl;
     private CallVideoView videoView;
+    private Map<String, String> lastCallConnection = Collections.emptyMap();
     private boolean visible;
     private static final String TAG = "ZompadoCall";
     private Session session;
@@ -164,7 +166,7 @@ final class VoicePeer {
         if (videoView == null) return;
         if (session == null) videoView.show(null, null, false, false);
         else videoView.show(session.camera == null ? null : session.camera.track,
-            session.remoteVideo, session.cameraEnabled(), session.remoteCamera);
+            session.remoteVideo, session.cameraEnabled() && session.selfPreview, session.remoteCamera);
     }
 
     boolean camera(int token, boolean enabled) {
@@ -186,6 +188,16 @@ final class VoicePeer {
             refreshVideo();
             return false;
         }
+    }
+
+    Map<String, String> lastCallConnection() {
+        return lastCallConnection;
+    }
+
+    void selfPreview(boolean visible) {
+        if (session == null) return;
+        session.selfPreview = visible;
+        refreshVideo();
     }
 
     void setVisible(boolean active) {
@@ -263,6 +275,7 @@ final class VoicePeer {
         VideoTrack remoteVideo;
         boolean videoNegotiated;
         boolean remoteCamera;
+        boolean selfPreview = true;
         DataChannel trickle;
         DataChannel mediaState;
         final List<IceCandidate> gatheredCandidates = new ArrayList<>();
@@ -602,6 +615,9 @@ final class VoicePeer {
                         }
                     }
                     status("connected", null);
+                    peer.getStats(report -> main.post(() -> {
+                        if (session == this) recordCallConnection(report);
+                    }));
                 } else if (state == PeerConnection.PeerConnectionState.FAILED) {
                     fail("Couldn’t connect voice audio.");
                 } else if (state == PeerConnection.PeerConnectionState.DISCONNECTED) {
@@ -609,6 +625,31 @@ final class VoicePeer {
                     main.postDelayed(lostConnection, 10000);
                 }
             });
+        }
+
+        void recordCallConnection(RTCStatsReport report) {
+            var stats = report.getStatsMap();
+            for (var transport : stats.values()) {
+                if (!"transport".equals(transport.getType())) continue;
+                var pair = stats.get(transport.getMembers().get("selectedCandidatePairId"));
+                if (pair == null) continue;
+                var local = stats.get(pair.getMembers().get("localCandidateId"));
+                var remote = stats.get(pair.getMembers().get("remoteCandidateId"));
+                if (local == null || remote == null) continue;
+                var mine = local.getMembers();
+                var theirs = remote.getMembers();
+                var connection = new HashMap<String, String>();
+                Object protocol = mine.get("relayProtocol");
+                if (!(protocol instanceof String)) protocol = mine.get("protocol");
+                if (protocol instanceof String value) connection.put("protocol", value.toUpperCase(java.util.Locale.ROOT));
+                var relay = "relay".equals(mine.get("candidateType")) ? mine
+                    : "relay".equals(theirs.get("candidateType")) ? theirs : null;
+                if (relay != null && relay.get("address") instanceof String address) {
+                    connection.put("relay", address);
+                }
+                lastCallConnection = connection;
+                return;
+            }
         }
 
         @Override public void onIceCandidate(IceCandidate candidate) {

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +9,7 @@ import 'chat_emoji.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
 import 'message_bubble.dart';
+import 'chat_preview.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
@@ -44,13 +44,15 @@ class FriendsPane extends StatefulWidget {
   State<FriendsPane> createState() => _FriendsPaneState();
 }
 
+enum _ChatFolder { inbox, archive, trash }
+
 class _FriendsPaneState extends State<FriendsPane> {
   final _name = TextEditingController();
   List<FriendChat> _chats = [];
   StreamSubscription<void>? _events;
   Timer? _refreshTimer;
   bool _ready = false;
-  bool _archived = false;
+  _ChatFolder _folder = _ChatFolder.inbox;
   bool _busy = true;
   bool _refreshing = false;
   bool _refreshQueued = false;
@@ -61,7 +63,13 @@ class _FriendsPaneState extends State<FriendsPane> {
     super.initState();
     _events = widget.chatmail.changes.listen((_) {
       _refreshTimer?.cancel();
-      _refreshTimer = Timer(const Duration(milliseconds: 220), _refresh);
+      _refreshTimer = Timer(const Duration(milliseconds: 220), () {
+        if (!_ready && !_busy && mounted) {
+          _initialize();
+        } else {
+          _refresh();
+        }
+      });
     });
     _initialize();
   }
@@ -76,7 +84,7 @@ class _FriendsPaneState extends State<FriendsPane> {
 
   Future<void> _initialize() => _perform(() async {
     _ready = await widget.chatmail.restore();
-    if (_ready) _chats = await widget.chatmail.chats(archived: _archived);
+    if (_ready) _chats = await _loadFolder(_folder);
   });
 
   Future<void> _perform(Future<void> Function() operation) async {
@@ -101,9 +109,9 @@ class _FriendsPaneState extends State<FriendsPane> {
     }
     _refreshing = true;
     try {
-      final archived = _archived;
-      final chats = await widget.chatmail.chats(archived: archived);
-      if (mounted && archived == _archived)
+      final folder = _folder;
+      final chats = await _loadFolder(folder);
+      if (mounted && folder == _folder)
         setState(() {
           _chats = chats;
           if (!_busy) _error = null;
@@ -128,7 +136,7 @@ class _FriendsPaneState extends State<FriendsPane> {
     _perform(() async {
       await widget.chatmail.createProfile(name);
       _ready = true;
-      _chats = await widget.chatmail.chats(archived: _archived);
+      _chats = await _loadFolder(_folder);
     });
   }
 
@@ -148,40 +156,75 @@ class _FriendsPaneState extends State<FriendsPane> {
     await _refresh();
   }
 
-  void _selectArchive(bool archived) {
-    if (_archived == archived) return;
+  Future<List<FriendChat>> _loadFolder(_ChatFolder folder) =>
+      widget.chatmail.chats(
+        archived: folder == _ChatFolder.archive,
+        trash: folder == _ChatFolder.trash,
+      );
+
+  void _selectFolder(_ChatFolder folder) {
+    if (_folder == folder) return;
     setState(() {
-      _archived = archived;
+      _folder = folder;
       _chats = [];
     });
     unawaited(_refresh());
   }
 
+  Future<void> _emptyTrash() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Empty trash?'),
+        content: const Text('This permanently deletes all chats in Trash.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Empty trash'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    await _perform(widget.chatmail.emptyTrash);
+    if (mounted) await _refresh();
+  }
+
   Future<void> _chatMenu(FriendChat chat) async {
+    final trashed = _folder == _ChatFolder.trash;
     final selected = await showDialog<String>(
       context: context,
       builder: (dialog) => SimpleDialog(
         title: Text(chat.name),
         children: [
-          for (final (value, label, icon) in [
-            (
-              chat.archived ? 'restore' : 'archive',
-              chat.archived ? 'Restore' : 'Archive',
-              Icons.archive_outlined,
-            ),
-            (
-              chat.unread > 0 ? 'read' : 'unread',
-              chat.unread > 0 ? 'Mark read' : 'Mark unread',
-              Icons.mark_email_unread_outlined,
-            ),
-            (
-              chat.muted ? 'unmute' : 'mute',
-              chat.muted ? 'Unmute notifications' : 'Mute notifications',
-              Icons.notifications_off_outlined,
-            ),
-            ('block', 'Block sender', Icons.block),
-            ('delete', 'Delete chat', Icons.delete_outline),
-          ])
+          for (final (value, label, icon)
+              in trashed
+                  ? [('recover', 'Restore', Icons.restore_from_trash_outlined)]
+                  : [
+                      (
+                        chat.archived ? 'restore' : 'archive',
+                        chat.archived ? 'Restore' : 'Archive',
+                        Icons.archive_outlined,
+                      ),
+                      (
+                        chat.unread > 0 ? 'read' : 'unread',
+                        chat.unread > 0 ? 'Mark read' : 'Mark unread',
+                        Icons.mark_email_unread_outlined,
+                      ),
+                      (
+                        chat.muted ? 'unmute' : 'mute',
+                        chat.muted
+                            ? 'Unmute notifications'
+                            : 'Mute notifications',
+                        Icons.notifications_off_outlined,
+                      ),
+                      ('block', 'Block sender', Icons.block),
+                      ('delete', 'Delete chat', Icons.delete_outline),
+                    ])
             ListTile(
               leading: Icon(icon),
               title: Text(label),
@@ -191,15 +234,22 @@ class _FriendsPaneState extends State<FriendsPane> {
       ),
     );
     if (!mounted || selected == null) return;
+    if (selected == 'recover') {
+      await _perform(() => widget.chatmail.restoreTrash(chat.id));
+      if (mounted) await _refresh();
+      return;
+    }
     if (selected == 'block' || selected == 'delete') {
       final deleting = selected == 'delete';
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
-          title: Text(deleting ? 'Delete this chat?' : 'Block ${chat.name}?'),
+          title: Text(
+            deleting ? 'Move this chat to Trash?' : 'Block ${chat.name}?',
+          ),
           content: Text(
             deleting
-                ? 'This removes the chat history from this profile.'
+                ? 'You can restore this chat from Trash.'
                 : 'Messages and calls from this sender will be blocked.',
           ),
           actions: [
@@ -209,7 +259,7 @@ class _FriendsPaneState extends State<FriendsPane> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialog, true),
-              child: Text(deleting ? 'Delete' : 'Block'),
+              child: Text(deleting ? 'Move to Trash' : 'Block'),
             ),
           ],
         ),
@@ -249,28 +299,46 @@ class _FriendsPaneState extends State<FriendsPane> {
             child: const Text('Create chat profile'),
           ),
         ] else ...[
-          Row(
-            children: [
-              ChoiceChip(
-                label: const Text('Inbox'),
-                selected: !_archived,
-                onSelected: (_) => _selectArchive(false),
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Archived'),
-                selected: _archived,
-                onSelected: (_) => _selectArchive(true),
-              ),
+          SegmentedButton<_ChatFolder>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: _ChatFolder.inbox, label: Text('Inbox')),
+              ButtonSegment(value: _ChatFolder.archive, label: Text('Archive')),
+              ButtonSegment(value: _ChatFolder.trash, label: Text('Trash')),
             ],
+            selected: {_folder},
+            onSelectionChanged: _busy
+                ? null
+                : (folders) => _selectFolder(folders.single),
           ),
+          if (_folder == _ChatFolder.trash)
+            Wrap(
+              spacing: 10,
+              children: [
+                TextButton(
+                  onPressed: _busy || _chats.isEmpty
+                      ? null
+                      : () async {
+                          await _perform(
+                            () => widget.chatmail.restoreTrash(null),
+                          );
+                          if (mounted) await _refresh();
+                        },
+                  child: const Text('Restore all'),
+                ),
+                TextButton(
+                  onPressed: _busy || _chats.isEmpty ? null : _emptyTrash,
+                  child: const Text('Empty trash'),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           if (_chats.isEmpty)
-            Text(
-              _archived
-                  ? 'No archived chats.'
-                  : 'Use Contacts to connect with a friend.',
-            ),
+            Text(switch (_folder) {
+              _ChatFolder.archive => 'No archived chats.',
+              _ChatFolder.trash => 'Trash is empty.',
+              _ChatFolder.inbox => 'Use Contacts to connect with a friend.',
+            }),
           for (final chat in _chats)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -293,7 +361,15 @@ class _FriendsPaneState extends State<FriendsPane> {
                           child: Badge.count(count: chat.unread),
                         )
                       : const Icon(Icons.chevron_right),
-                  onTap: _busy ? null : () => _open(chat.id, chat.name),
+                  onTap: _busy
+                      ? null
+                      : () {
+                          if (_folder == _ChatFolder.trash) {
+                            _chatMenu(chat);
+                          } else {
+                            _open(chat.id, chat.name);
+                          }
+                        },
                   onLongPress: _busy ? null : () => _chatMenu(chat),
                 ),
               ),
@@ -1284,18 +1360,8 @@ class _FriendConversationState extends State<FriendConversation>
                                             ),
                                           )
                                         else ...[
-                                          if (message.file case final path?
-                                              when message.mime?.startsWith(
-                                                    'image/',
-                                                  ) ==
-                                                  true)
-                                            Image.file(
-                                              File(path),
-                                              fit: BoxFit.contain,
-                                              cacheWidth: 640,
-                                              errorBuilder: (_, _, _) =>
-                                                  const SizedBox.shrink(),
-                                            ),
+                                          if (message.file != null)
+                                            ChatAttachment(message),
                                           if (message.filename case final name?)
                                             MessageBody(
                                               name,
@@ -1304,7 +1370,7 @@ class _FriendConversationState extends State<FriendConversation>
                                             ),
                                           if (message.text.isNotEmpty ||
                                               message.filename == null)
-                                            MessageBody(
+                                            ChatText(
                                               text,
                                               size: messageTextSize,
                                             ),

@@ -1,5 +1,5 @@
 {
-  "version": "0.5.17",
-  "build": 26,
-  "purpose": "Verify chat readability, shared Settings access, and faster call answers using the caller's relay."
+  "version": "0.5.18",
+  "build": 27,
+  "purpose": "Verify video self-view, chat attachment and browser previews, Trash, Quiet Hours, reply reminders, and encrypted backup."
 }

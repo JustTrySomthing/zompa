@@ -105,6 +105,15 @@ final class ChatAlerts {
         return true;
     }
 
+    static void remind(Context context, int chat, int message) {
+        if (chat <= 0 || message <= 0 || !enabled(context, "messages")) return;
+        PendingIntent open = alertIntent(context, chat, message, false);
+        context.getSystemService(NotificationManager.class).notify("reply-reminder", message,
+            notification(context, "Reminder to reply", CHANNEL, open)
+                .setContentText("Open the conversation in Zompado.")
+                .build());
+    }
+
     static void incoming(Context context, int chat, int message, long secondsLeft) {
         if (chat <= 0 || message <= 0 || secondsLeft <= 0 || !callsEnabled(context)) return;
         PendingIntent open = alertIntent(context, chat, message, true);
@@ -167,6 +176,7 @@ final class ChatAlerts {
             .setContentText("Open Zompado to see what’s new.")
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
+            .setSilent(QuietHours.active(context))
             .setContentIntent(open)
             .setAutoCancel(true);
     }

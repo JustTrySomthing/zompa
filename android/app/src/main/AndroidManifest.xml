@@ -26,6 +26,8 @@
         <activity android:name="com.journeyapps.barcodescanner.CaptureActivity"
             android:exported="false" android:screenOrientation="unspecified"
             android:hardwareAccelerated="true" tools:replace="android:screenOrientation"/>
+        <service android:name=".ReplyReminderJob" android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
         <service android:name=".VoiceAudioService" android:exported="false"
             android:foregroundServiceType="microphone"/>
         <service android:name=".ChatSyncJob" android:permission="android.permission.BIND_JOB_SERVICE"

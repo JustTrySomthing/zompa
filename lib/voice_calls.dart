@@ -34,6 +34,7 @@ class _Call {
   bool canVideo = false;
   bool camera = false;
   bool remoteCamera = false;
+  bool selfPreview = true;
   bool changingCamera = false;
   String? cameraError;
   Json? earlyAnswer;
@@ -272,6 +273,20 @@ class VoiceCalls extends ChangeNotifier {
           call,
           message: data['message'] as String? ?? 'The voice call stopped.',
         );
+    }
+  }
+
+  Future<void> toggleSelfPreview() async {
+    final call = _active;
+    if (call == null || !call.camera) return;
+    final next = !call.selfPreview;
+    try {
+      await _host.invokeMethod<void>('voiceSelfPreview', next);
+      if (_active != call) return;
+      call.selfPreview = next;
+      notifyListeners();
+    } on PlatformException {
+      return;
     }
   }
 
@@ -525,13 +540,6 @@ class VoicePanel extends StatelessWidget {
                     spacing: 12,
                     runSpacing: 10,
                     children: [
-                      if (incoming)
-                        _VoiceButton(
-                          tooltip: 'Answer',
-                          label: 'Answer',
-                          onPressed: controller.accept,
-                          icon: Icons.call,
-                        ),
                       if (connected) ...[
                         _VoiceButton(
                           tooltip: call.muted
@@ -567,6 +575,18 @@ class VoicePanel extends StatelessWidget {
                                 : Icons.videocam_outlined,
                             selected: call.camera,
                           ),
+                        if (videoVisible)
+                          _VoiceButton(
+                            tooltip: call.selfPreview
+                                ? 'Hide self view'
+                                : 'Show self view',
+                            label: 'Self view',
+                            onPressed: call.camera
+                                ? controller.toggleSelfPreview
+                                : null,
+                            icon: Icons.picture_in_picture_alt_outlined,
+                            selected: call.camera && call.selfPreview,
+                          ),
                       ],
                       _VoiceButton(
                         tooltip: incoming ? 'Decline' : 'End call',
@@ -576,6 +596,15 @@ class VoicePanel extends StatelessWidget {
                         foreground: colors.onError,
                         icon: Icons.call_end,
                       ),
+                      if (incoming)
+                        _VoiceButton(
+                          tooltip: 'Answer',
+                          label: 'Answer',
+                          onPressed: controller.accept,
+                          color: const Color(0xff1b663c),
+                          foreground: Colors.white,
+                          icon: Icons.call,
+                        ),
                     ],
                   ),
                 ),

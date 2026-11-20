@@ -104,6 +104,7 @@ public final class UpdateCheckJob extends JobService {
         PendingIntent target = PendingIntent.getActivity(
             this, JOB_ID, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         manager.notify(JOB_ID, new NotificationCompat.Builder(this, CHANNEL)
+            .setSilent(QuietHours.active(this))
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("Zompado update available")
             .setContentText("Open Zompado to see the new version.")

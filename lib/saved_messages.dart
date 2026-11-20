@@ -297,6 +297,12 @@ Future<void> showMessageActions(
             title: const Text('Download file'),
             onTap: () => Navigator.pop(dialog, 'download'),
           ),
+        if (message.chat > 0 && !message.outgoing && !saved)
+          ListTile(
+            leading: const Icon(Icons.alarm_add_outlined),
+            title: const Text('Remind me to reply'),
+            onTap: () => Navigator.pop(dialog, 'remind'),
+          ),
         ListTile(
           leading: const Icon(Icons.delete_outline),
           title: Text(saved ? 'Remove saved copy' : 'Delete message'),
@@ -310,6 +316,8 @@ Future<void> showMessageActions(
     await Clipboard.setData(ClipboardData(text: message.text));
   } else if (action == 'download') {
     await downloadChatFile(context, message);
+  } else if (action == 'remind') {
+    await _replyReminder(context, message);
   } else if (action == 'delete') {
     final confirm = await showDialog<bool>(
       context: context,
@@ -342,4 +350,47 @@ Future<void> showMessageActions(
         );
     }
   }
+}
+
+Future<void> _replyReminder(BuildContext context, FriendMessage message) async {
+  final delay = await showDialog<Duration>(
+    context: context,
+    builder: (dialog) => SimpleDialog(
+      title: const Text('Remind me to reply'),
+      children: [
+        for (final (label, delay) in const [
+          ('In 30 minutes', Duration(minutes: 30)),
+          ('In 1 hour', Duration(hours: 1)),
+          ('In 3 hours', Duration(hours: 3)),
+          ('Tomorrow', Duration(days: 1)),
+        ])
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialog, delay),
+            child: Text(label),
+          ),
+      ],
+    ),
+  );
+  if (delay == null || !context.mounted) return;
+  var scheduled = false;
+  try {
+    scheduled =
+        await const MethodChannel('io.zompado.host')
+            .invokeMethod<bool>('remindToReply', {
+              'chat': message.chat,
+              'message': message.id,
+              'delay': delay.inMilliseconds,
+            }) ==
+        true;
+  } on PlatformException {
+    // Show a useful result when Android declines to schedule the reminder.
+  }
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        scheduled ? 'Reply reminder set.' : 'Couldn’t set a reply reminder.',
+      ),
+    ),
+  );
 }

@@ -40,8 +40,8 @@ final class CallVideoView implements PlatformView {
         frame.addView(remote, new FrameLayout.LayoutParams(-1, -1));
         float density = context.getResources().getDisplayMetrics().density;
         inset = new FrameLayout.LayoutParams(Math.round(108 * density),
-            Math.round(144 * density), Gravity.END | Gravity.BOTTOM);
-        inset.setMargins(0, 0, Math.round(12 * density), Math.round(12 * density));
+            Math.round(144 * density), Gravity.END | Gravity.TOP);
+        inset.setMargins(0, Math.round(12 * density), Math.round(12 * density), 0);
         frame.addView(local, new FrameLayout.LayoutParams(-1, -1));
     }
 
@@ -59,7 +59,7 @@ final class CallVideoView implements PlatformView {
             if (theirs != null) theirs.addSink(remote);
             remoteTrack = theirs;
         }
-        local.setLayoutParams(theirs == null ? new FrameLayout.LayoutParams(-1, -1) : inset);
+        local.setLayoutParams(inset);
         local.setVisibility(mine == null ? View.INVISIBLE : View.VISIBLE);
         remote.setVisibility(theirs == null ? View.INVISIBLE : View.VISIBLE);
     }
