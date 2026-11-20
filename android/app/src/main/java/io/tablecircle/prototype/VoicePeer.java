@@ -60,7 +60,11 @@ final class VoicePeer {
                     .setAudioSource(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                     .createAudioDeviceModule();
                 try {
+                    // Delta Chat reserves a video section even on voice calls. Give
+                    // WebRTC a codec list to parse it before our answer rejects video.
                     factory = PeerConnectionFactory.builder().setAudioDeviceModule(device)
+                        .setVideoEncoderFactory(new SoftwareVideoEncoderFactory())
+                        .setVideoDecoderFactory(new SoftwareVideoDecoderFactory())
                         .createPeerConnectionFactory();
                 } finally {
                     device.release();
