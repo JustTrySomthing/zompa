@@ -1360,8 +1360,8 @@ class _FriendConversationState extends State<FriendConversation>
                                                 play: invitation.started,
                                               ),
                                               child: Text(
-                                                invitation.accepted
-                                                    ? 'Play Now'
+                                                invitation.started
+                                                    ? 'Resume Game'
                                                     : 'Open Cats vs Dogs match',
                                               ),
                                             )

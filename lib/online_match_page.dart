@@ -404,7 +404,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     if (_preparing) return 'Getting Cats vs Dogs ready…';
     if (_gameUnavailable) return 'Couldn’t prepare the game.';
     if (match == null) return 'Opening match…';
-    if (match.finished) return match.status;
+    if (match.finished || match.conflict || match.pending != null) {
+      return match.status;
+    }
     if (match.accepted && _game != null) {
       return match.mine
           ? '$friend is ready to play.'
@@ -433,6 +435,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     final side = _displayTurn ?? match.board.turn;
     final yours = (side == 1) == match.mine;
     final name = yours ? _myName : widget.friendName ?? 'Your friend';
+    final piece = switch ((match.invite.game!.build >= 6, side)) {
+      (true, 1) => '🐱',
+      (true, _) => '🐶',
+      (false, 1) => '🟡',
+      (false, _) => '🟣',
+    };
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
       child: Semantics(
@@ -444,10 +452,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ExcludeSemantics(
-                  child: Text(
-                    side == 1 ? '🐱' : '🐶',
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  child: Text(piece, style: const TextStyle(fontSize: 24)),
                 ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -634,6 +639,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                       children: [
                                         if (_preparing ||
                                             _sending ||
+                                            match?.pending?.state == 20 ||
                                             (match == null && _error == null))
                                           const LinearProgressIndicator(),
                                         const SizedBox(height: 12),
@@ -650,6 +656,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                           const SizedBox(height: 12),
                                           if (match.accepted &&
                                               match.mine &&
+                                              match.pending == null &&
                                               _game != null)
                                             FilledButton(
                                               onPressed: _sending
@@ -665,6 +672,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               child: const Text('Play Now'),
                                             )
                                           else if (!match.accepted &&
+                                              match.pending == null &&
                                               !match.mine)
                                             Wrap(
                                               alignment: WrapAlignment.center,

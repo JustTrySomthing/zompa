@@ -102,7 +102,7 @@ class AppUpdates extends ChangeNotifier {
         'build': release.build,
       });
       status = result == 'permission'
-          ? 'Allow installs from Zompado in Android settings, then tap Update again.'
+          ? 'Allow installs from Zompado in Android settings, then tap Install again.'
           : 'Follow the Android installer to complete the update.';
     } on PlatformException catch (error) {
       status = error.message ?? 'Android couldn’t open the update.';

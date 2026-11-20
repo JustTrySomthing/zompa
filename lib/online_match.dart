@@ -122,6 +122,7 @@ class OnlineMatch {
   bool get finished => declined || quit || board.winner != 0 || board.full;
   bool get myTurn =>
       accepted &&
+      started &&
       !conflict &&
       !finished &&
       !paused &&
@@ -146,6 +147,9 @@ class OnlineMatch {
       return (board.winner == 1) == mine ? 'You won!' : 'Your friend won.';
     }
     if (board.full) return 'Draw.';
+    if (!started) {
+      return mine ? 'Ready to start.' : 'Waiting for your friend to start.';
+    }
     return myTurn ? 'Your turn' : 'Your friend’s turn';
   }
 
@@ -215,15 +219,19 @@ class OnlineMatch {
     }
     // An inviter can send a resume before the first move to start both boards.
     // Older clients also understand resume, and their first move starts the match.
-    match.started =
-        match.moves.isNotEmpty ||
-        events.any(
-          (record) =>
-              record.event.kind == 'resume' &&
-              record.message.outgoing == match.mine &&
-              record.message.state != 20 &&
-              record.message.state != 24,
-        );
+    match.started = match.moves.isNotEmpty;
+    if (!match.started) {
+      final starts = [
+        for (final record in events)
+          if (record.event.kind == 'resume' &&
+              record.message.outgoing == match.mine)
+            record.message,
+      ];
+      if (starts.isNotEmpty) {
+        match.pending = pendingFor(starts);
+        match.started = match.pending == null;
+      }
+    }
     // Each player has a separate control revision. Replay is independent of
     // the order in which two devices receive simultaneous pause updates.
     for (final record in events) {
