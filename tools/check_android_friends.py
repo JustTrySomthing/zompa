@@ -176,7 +176,7 @@ def check_message_tools(alice, bob):
     bob.press("Save message")
     bob.see("Unsave message")
     bob.press("Saved")
-    bob.see("Search saved messages")
+    bob.see("Photos")
     bob.see("Saved chat check")
     bob.back()
     bob.press("React to message")
@@ -256,6 +256,8 @@ def main():
     bob.see("Alice", 120)
     print("PASS: paired two independent Android installs using the app’s friend invite.", flush=True)
 
+    check_message_tools(alice, bob)
+
     # Run the two independent checks even if voice media fails on the emulators.
     voice_error = None
     try:
@@ -272,7 +274,6 @@ def main():
                     phone.shell("input", "tap", *point)
         print(f"Voice check failed: {error}", flush=True)
 
-    check_message_tools(alice, bob)
     alice.back()
     alice.press("Games")
     alice.install_game()
