@@ -21,6 +21,11 @@ def delta_chat_with(phone, contact):
 
 
 class DeltaPhone(Phone):
+    def find(self, label):
+        if label in {"Create New Profile", "Agree & Create Profile", "OK", "Answer", "End Call"}:
+            return super().find(label.upper()) or super().find(label)
+        return super().find(label)
+
     def start(self):
         self.shell("am", "start", "-W", "-n", DELTA_ACTIVITY)
 
