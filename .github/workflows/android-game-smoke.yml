@@ -48,7 +48,7 @@ jobs:
           avdmanager="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
           adb="$ANDROID_HOME/platform-tools/adb"
           echo no | "$avdmanager" create avd --name zompado --package 'system-images;android-35;google_apis;x86_64'
-          "$ANDROID_HOME/emulator/emulator" -avd zompado -no-window -no-audio -no-snapshot -no-boot-anim             -gpu swiftshader_indirect -camera-back none -camera-front none > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd zompado -no-window -no-audio -no-snapshot -no-boot-anim             -gpu swiftshader_indirect -camera-back emulated -camera-front none > "$RUNNER_TEMP/emulator.log" 2>&1 &
           timeout 210 "$adb" wait-for-device
           timeout 210 bash -c 'until [[ $("$1" shell getprop sys.boot_completed | tr -d "\r") == 1 ]]; do sleep 2; done' _ "$adb"
           "$adb" shell wm size 720x1280

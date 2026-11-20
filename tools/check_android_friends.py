@@ -101,7 +101,7 @@ class Phone:
 
     def install_game(self):
         self.press("Get Games")
-        self.see("Drop Four", 100)
+        self.see("Cats vs Dogs", 100)
         self.press("Install", 100)
         self.see("Play", 100)
 
@@ -159,12 +159,12 @@ def check_voice(alice, bob):
 
 
 def check_match(alice, bob):
-    alice.press("Invite to a Drop Four match")
+    alice.press("Invite to a Cats vs Dogs match")
     alice.press("Send match invite")
-    bob.press("Open Drop Four match", 100)
+    bob.press("Open Cats vs Dogs match", 100)
     bob.press("Install if needed and accept", 100)
     bob.see("Your friend’s turn", 100)
-    alice.press("Open Drop Four match")
+    alice.press("Open Cats vs Dogs match")
     alice.see("Your turn", 100)
     alice.press("Install if needed and open board")
     bob.stop_background_process()
@@ -184,8 +184,19 @@ def main():
     alice, bob = Phone(5554, "Alice"), Phone(5556, "Bob")
     alice.profile()
     bob.profile()
-    link = alice.invite()
     bob.press("Accept invite")
+    bob.press("Scan QR code")
+    bob.shell("input", "tap", *wait("the camera permission denial button",
+        lambda: bob.find("Don’t allow") or bob.find("Don't allow")))
+    bob.see("Open camera settings")
+    bob.press("Scan QR code")
+    bob.press("While using the app")
+    bob.see("Point the camera at your friend’s invite QR code", 40)
+    bob.back()
+    bob.see("Scan QR code")
+    print("PASS: Android requested camera access, handled denial, and opened the built-in QR scanner.", flush=True)
+
+    link = alice.invite()
     bob.type(link)
     bob.back()
     bob.press("Accept")

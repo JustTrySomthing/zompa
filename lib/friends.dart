@@ -282,7 +282,7 @@ class _FriendsPaneState extends State<FriendsPane> {
                       ? null
                       : Text(
                           chat.preview.startsWith(matchMarker.trimRight())
-                              ? 'Drop Four match update'
+                              ? 'Cats vs Dogs match update'
                               : chat.preview,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -351,12 +351,14 @@ class _AcceptInviteDialog extends StatefulWidget {
 class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
   final _input = TextEditingController();
   bool _scanning = false;
+  bool _cameraPermissionNeeded = false;
   String? _scanError;
 
   Future<void> _scan() async {
     setState(() {
       _scanning = true;
       _scanError = null;
+      _cameraPermissionNeeded = false;
     });
     try {
       final value = await const MethodChannel('io.zompado.host')
@@ -371,11 +373,19 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
       }
       _input.text = value;
       _accept();
-    } on PlatformException {
-      if (mounted)
-        setState(
-          () => _scanError = 'Scanner unavailable. Ask your friend to share the invite link and paste it here.',
-        );
+    } on PlatformException catch (error) {
+      if (mounted) {
+        setState(() {
+          _cameraPermissionNeeded = error.code == 'CAMERA_PERMISSION';
+          _scanError = switch (error.code) {
+            'CAMERA_PERMISSION' =>
+              'Allow camera access to scan a QR code, or paste an invite link.',
+            'CAMERA_UNAVAILABLE' =>
+              'This device has no camera. Paste your friend’s invite link.',
+            _ => 'Couldn’t open the camera. Try again or paste an invite link.',
+          };
+        });
+      }
     } on MissingPluginException {
       if (mounted)
         setState(
@@ -384,6 +394,19 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
         );
     } finally {
       if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  Future<void> _openCameraSettings() async {
+    try {
+      await const MethodChannel('io.zompado.host')
+          .invokeMethod<void>('openCameraSettings');
+    } on PlatformException {
+      if (mounted) {
+        setState(
+          () => _scanError = 'Open Settings → Setup to allow camera access.',
+        );
+      }
     }
   }
 
@@ -411,6 +434,11 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
           icon: const Icon(Icons.qr_code_scanner),
           label: Text(_scanning ? 'Opening scanner…' : 'Scan QR code'),
         ),
+        if (_cameraPermissionNeeded)
+          TextButton(
+            onPressed: _openCameraSettings,
+            child: const Text('Open camera settings'),
+          ),
         if (_scanError case final error?) Text(error),
         const SizedBox(height: 12),
         TextField(
@@ -589,9 +617,9 @@ class _FriendConversationState extends State<FriendConversation>
       final send = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
-          title: const Text('Share Drop Four?'),
+          title: const Text('Share Cats vs Dogs?'),
           content: const Text(
-            'Your friend will get a game card they can open to install or play Drop Four.',
+            'Your friend will get a game card they can open to install or play Cats vs Dogs.',
           ),
           actions: [
             TextButton(
@@ -622,7 +650,7 @@ class _FriendConversationState extends State<FriendConversation>
       final yes = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
-          title: const Text('Invite to Drop Four?'),
+          title: const Text('Invite to Cats vs Dogs?'),
           content: const Text(
             'Your friend can accept the invite in this chat. You take the first turn.',
           ),
@@ -696,7 +724,7 @@ class _FriendConversationState extends State<FriendConversation>
           )
         else
           IconButton(
-            tooltip: 'Invite to a Drop Four match',
+            tooltip: 'Invite to a Cats vs Dogs match',
             onPressed: _pickingGame || _sending || thread?.canSend != true
                 ? null
                 : _inviteMatch,
@@ -787,7 +815,7 @@ class _FriendConversationState extends State<FriendConversation>
                                   icon: const Icon(
                                     Icons.sports_esports_outlined,
                                   ),
-                                  label: const Text('Open Drop Four match'),
+                                  label: const Text('Open Cats vs Dogs match'),
                                 )
                               else if (gameLink != null &&
                                   widget.openGameLink != null)
@@ -799,7 +827,7 @@ class _FriendConversationState extends State<FriendConversation>
                                   ),
                                   label: Text(
                                     gameLink.id == 'drop-four'
-                                        ? 'Open Drop Four'
+                                        ? 'Open Cats vs Dogs'
                                         : 'Open game',
                                   ),
                                 )

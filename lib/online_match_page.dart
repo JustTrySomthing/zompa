@@ -212,7 +212,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Online Drop Four'),
+          title: const Text('Online Cats vs Dogs'),
           actions: [
             const GameAudioButton(),
             IconButton(

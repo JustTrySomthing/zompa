@@ -142,7 +142,7 @@ class _YourTurnState extends State<YourTurn> with WidgetsBindingObserver {
           for (final (chat, id) in _turns)
             ListTile(
               leading: const Icon(Icons.sports_esports_outlined),
-              title: const Text('Drop Four'),
+              title: const Text('Cats vs Dogs'),
               subtitle: Text(chat.name),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _open(chat, id),

@@ -40,6 +40,12 @@ void main() {
     yield LicenseEntryWithLineBreaks(const ['LÖVE and dependencies'], love);
     final port = await rootBundle.loadString('assets/licenses/love.js-MIT.txt');
     yield LicenseEntryWithLineBreaks(const ['love.js'], port);
+    final scanner = await rootBundle.loadString(
+      'assets/licenses/ZXing-Apache-2.0.txt',
+    );
+    yield LicenseEntryWithLineBreaks(const [
+      'ZXing and JourneyApps Barcode Scanner',
+    ], scanner);
   });
   runApp(const Zompado());
 }
@@ -162,7 +168,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         } else {
           final history = await chatmail.matchHistory(chat, event.id);
           if (OnlineMatch.replay(event.id, history)?.myTurn != true) return;
-          label = 'Your turn in Drop Four';
+          label = 'Your turn in Cats vs Dogs';
         }
       }
       if (!mounted || !_background) return;
@@ -468,7 +474,7 @@ class _HomeState extends State<Home> {
     final release = game ?? installedGames['drop-four'];
     final distribution = widget.distribution;
     if (release == null || distribution == null) {
-      _gameNotice('Install Drop Four from Get Games before sharing it.');
+      _gameNotice('Install Cats vs Dogs from Get Games before sharing it.');
       return null;
     }
     try {
@@ -901,7 +907,7 @@ class _HomeState extends State<Home> {
                         installGame(game);
                       }
                     },
-              dropFour: game.id == 'drop-four',
+              game: game,
             ),
             const SizedBox(height: 12),
           ],
@@ -914,7 +920,7 @@ class _HomeState extends State<Home> {
               'Version ${game.version} · .zomp',
               'Play',
               downloadingGame ? null : () => selectMode(game),
-              dropFour: game.id == 'drop-four',
+              game: game,
               share: () => _shareInstalledGame(game),
               remove: downloadingGame ? null : () => _removeGame(game),
             ),
@@ -954,7 +960,7 @@ class _HomeState extends State<Home> {
     String description,
     String button,
     VoidCallback? action, {
-    required bool dropFour,
+    required GameRelease game,
     VoidCallback? share,
     VoidCallback? remove,
   }) => Card(
@@ -962,7 +968,13 @@ class _HomeState extends State<Home> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (dropFour) const SizedBox(height: 146, child: GameCover()),
+        if (game.id == 'drop-four')
+          SizedBox(
+            height: 146,
+            child: game.build >= 6
+                ? const CatsVsDogsCover()
+                : const GameCover(),
+          ),
         Padding(
           padding: const EdgeInsets.all(17),
           child: Row(
@@ -1050,6 +1062,24 @@ class _GameLinkDialogState extends State<_GameLinkDialog> {
         child: const Text('Open'),
       ),
     ],
+  );
+}
+
+class CatsVsDogsCover extends StatelessWidget {
+  const CatsVsDogsCover({super.key});
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Color(0xff502039), Color(0xff14172b), Color(0xff1f3f68)],
+      ),
+    ),
+    child: Image.asset(
+      'assets/games/cats-vs-dogs.webp',
+      fit: BoxFit.contain,
+      excludeFromSemantics: true,
+    ),
   );
 }
 

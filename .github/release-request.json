@@ -1,5 +1,5 @@
 {
-  "version": "0.5.10",
-  "build": 16,
-  "notes": "- Verified SecureJoin pairing and two-way direct messages with the stock Delta Chat 2.69.0 Android app.\n- Zompado now recognizes Delta Chat voice offers with reserved video and data sections and keeps the call audio-only.\n- Answer and Decline are now independently accessible on Android. WebRTC codec initialization addresses an abort observed while answering a Delta Chat call.\n- Connected voice between the two apps is still being verified on Android."
+  "version": "0.5.11",
+  "build": 17,
+  "notes": "- Scan friend invite QR codes with Zompado’s built-in camera scanner.\n- Allow camera access in Setup or the first time you scan. Copy and paste still works for friend invites.\n- Cats vs Dogs has its original cover art in Get Games and a matching catalog name and .zomp filename."
 }

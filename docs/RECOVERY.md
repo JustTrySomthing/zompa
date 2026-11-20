@@ -26,6 +26,10 @@ Both repositories use `main`. Check the latest published APK and the current `up
 
 The Android app ships the LÖVE 11.5 compatibility WebAssembly runtime inside the APK. Players install and remove their games separately. The catalog uses `games` for current entries and `archive` for exact older shared links. The player opens the selected package in a sandboxed Android WebView renderer with a private origin per game. Playback requires Android 10 or later and a multiprocess WebView provider. The Gradle build fetches two pinned runtime files, checks their hashes, and packages them with the player assets. The version 1 catalog is kept for older APKs. The new Drop Four starts its own Lua save when upgrading from the Dart game. Chatmail and the remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md). The public APK and the developer preview can be on different versions.
 
+Cats vs Dogs retains the `drop-four` game ID for saves and older match links. Starting with game build 8, the catalog title and .zomp filename use Cats vs Dogs. The catalog card uses the original OnKlav faceoff illustration bundled in `assets/games/cats-vs-dogs.webp`.
+
+The Android friend invite scanner uses the bundled ZXing decoder and the Android Camera permission. Setup offers this permission, and the scanner also requests access when first used. Paste remains available on devices without a camera.
+
 For instant Android wakeups, Zompado needs an authorized push registration for `io.tablecircle.prototype` and a compatible Chatmail notifier that can send to that registration. The pinned Core has a push token API in its native interface; Zompado's JSON-RPC bridge would need to expose it. Keep provider credentials with the notifier. Current builds use Android's scheduled fetch. [Chatmail push behavior](https://delta.chat/en/help#instant-message-delivery-and-push-notifications).
 
 ## Toolchain and fresh checkout

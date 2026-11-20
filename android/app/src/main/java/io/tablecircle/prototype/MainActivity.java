@@ -14,9 +14,8 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.provider.Settings;
 import androidx.core.content.FileProvider;
-import com.google.mlkit.vision.barcode.common.Barcode;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
+import com.journeyapps.barcodescanner.ScanIntentResult;
+import com.journeyapps.barcodescanner.ScanOptions;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +29,9 @@ import io.flutter.plugin.common.MethodCall;
 public final class MainActivity extends FlutterActivity {
     private static final int REQUEST_NOTIFICATIONS = 390;
     private static final int REQUEST_MIC = 393;
+    private static final int REQUEST_CAMERA = 394;
+    private static final int SCAN_INVITE = 395;
+    private static final String CAMERA_DENIED = "denied_camera";
     private MethodChannel.Result notificationRequest;
     private MethodChannel.Result micRequest;
     private MethodChannel host;
@@ -40,7 +42,8 @@ public final class MainActivity extends FlutterActivity {
     private int ringingId;
     private int ringingChat;
     private long ringDeadline;
-    private boolean scanningInvite;
+    private MethodChannel.Result inviteScan;
+    private MethodChannel.Result cameraSetup;
     private static final int PICK_LOVE = 392;
     private MethodChannel.Result gamePicker;
 
@@ -93,6 +96,13 @@ public final class MainActivity extends FlutterActivity {
                         break;
                     case "scanFriendInvite":
                         scanFriendInvite(result);
+                        break;
+                    case "requestCamera":
+                        requestCameraForSetup(result);
+                        break;
+                    case "openCameraSettings":
+                        openAppSettings();
+                        result.success(null);
                         break;
                     case "shareGameLink":
                     case "shareFriendInvite":
@@ -175,6 +185,8 @@ public final class MainActivity extends FlutterActivity {
                         statuses.put("notifications", updateAlertsEnabled());
                         statuses.put("microphone", checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                             == PackageManager.PERMISSION_GRANTED);
+                        statuses.put("cameraAvailable", cameraAvailable());
+                        statuses.put("camera", hasCameraPermission());
                         statuses.put("updateInstall", Build.VERSION.SDK_INT < 26
                             || getPackageManager().canRequestPackageInstalls());
                         result.success(statuses);
@@ -258,6 +270,12 @@ public final class MainActivity extends FlutterActivity {
     @Override
     protected void onActivityResult(int request, int status, Intent data) {
         super.onActivityResult(request, status, data);
+        if (request == SCAN_INVITE && inviteScan != null) {
+            MethodChannel.Result result = inviteScan;
+            inviteScan = null;
+            result.success(data == null ? null : ScanIntentResult.parseActivityResult(status, data).getContents());
+            return;
+        }
         if (request != PICK_LOVE || gamePicker == null) return;
         MethodChannel.Result result = gamePicker;
         Uri source = data == null ? null : data.getData();
@@ -291,31 +309,66 @@ public final class MainActivity extends FlutterActivity {
         }, "zompado-love-import").start();
     }
 
-    private void scanFriendInvite(MethodChannel.Result result) {
-        if (scanningInvite) {
-            result.error("INVITE_SCAN", "Scanner is already open.", null);
-            return;
+    private boolean cameraAvailable() {
+        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
+    }
+
+    private boolean hasCameraPermission() {
+        return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean cameraBlocked() {
+        return getPreferences(MODE_PRIVATE).getBoolean(CAMERA_DENIED, false)
+            && !shouldShowRequestPermissionRationale(Manifest.permission.CAMERA);
+    }
+
+    private void openAppSettings() {
+        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", getPackageName(), null)));
+    }
+
+    private void requestCameraForSetup(MethodChannel.Result result) {
+        if (!cameraAvailable() || hasCameraPermission()) {
+            result.success(null);
+        } else if (inviteScan != null || cameraSetup != null) {
+            result.error("CAMERA_BUSY", "A camera request is already open.", null);
+        } else if (cameraBlocked()) {
+            openAppSettings();
+            result.success(null);
+        } else {
+            cameraSetup = result;
+            requestPermissions(new String[] { Manifest.permission.CAMERA }, REQUEST_CAMERA);
         }
-        scanningInvite = true;
-        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
-            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-            .enableAutoZoom()
-            .build();
+    }
+
+    private void scanFriendInvite(MethodChannel.Result result) {
+        if (inviteScan != null || cameraSetup != null) {
+            result.error("CAMERA_BUSY", "A camera request is already open.", null);
+        } else if (!cameraAvailable()) {
+            result.error("CAMERA_UNAVAILABLE", "This device has no camera.", null);
+        } else if (hasCameraPermission()) {
+            inviteScan = result;
+            openInviteScanner();
+        } else if (cameraBlocked()) {
+            result.error("CAMERA_PERMISSION", "Allow camera access in Android settings.", null);
+        } else {
+            inviteScan = result;
+            requestPermissions(new String[] { Manifest.permission.CAMERA }, REQUEST_CAMERA);
+        }
+    }
+
+    private void openInviteScanner() {
+        ScanOptions options = new ScanOptions()
+            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            .setPrompt("Point the camera at your friend’s invite QR code")
+            .setBeepEnabled(false)
+            .setOrientationLocked(false);
         try {
-            GmsBarcodeScanning.getClient(this, options).startScan()
-                .addOnCompleteListener(task -> {
-                    scanningInvite = false;
-                    if (task.isCanceled()) {
-                        result.success(null);
-                    } else if (task.isSuccessful()) {
-                        result.success(task.getResult().getRawValue());
-                    } else {
-                        result.error("INVITE_SCAN", "Couldn’t open the QR scanner.", null);
-                    }
-                });
+            startActivityForResult(options.createScanIntent(this), SCAN_INVITE);
         } catch (RuntimeException error) {
-            scanningInvite = false;
-            result.error("INVITE_SCAN", "Couldn’t open the QR scanner.", null);
+            MethodChannel.Result result = inviteScan;
+            inviteScan = null;
+            result.error("INVITE_SCAN", "Couldn’t open the camera.", null);
         }
     }
 
@@ -424,6 +477,25 @@ public final class MainActivity extends FlutterActivity {
         if (requestCode == REQUEST_NOTIFICATIONS && notificationRequest != null) {
             notificationRequest.success(null);
             notificationRequest = null;
+        }
+        if (requestCode == REQUEST_CAMERA) {
+            boolean granted = hasCameraPermission();
+            if (grantResults.length > 0) {
+                getPreferences(MODE_PRIVATE).edit().putBoolean(CAMERA_DENIED, !granted).apply();
+            }
+            if (cameraSetup != null) {
+                MethodChannel.Result result = cameraSetup;
+                cameraSetup = null;
+                result.success(null);
+            } else if (inviteScan != null) {
+                if (granted) {
+                    openInviteScanner();
+                } else {
+                    MethodChannel.Result result = inviteScan;
+                    inviteScan = null;
+                    result.error("CAMERA_PERMISSION", "Allow camera access to scan a QR code.", null);
+                }
+            }
         }
         if (requestCode == REQUEST_MIC && micRequest != null) {
             micRequest.success(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED);

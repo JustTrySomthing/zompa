@@ -10,6 +10,7 @@
 
 | Build | Scope |
 |---|---|
+| Android 0.5.11 | Built-in QR scanner and an optional Camera permission in Setup. Cats vs Dogs has its own title, cover, and downloadable .zomp filename. |
 | [Public APK 0.5.10](https://github.com/JustTrySomthing/zompado/releases/tag/v0.5.10) | Built-in LÖVE player, official `.zomp` downloads, manual `.love` imports, encrypted friend chats with verified Delta Chat messaging, voice calls, online turns, and scheduled alerts. Android voice interoperability remains under test. |
 | Chatmail developer preview | Display-name setup, SecureJoin QR and shareable copy-and-paste invites, encrypted one-to-one message threads, unread badges, and queued or failed send feedback. The chat core owns the profile and messages in private Android storage. Installed Drop Four can be shared by link or sent as a game card in friend chats. Receivers verify the exact catalog version before installing. Online Drop Four adds match invites, alternating turns, and match recovery from the conversation history. |
 | [Preview 0.5.5](https://github.com/JustTrySomthing/zompado/actions/runs/44631165902#artifacts) | Camera QR scanning through Google Play services with a paste fallback. Online Drop Four has a conversation dock and a Your turn shortcut in My Games. Friend activity can trigger private Android alerts while the app stays running in the background. The Games file picker checks and stores manually selected `.love` files. The first [Lua SDK](../sdk/README.md) includes saves, music and effects controls, and a sample game. |

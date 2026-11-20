@@ -94,13 +94,19 @@ def has_center_token():
 def main():
     adb("shell", "am", "start", "-n", ACTIVITY)
     wait("Setup", lambda: find("Setup"))
+    if find("Allow camera") is None:
+        adb("shell", "input", "swipe", 350, 1000, 350, 500, 350)
+    press("Allow camera")
+    press("While using the app")
+    wait("camera permission to be granted", lambda: b"android.permission.CAMERA: granted=true"
+         in adb("shell", "dumpsys", "package", APP))
     if find("Finish setup") is None:
         adb("shell", "input", "swipe", 350, 1100, 350, 400, 350)
     press("Finish setup")
     wait("an empty game library", lambda: find("Your library is empty"))
     press("Get Games")
     press("Install")
-    wait("the downloaded game", lambda: find("Drop Four"), seconds=50)
+    wait("the downloaded game", lambda: find("Cats vs Dogs"), seconds=50)
     # Enter the game's own LÖVE scene and place a center token.
     press("Play")
     press("Pass and play")

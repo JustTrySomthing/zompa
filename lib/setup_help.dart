@@ -122,6 +122,21 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
             button: 'Allow microphone',
           ),
           _SetupCard(
+            icon: Icons.camera_alt_outlined,
+            title: 'Camera for QR codes',
+            text: _status?['cameraAvailable'] == false
+                ? 'This device has no camera. You can paste invite links in Chats.'
+                : 'Scan a friend’s invite QR code. You can also paste their invite link.',
+            enabled: _status?['camera'],
+            action:
+                !_working &&
+                    _status?['cameraAvailable'] == true &&
+                    _status?['camera'] == false
+                ? () => _open('requestCamera')
+                : null,
+            button: 'Allow camera',
+          ),
+          _SetupCard(
             icon: Icons.system_update_alt_rounded,
             title: 'Install updates from Zompado',
             text:
@@ -139,7 +154,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
             ),
           const SizedBox(height: 8),
           const Text(
-            'Alerts and in-app installation are optional. You can use Zompado with either turned off.',
+            'These permissions are optional. You can return to Setup any time.',
           ),
           const SizedBox(height: 16),
           FilledButton(
@@ -261,11 +276,11 @@ const _topics = [
       ),
       (
         'How do I share or open a game?',
-        'Tap Share game on Drop Four in My Games, or tap the game icon in a friend chat. Open a game card from the chat, or paste a shared link under Games → Open game link. Zompado checks the exact version before offering to install it.',
+        'Tap Share game on Cats vs Dogs in My Games, or tap the game icon in a friend chat. Open a game card from the chat, or paste a shared link under Games → Open game link. Zompado checks the exact version before offering to install it.',
       ),
       (
-        'How do I play Drop Four with a friend online?',
-        'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Resume from a turn alert, the match card, or Your turn in My Games. Tap the chat bubble on the board to talk to your friend.',
+        'How do I play Cats vs Dogs with a friend online?',
+        'Install Cats vs Dogs, open a friend chat, and tap Invite to a Cats vs Dogs match. Your friend opens the match card and accepts. You take the first turn. Resume from a turn alert, the match card, or Your turn in My Games. Tap the chat bubble on the board to talk to your friend.',
       ),
       (
         'How do I change game sounds?',
@@ -281,7 +296,7 @@ const _topics = [
       ),
       (
         'Can I play with someone next to me?',
-        'In Drop Four, choose Pass and play to take turns on one phone. Choose Play solo to play against the computer.',
+        'In Cats vs Dogs, choose Pass and play to take turns on one phone. Choose Play solo to play against the computer.',
       ),
     ],
   ),
@@ -292,7 +307,7 @@ const _topics = [
     answers: [
       (
         'How do I connect with a friend?',
-        'Open Chats and create a profile. Tap Invite friend to copy or share your invite link. On the other phone, open Chats → Accept invite and scan the QR code or paste the link. Camera scanning uses Google Play services.',
+        'Open Chats and create a profile. Tap Invite friend to copy or share your invite link. On the other phone, open Chats → Accept invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
       ),
       (
         'How do I call a friend?',

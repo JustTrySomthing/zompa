@@ -62,7 +62,7 @@ jobs:
             echo no | "$avdmanager" create avd --name "zompado$port" --package 'system-images;android-35;google_apis;x86_64'
             "$ANDROID_HOME/emulator/emulator" -avd "zompado$port" -port "$port" -cores 2 -memory 2048 \
               -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect \
-              -camera-front none -camera-back none > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
+              -camera-front none -camera-back emulated > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
           done
           python3 -m venv "$RUNNER_TEMP/friends-check"
           "$RUNNER_TEMP/friends-check/bin/pip" install --quiet opencv-python-headless==4.12.0.88
