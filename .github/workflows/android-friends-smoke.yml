@@ -8,6 +8,7 @@ on:
       - ".github/workflows/android-friends-smoke.yml"
       - "tools/check_android_friends.py"
       - "tools/check_voice_sdp.dart"
+      - "lib/voice_calls.dart"
 
 permissions:
   contents: read

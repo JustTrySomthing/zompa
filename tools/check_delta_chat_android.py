@@ -20,6 +20,16 @@ def delta_chat_with(phone, contact):
     phone.see("Call")
 
 
+def zompado_call_button(phone, label):
+    x, y = phone.see(label)
+    if label not in phone.labels():
+        # Older test artifacts merged the call row into a single node.
+        # The emulator has a fixed density of 1.5 and 48 dp call buttons.
+        distance_from_right = 12 + 24 + (48 if label == "Answer" else 0)
+        x = phone.image().shape[1] - round(1.5 * distance_from_right)
+    phone.shell("input", "tap", x, y)
+
+
 class DeltaPhone(Phone):
     def find(self, label):
         if label in {"Create New Profile", "Agree & Create Profile", "OK", "Answer", "End Call"}:
@@ -65,10 +75,10 @@ def main():
         delta.press("Call")
         delta.press("Audio Call")
         zompado.see("Incoming call from " + delta.name, 80)
-        zompado.press("Answer")
+        zompado_call_button(zompado, "Answer")
         zompado.see("Voice call with " + delta.name, 65)
         delta.see("Connected", 65)
-        zompado.press("End call")
+        zompado_call_button(zompado, "End call")
         wait("Delta Chat to close the remote call", lambda: not delta.find("End Call"))
         print("PASS: Delta Chat called Zompado and both clients connected.", flush=True)
 

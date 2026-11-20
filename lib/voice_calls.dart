@@ -348,6 +348,7 @@ class VoiceBar extends StatelessWidget {
             children: [
               Expanded(
                 child: Semantics(
+                  container: true,
                   liveRegion: true,
                   child: Text(
                     call == null
@@ -426,6 +427,8 @@ class _VoiceButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
+    container: true,
+    button: true,
     label: tooltip,
     child: IconButton(onPressed: onPressed, color: color, icon: icon),
   );
