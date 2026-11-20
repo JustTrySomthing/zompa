@@ -1,0 +1,74 @@
+name: Verify two Android friends
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/android-friends-smoke.yml"
+      - "tools/check_android_friends.py"
+
+permissions:
+  contents: read
+
+jobs:
+  friends:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install pinned Flutter and Android tools
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 https://github.com/flutter/flutter.git ab2912035e160d9cad6306df307576da6128ebdb
+          git -C "$RUNNER_TEMP/flutter" checkout --detach FETCH_HEAD
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          bash tools/install_android_sdk.sh 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' \
+            'ndk;28.2.13676358' 'emulator' 'system-images;android-35;google_apis;x86_64'
+      - name: Build an emulator APK with Chatmail and WebRTC
+        env:
+          ORG_GRADLE_PROJECT_zompadoEmulatorFriends: "true"
+          FLUTTER_SUPPRESS_ANALYTICS: "true"
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build apk --debug --target-platform android-x64 --no-pub
+          unzip -l build/app/outputs/flutter-apk/app-debug.apk 'lib/x86_64/libchatmail_rpc.so'
+      - name: Prepare checks and start two emulators
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          avdmanager="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+          adb="$ANDROID_HOME/platform-tools/adb"
+          for port in 5554 5556; do
+            echo no | "$avdmanager" create avd --name "zompado$port" --package 'system-images;android-35;google_apis;x86_64'
+            "$ANDROID_HOME/emulator/emulator" -avd "zompado$port" -port "$port" -cores 2 -memory 1536 \
+              -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect \
+              -camera-front none -camera-back none > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
+          done
+          python3 -m venv "$RUNNER_TEMP/friends-check"
+          "$RUNNER_TEMP/friends-check/bin/pip" install --quiet opencv-python-headless==4.12.0.88
+          for port in 5554 5556; do
+            serial="emulator-$port"
+            timeout 240 "$adb" -s "$serial" wait-for-device
+            timeout 240 bash -c 'until [[ $("$1" -s "$2" shell getprop sys.boot_completed | tr -d "\r") == 1 ]]; do sleep 2; done' _ "$adb" "$serial"
+            "$adb" -s "$serial" shell wm size 720x1280
+            "$adb" -s "$serial" shell wm density 240
+            "$adb" -s "$serial" shell input keyevent 82
+            "$adb" -s "$serial" install build/app/outputs/flutter-apk/app-debug.apk
+          done
+          "$RUNNER_TEMP/friends-check/bin/python" tools/check_android_friends.py "$adb"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: android-friends-diagnostics
+          path: ${{ runner.temp }}/friends-*.log
+          if-no-files-found: ignore

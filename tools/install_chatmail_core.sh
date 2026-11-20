@@ -5,10 +5,14 @@ target=${1:?Supply the Android native executable output path}
 sdk=${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}
 ndk="$sdk/ndk/28.2.13676358"
 ndk_bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
-linker="$ndk_bin/aarch64-linux-android21-clang"
 revision=189c007b9a343eb4639892fc3defafbf9f367da3
 rust=1.95.0
-triple=aarch64-linux-android
+case $(basename "$(dirname "$target")") in
+    arm64-v8a) triple=aarch64-linux-android ;;
+    x86_64) triple=x86_64-linux-android ;;
+    *) echo 'Unsupported Chatmail build ABI.' >&2; exit 1 ;;
+esac
+linker="$ndk_bin/${triple}21-clang"
 
 if [[ ! -x "$linker" ]]; then
     echo "Install Android NDK 28.2.13676358 and set ANDROID_SDK_ROOT." >&2
@@ -32,11 +36,12 @@ if [[ $(git -C "$source_dir" rev-parse --verify HEAD 2>/dev/null || true) != "$r
 fi
 
 rustup toolchain install "$rust" --profile minimal --target "$triple"
-export CC_aarch64_linux_android="$linker"
-export AR_aarch64_linux_android="$ndk_bin/llvm-ar"
-export RANLIB_aarch64_linux_android="$ndk_bin/llvm-ranlib"
-export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$linker"
-export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"
+variable_triple=${triple//-/_}
+export "CC_$variable_triple=$linker"
+export "AR_$variable_triple=$ndk_bin/llvm-ar"
+export "RANLIB_$variable_triple=$ndk_bin/llvm-ranlib"
+export "CARGO_TARGET_${variable_triple^^}_LINKER=$linker"
+export "CARGO_TARGET_${variable_triple^^}_RUSTFLAGS=-C link-arg=-Wl,-z,max-page-size=16384"
 (
     cd "$source_dir"
     cargo +"$rust" build --locked --release --target "$triple" --package deltachat-rpc-server

@@ -6,10 +6,12 @@ plugins {
 
 val chatmailNativeLibraries = layout.buildDirectory.dir("chatmail/jniLibs")
 val chatmailInstaller = rootProject.file("../tools/install_chatmail_core.sh")
-val chatmailExecutable = chatmailNativeLibraries.map { it.file("arm64-v8a/libchatmail_rpc.so") }
-
 // Test-only x86_64 build for running the app's player on the CI emulator.
 val emulatorSmoke = providers.gradleProperty("zompadoEmulatorSmoke").orNull == "true"
+val emulatorFriends = providers.gradleProperty("zompadoEmulatorFriends").orNull == "true"
+val testEmulator = emulatorSmoke || emulatorFriends
+val androidAbi = if (testEmulator) "x86_64" else "arm64-v8a"
+val chatmailExecutable = chatmailNativeLibraries.map { it.file("$androidAbi/libchatmail_rpc.so") }
 
 val androidSdkLocation = androidComponents.sdkComponents.sdkDirectory
 val installChatmailCore by tasks.registering(Exec::class) {
@@ -55,7 +57,7 @@ android {
         // Chatmail ships for ARM64. Match that ABI when packaging WebRTC.
         ndk {
             abiFilters.clear()
-            abiFilters.add(if (emulatorSmoke) "x86_64" else "arm64-v8a")
+            abiFilters.add(androidAbi)
         }
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -100,7 +102,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }
 
-if (emulatorSmoke) {
+if (testEmulator) {
     androidComponents.beforeVariants(androidComponents.selector().withBuildType("release")) {
         it.enable = false
     }
