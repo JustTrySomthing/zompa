@@ -20,14 +20,15 @@ def delta_chat_with(phone, contact):
     phone.see("Call")
 
 
-def zompado_call_button(phone, label):
-    x, y = phone.see(label)
-    if label not in phone.labels():
-        # Older test artifacts merged the call row into a single node.
-        # The emulator has a fixed density of 1.5 and 48 dp call buttons.
-        distance_from_right = 12 + 24 + (48 if label == "Answer" else 0)
-        x = phone.image().shape[1] - round(1.5 * distance_from_right)
-    phone.shell("input", "tap", x, y)
+def answer_zompado(phone, caller):
+    # Reuse the independent-peer test's direct accessibility tap and wait for
+    # the incoming controls to disappear before checking the media connection.
+    phone.see("Incoming call from " + caller, 80)
+    for _ in range(3):
+        phone.press("Answer")
+        if not phone.find("Answer"):
+            return
+    raise RuntimeError("Zompado remained on the incoming call screen after tapping Answer")
 
 
 class DeltaPhone(Phone):
@@ -74,15 +75,14 @@ def main():
         # Delta Chat is the caller first, exercising its larger audio-call offer.
         delta.press("Call")
         delta.press("Audio Call")
-        zompado.see("Incoming call from " + delta.name, 80)
-        zompado_call_button(zompado, "Answer")
+        answer_zompado(zompado, delta.name)
         zompado.see("Voice call with " + delta.name, 65)
         delta.see("Connected", 65)
         delta.press("Camera")
         zompado.see("Video call with " + delta.name, 35)
         wait("Zompado to render Delta Chat camera frames", lambda:
              b"Remote camera frame rendered" in zompado.adb("logcat", "-d", "-s", "ZompadoCall:I"), 30)
-        zompado_call_button(zompado, "End call")
+        zompado.press("End call")
         wait("Delta Chat to close the remote call", lambda: not delta.find("End Call"))
         print("PASS: Delta Chat called Zompado, both clients connected, and Zompado rendered Delta Chat’s camera.", flush=True)
 
@@ -98,6 +98,12 @@ def main():
         for phone in (zompado, delta):
             try:
                 print(f"{phone.name} screen:", phone.labels(), flush=True)
+                phone.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
+                layout = phone.shell("cat", "/sdcard/zompado-friends.xml")
+                from xml.etree import ElementTree
+                for node in ElementTree.fromstring(layout).iter("node"):
+                    if any(key in (node.get("content-desc"), node.get("text")) for key in ("Answer", "Decline")):
+                        print("Visible call control:", node.get("bounds"), "clickable:", node.get("clickable"), flush=True)
             except Exception:
                 pass
             try:
