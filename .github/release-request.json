@@ -1,5 +1,5 @@
 {
-  "version": "0.5.14",
-  "build": 23,
-  "notes": "- Add, search, block, and delete contacts from Chats, and edit your name, photo, and bio from Settings.\n- Share attachments, use the emoji picker, and send game invites from chats.\n- Online Cats vs Dogs shows when both players are ready and synchronizes pause, resume, and quit.\n- Voice calls start without opening the camera. Messaging and calls were verified with stock Delta Chat.\n- Import .zomp and .love games and switch between Dark and Light directly in Appearance."
+  "version": "0.5.16",
+  "build": 25,
+  "notes": "- Fix a release packaging issue that could close Zompado when you tap the phone button.\n- Find App Log at the bottom of Settings. Copy or clear call diagnostics that survive an app restart.\n- Pin contacts, react to messages, and find starred messages in Saved.\n- Choose media compression or attach the original file. Manage alerts in Notifications and mute them with the top-bar bell."
 }
