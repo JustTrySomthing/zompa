@@ -19,11 +19,14 @@ Both repositories use `main`. Check the latest published APK and the current `up
 | Manual `.love` staging and Lua template | [Android archive validation](../android/app/src/main/java/io/tablecircle/prototype/LoveImport.java), [Lua SDK](../sdk/README.md) |
 | Embedded LÖVE and online match validation | [Runtime pin and hashes](../tools/install_love_runtime.sh), [Android player](../android/app/src/main/java/io/tablecircle/prototype/LovePlayer.java), [Flutter view](../lib/love_player.dart), [match validation](../lib/online_match.dart) |
 | Game audio and Android test workflow | [Flutter settings](../lib/game_audio.dart), [Lua mixer](../sdk/zompado.lua), [Android emulator workflow](../.github/workflows/android-game-smoke.yml) |
+| Two-device Android verification | [Emulator workflow](../.github/workflows/android-friends-smoke.yml), [verification script](../tools/check_android_friends.py) |
 | Implemented features and next milestones | [README](../README.md), [build plan](BUILD-PLAN.md) |
 | Public download page | [GitHub Pages source](index.html), published from `main:/docs` |
 | Release preparation and feed update order | [RELEASE.md](RELEASE.md) |
 
-The Android preview ships the LÖVE 11.5 compatibility WebAssembly runtime inside the APK. Players install and remove their games separately. The catalog uses `games` for current entries and `archive` for exact older shared links. The player opens the selected package in a sandboxed Android WebView renderer with a private origin per game. Playback requires Android 10 or later and a multiprocess WebView provider. The Gradle build fetches two pinned runtime files, checks their hashes, and packages them with the player assets. The version 1 catalog is kept for older APKs. The new Drop Four starts its own Lua save when upgrading from the Dart game. The Chatmail developer preview and remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md). The public APK and the developer preview can be on different versions.
+The Android app ships the LÖVE 11.5 compatibility WebAssembly runtime inside the APK. Players install and remove their games separately. The catalog uses `games` for current entries and `archive` for exact older shared links. The player opens the selected package in a sandboxed Android WebView renderer with a private origin per game. Playback requires Android 10 or later and a multiprocess WebView provider. The Gradle build fetches two pinned runtime files, checks their hashes, and packages them with the player assets. The version 1 catalog is kept for older APKs. The new Drop Four starts its own Lua save when upgrading from the Dart game. Chatmail and the remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md). The public APK and the developer preview can be on different versions.
+
+For instant Android wakeups, Zompado needs an authorized push registration for `io.tablecircle.prototype` and a compatible Chatmail notifier that can send to that registration. The pinned Core has a push token API in its native interface; Zompado's JSON-RPC bridge would need to expose it. Keep provider credentials with the notifier. Current builds use Android's scheduled fetch. [Chatmail push behavior](https://delta.chat/en/help#instant-message-delivery-and-push-notifications).
 
 ## Toolchain and fresh checkout
 
@@ -47,7 +50,7 @@ Flutter creates `android/local.properties` for the local SDK paths. Gradle needs
 | Distribution ABI | `arm64-v8a` |
 | Certificate subject | `CN=Table Circle Prototype` |
 | Certificate SHA-256 | `d55fa5cc439bc4abfbf914e32675728de84c3267d2a86ec59c91781ff1bb39b8` |
-| Public reference APK | [Zompado 0.3.0, build 3](https://github.com/JustTrySomthing/zompado/releases/tag/v0.3.0) |
+| Public reference APK | [Zompado 0.5.9, build 15](https://github.com/JustTrySomthing/zompado/releases/tag/v0.5.9) |
 
 The public APK contains the certificate. Signing future updates requires the original private key and its credentials. Never put the private material in commits, issues, logs, or release assets. The verified certificate also matches the Table Circle 0.2.0 APK.
 

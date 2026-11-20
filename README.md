@@ -8,17 +8,13 @@ or make your own.
 
 ## What you can do today
 
-- **Play Drop Four.** Download it from the game catalog. In the preview, the built-in LÖVE player runs its `.zomp` package for solo, same-phone, and online matches.
-- **Discover and install games.** Open **Games → Get Games** to browse the official catalog and install games in the app.
-- **Invite and message friends in the Android preview.** Create a Chatmail profile, share an invite link or QR code, and exchange encrypted one-to-one text messages. [Get the signed preview](https://github.com/JustTrySomthing/zompado/actions/runs/44646518299/artifacts/14589332914).
+- **Play Drop Four.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. Chat from the board and resume from **Your turn** or a turn alert.
+- **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation.
+- **Manage your game library.** A fresh install starts with an empty library. Add official `.zomp` games and remove them from **My Games**. Open the import button for compatible `.love` files on your device.
 
-The public APK includes a local chat preview. For online messaging, download the `zompado-signed-android` ZIP from the preview build and extract the APK. Preview 0.5.8 passed the APK’s 16 KB native alignment check. On-device verification is pending.
+Downloaded games require Android 10 or later and a sandboxed WebView renderer. Open **Settings → Game audio** to adjust volume, mute the game, or control whether its volume lowers during a call. SDK games also support separate music and effects controls.
 
-In the preview, scan a friend’s invite QR code or paste their invite link. Take turns in online Drop Four, chat from the board, and resume from **Your turn** in My Games. Share Drop Four from your library or a conversation. Call friends from a conversation and use the call bar to mute, switch to speaker, or hang up. With alerts enabled, Android can check for friend activity after closing the app process. Its schedule can delay those alerts. Reopen Setup and searchable Help from **Settings**.
-
-The preview starts with an empty game library on a fresh install. Add titles in **Games → Get Games** and remove a title from its menu in **My Games**. Use the import button to play compatible `.love` files from your device. Downloaded games require Android 10 or later with a sandboxed WebView renderer.
-
-Open **Settings → Game audio** or tap the speaker icon while playing to adjust game volume, music, and effects. Separate music and effects work with games that use the SDK. Game volume also controls audio in compatible imports.
+After Android stops the process, Zompado checks for new activity on Android’s schedule. A call alert lets you answer if the call is still ringing. Reopen the app after using Android’s **Force stop**. **Settings → Setup** and **Help** cover alerts and permissions.
 
 ## Game Builder coming soon
 
