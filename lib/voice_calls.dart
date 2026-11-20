@@ -156,6 +156,10 @@ class VoiceCalls extends ChangeNotifier {
           return;
         }
         call.message = message;
+        if (_ended.contains(message)) {
+          _end(call, signal: false);
+          return;
+        }
         _phase(call, VoicePhase.ringing);
         if (call.earlyAnswer case final event?) {
           call.earlyAnswer = null;
