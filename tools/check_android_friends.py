@@ -254,6 +254,8 @@ def check_app_log(phone):
         f"run-as {APP} cat files/app-log.txt 2>/dev/null || true"
     ))
     phone.press("Copy Log")
+    # Android shows a clipboard overlay above the bottom of the app.
+    time.sleep(8)
     phone.back()
     phone.back()
     phone.press("Chats")
