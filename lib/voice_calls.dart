@@ -15,6 +15,7 @@ class _Call {
     this.phase, {
     this.message,
     this.offer,
+    this.ringSeconds = 118,
   });
 
   final int token, chat;
@@ -22,6 +23,7 @@ class _Call {
   VoicePhase phase;
   int? message;
   final String? offer;
+  final int ringSeconds;
   bool muted = false, speaker = false;
 }
 
@@ -41,6 +43,9 @@ class VoiceCalls extends ChangeNotifier {
   String? error;
 
   bool get busy => _active != null;
+  bool get audioActive =>
+      _active?.phase == VoicePhase.connecting ||
+      _active?.phase == VoicePhase.connected;
 
   static bool _voiceSdp(Object? value) {
     if (value is! String || !value.startsWith('v=0') || value.length > 24576) {
@@ -96,7 +101,9 @@ class VoiceCalls extends ChangeNotifier {
           return;
         }
         if (_active != call) return;
-        _phase(call, VoicePhase.connecting);
+        if (call.phase != VoicePhase.connected) {
+          _phase(call, VoicePhase.connecting);
+        }
         await _chatmail.acceptCall(call.message!, sdp!);
       } else {
         final message = await _chatmail.placeCall(call.chat, sdp!);
@@ -121,37 +128,8 @@ class VoiceCalls extends ChangeNotifier {
     final call = _active;
     switch (event['kind']) {
       case 'IncomingCall':
-        final offer = event['place_call_info'];
-        if (event['has_video'] == true || !_voiceSdp(offer)) return;
-        try {
-          final name = await _chatmail.incomingCallName(chat, id);
-          if (_disposed || name == null || _ended.contains(id)) return;
-          if (_active?.message == id) return;
-          if (busy) {
-            unawaited(_signalEnd(id));
-            return;
-          }
-          _set(
-            _Call(
-              ++_nextToken,
-              chat,
-              name,
-              VoicePhase.incoming,
-              message: id,
-              offer: offer as String,
-            ),
-          );
-          unawaited(
-            _native('showIncomingCall', {
-              'message': id,
-              'foreground':
-                  WidgetsBinding.instance.lifecycleState ==
-                  AppLifecycleState.resumed,
-            }),
-          );
-        } catch (_) {
-          // A mismatched, unverified, or expired call cannot ring.
-        }
+        if (event['has_video'] == true) return;
+        await _incoming(chat, id);
       case 'OutgoingCallAccepted':
         if (call == null ||
             call.message != id ||
@@ -179,6 +157,59 @@ class VoiceCalls extends ChangeNotifier {
         if (call != null && call.message == id && call.chat == chat) {
           _end(call, signal: false);
         }
+    }
+  }
+
+  Future<void> restoreIncoming(int chat, int id) =>
+      _incoming(chat, id, fromNotification: true);
+
+  Future<void> _incoming(
+    int chat,
+    int id, {
+    bool fromNotification = false,
+  }) async {
+    try {
+      if (fromNotification && !await _chatmail.restore()) return;
+      final offer = await _chatmail.incomingVoiceCall(
+        chat,
+        id,
+        fromNotification: fromNotification,
+      );
+      if (_disposed ||
+          offer == null ||
+          !_voiceSdp(offer.offer) ||
+          _ended.contains(id) ||
+          _active?.message == id)
+        return;
+      if (busy) {
+        unawaited(_signalEnd(id));
+        return;
+      }
+      _set(
+        _Call(
+          ++_nextToken,
+          chat,
+          offer.name,
+          VoicePhase.incoming,
+          message: id,
+          offer: offer.offer,
+          ringSeconds: offer.secondsLeft,
+        ),
+      );
+      if (!fromNotification) {
+        unawaited(
+          _native('showIncomingCall', {
+            'chat': chat,
+            'message': id,
+            'secondsLeft': offer.secondsLeft,
+            'foreground':
+                WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed,
+          }),
+        );
+      }
+    } catch (_) {
+      // A mismatched, unverified, or expired call cannot ring.
     }
   }
 
@@ -246,6 +277,7 @@ class VoiceCalls extends ChangeNotifier {
           seconds: switch (phase) {
             VoicePhase.starting => 55,
             VoicePhase.connecting => 30,
+            VoicePhase.incoming => call.ringSeconds,
             _ => 118,
           },
         ),

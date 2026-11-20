@@ -9,7 +9,6 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -43,10 +42,11 @@ public final class ChatSyncJob extends JobService {
             .build());
     }
 
-    static void claimForApp() {
+    static Process claimForApp() {
         synchronized (OWNER) {
             appOwnsCore = true;
             if (jobCore != null) stopCore(jobCore);
+            return jobCore;
         }
     }
 
@@ -67,7 +67,8 @@ public final class ChatSyncJob extends JobService {
             if (appOwnsCore) return false;
         }
         File profile = new File(getFilesDir(), "chatmail");
-        if (!ChatAlerts.enabled(this) || !new File(profile, "accounts.toml").isFile()) return false;
+        if ((!ChatAlerts.enabled(this) && !ChatAlerts.callsEnabled(this))
+                || !new File(profile, "accounts.toml").isFile()) return false;
         Poll poll = new Poll(params, profile);
         active = poll;
         poll.worker.start();
@@ -137,21 +138,24 @@ public final class ChatSyncJob extends JobService {
                     if (accounts.length() == 0) return;
                     int account = accounts.getInt(0);
                     if (!Boolean.TRUE.equals(rpc.call("is_configured", account))) return;
-                    rpc.call("start_io", account);
-                    long deadline = SystemClock.elapsedRealtime() + 25000;
-                    while (SystemClock.elapsedRealtime() < deadline) {
-                        Thread.sleep(2000);
-                        if (((Number) rpc.call("get_connectivity", account)).intValue() >= 4000) break;
-                    }
+                    rpc.call("background_fetch", 25);
                     notifyFresh(rpc, account);
-                    rpc.call("stop_io", account);
                 }
             } catch (Exception ignored) {
                 // The next scheduled check can retry network or process failures.
             } finally {
-                synchronized (OWNER) {
-                    if (core != null) core.destroy();
-                    if (jobCore == core) jobCore = null;
+                if (core != null) {
+                    stopCore(core);
+                    // Release the account only after the process has dropped its file lock.
+                    Thread.interrupted();
+                    try {
+                        core.waitFor();
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                    }
+                    synchronized (OWNER) {
+                        if (jobCore == core) jobCore = null;
+                    }
                 }
                 new Handler(Looper.getMainLooper()).post(() -> {
                     if (active == this) {
@@ -175,16 +179,35 @@ public final class ChatSyncJob extends JobService {
                     int id = batch.getInt(i);
                     JSONObject msg = messages.optJSONObject(Integer.toString(id));
                     if (msg == null || !"message".equals(msg.optString("kind"))
-                            || !msg.optBoolean("showPadlock") || msg.optInt("fromId") == 1) continue;
+                            || !msg.optBoolean("showPadlock") || msg.optInt("fromId") <= 1
+                            || msg.optInt("state") != 10) continue;
                     int chat = msg.optInt("chatId");
-                    if (chat <= 0 || notified.contains(chat)) continue;
+                    boolean call = "Call".equals(msg.optString("viewType"));
+                    if (chat <= 0 || (notified.contains(chat) && !call)
+                            || (msg.optBoolean("isInfo") && !call)) continue;
                     JSONObject info = (JSONObject) rpc.call("get_full_chat_by_id", account, chat);
                     if (!"Single".equals(info.optString("chatType")) || !info.optBoolean("isEncrypted")
-                            || info.optBoolean("isSelfTalk") || info.optBoolean("isDeviceChat")) continue;
+                            || info.optBoolean("isSelfTalk") || info.optBoolean("isDeviceChat")
+                            || info.optBoolean("isMuted") || info.optBoolean("isContactRequest")) continue;
+                    if (call) {
+                        JSONObject details = (JSONObject) rpc.call("call_info", account, id);
+                        String state = details.getJSONObject("state").optString("kind");
+                        if (details.optBoolean("hasVideo") || !info.optBoolean("canSend")) continue;
+                        if ("Alerting".equals(state)) {
+                            long secondsLeft = Math.min(120, msg.optLong("timestamp") + 120
+                                - System.currentTimeMillis() / 1000);
+                            if ("2".equals(rpc.call("get_config", account, "who_can_call_me"))) continue;
+                            synchronized (OWNER) {
+                                if (stopped || appOwnsCore) return;
+                                ChatAlerts.incoming(ChatSyncJob.this, chat, id, secondsLeft);
+                            }
+                            continue;
+                        }
+                        if (!"Missed".equals(state) || notified.contains(chat)) continue;
+                    }
                     synchronized (OWNER) {
                         if (stopped || appOwnsCore) return;
-                        String title = "Call".equals(msg.optString("viewType"))
-                            ? "New call activity" : "New friend activity";
+                        String title = call ? "Missed Zompado voice call" : "New friend activity";
                         ChatAlerts.post(ChatSyncJob.this, chat, id, title);
                     }
                     notified.add(chat);

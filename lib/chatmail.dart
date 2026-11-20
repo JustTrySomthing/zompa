@@ -362,8 +362,18 @@ class Chatmail {
     return info;
   }
 
-  Future<String?> incomingCallName(int chat, int message) async {
+  Future<({String name, String offer, int secondsLeft})?> incomingVoiceCall(
+    int chat,
+    int message, {
+    bool fromNotification = false,
+  }) async {
     final info = await _voiceChat(chat);
+    if (fromNotification &&
+        (info['isMuted'] == true ||
+            await _call('get_config', [_accountId, 'who_can_call_me']) ==
+                '2')) {
+      return null;
+    }
     final entries =
         await _call('get_messages', [
               _accountId,
@@ -371,11 +381,26 @@ class Chatmail {
             ])
             as Json;
     if (entries['$message'] case final Json call
-        when call['chatId'] == chat &&
+        when call['kind'] == 'message' &&
+            call['chatId'] == chat &&
             call['showPadlock'] == true &&
             call['viewType'] == 'Call' &&
-            call['fromId'] != 1) {
-      if (await callIsRinging(message)) return info['name'] as String;
+            call['fromId'] is int &&
+            (call['fromId'] as int) > 1 &&
+            call['timestamp'] is int) {
+      final details = await _call('call_info', [_accountId, message]) as Json;
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final remaining = ((call['timestamp'] as int) + 120 - now).clamp(0, 118);
+      if ((details['state'] as Json)['kind'] == 'Alerting' &&
+          details['hasVideo'] == false &&
+          details['sdpOffer'] is String &&
+          remaining > 0) {
+        return (
+          name: info['name'] as String,
+          offer: details['sdpOffer'] as String,
+          secondsLeft: remaining,
+        );
+      }
     }
     return null;
   }

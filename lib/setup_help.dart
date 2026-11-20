@@ -269,7 +269,7 @@ const _topics = [
       ),
       (
         'How do I change game sounds?',
-        'Open Settings → Game audio or tap the speaker icon while playing. Game volume controls all game audio. Separate Music and Sound effects sliders work with games that use the Zompado SDK.',
+        'Open Settings → Game audio or tap the speaker icon while playing. Mute keeps your volume settings. Zompado lowers game volume during voice calls by default and restores it when the call ends. Separate Music and Sound effects sliders work with games that use the Zompado SDK.',
       ),
       (
         'How do I remove a downloaded game?',
@@ -277,7 +277,7 @@ const _topics = [
       ),
       (
         'Can I import my own .love game?',
-        'Open Games → Import a .love game, choose the file, then tap Play next to its name. Official catalog games use .zomp.',
+        'Open Games → Import a .love game, choose the file, then tap Play next to its name. Zompado runs compatible LÖVE 11.5 games. A game that needs a native extension or online access may not run. Official catalog games use .zomp.',
       ),
       (
         'Can I play with someone next to me?',
@@ -296,7 +296,7 @@ const _topics = [
       ),
       (
         'How do I call a friend?',
-        'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The call bar includes microphone mute, speaker, and End call. Keep Zompado running to receive a live incoming call.',
+        'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The call bar includes microphone mute, speaker, and End call. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
       ),
       (
         'When can I send a message?',

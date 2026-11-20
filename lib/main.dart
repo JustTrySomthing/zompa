@@ -123,6 +123,15 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     try {
       final requested = await bridge.invokeMethod<bool>('takeOpenChats');
       if (mounted && requested == true) setState(() => _openChats++);
+      final voice = _voice;
+      if (voice == null || !mounted) return;
+      final call = await bridge.invokeMapMethod<String, int>(
+        'takeIncomingCall',
+      );
+      if (!mounted || call == null) return;
+      if ((call['chat'], call['message']) case (final int chat, final int id)) {
+        unawaited(voice.restoreIncoming(chat, id));
+      }
     } catch (_) {
       // The desktop preview has no Android notification intent.
     }

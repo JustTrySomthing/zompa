@@ -34,6 +34,7 @@ public final class MainActivity extends FlutterActivity {
     private MethodChannel host;
     private VoicePeer voice;
     private boolean openChats;
+    private Map<String, Integer> incomingCall;
     private Ringtone ringing;
     private int ringingId;
     private boolean scanningInvite;
@@ -47,7 +48,7 @@ public final class MainActivity extends FlutterActivity {
             "io.zompado.love", new LovePlayer.Factory(flutterEngine.getDartExecutor().getBinaryMessenger()));
         ChatAlerts.setup(this);
         ChatSyncJob.schedule(this);
-        openChats = ChatAlerts.OPEN_CHATS.equals(getIntent().getAction());
+        readChatIntent(getIntent());
         host = new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompado.host");
         voice = new VoicePeer(this, host);
         host.setMethodCallHandler(new MethodChannel.MethodCallHandler() {
@@ -58,9 +59,7 @@ public final class MainActivity extends FlutterActivity {
                         result.success(getFilesDir().getAbsolutePath());
                         break;
                     case "chatmailExecutable":
-                        ChatSyncJob.claimForApp();
-                        File core = ChatSyncJob.executable(MainActivity.this);
-                        result.success(core.canExecute() ? core.getAbsolutePath() : null);
+                        openChatmail(result);
                         break;
                     case "checkLoveGame":
                         if (!(call.arguments instanceof Map)) {
@@ -119,7 +118,13 @@ public final class MainActivity extends FlutterActivity {
                         Integer incoming = call.argument("message");
                         if (incoming != null) {
                             if (Boolean.TRUE.equals(call.argument("foreground"))) ring(incoming);
-                            else ChatAlerts.incoming(MainActivity.this, incoming);
+                            else {
+                                Integer incomingChat = call.argument("chat");
+                                Integer secondsLeft = call.argument("secondsLeft");
+                                if (incomingChat != null && secondsLeft != null) {
+                                    ChatAlerts.incoming(MainActivity.this, incomingChat, incoming, secondsLeft);
+                                }
+                            }
                         }
                         result.success(null);
                         break;
@@ -134,6 +139,10 @@ public final class MainActivity extends FlutterActivity {
                     case "takeOpenChats":
                         result.success(openChats);
                         openChats = false;
+                        break;
+                    case "takeIncomingCall":
+                        result.success(incomingCall);
+                        incomingCall = null;
                         break;
                     case "requestMicrophone":
                         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
@@ -346,9 +355,40 @@ public final class MainActivity extends FlutterActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         if (ChatAlerts.OPEN_CHATS.equals(intent.getAction())) {
-            openChats = true;
+            readChatIntent(intent);
             if (host != null) host.invokeMethod("openChats", null);
         }
+    }
+
+    private void readChatIntent(Intent intent) {
+        if (!ChatAlerts.OPEN_CHATS.equals(intent.getAction())) return;
+        openChats = true;
+        int chat = intent.getIntExtra(ChatAlerts.CALL_CHAT, 0);
+        int message = intent.getIntExtra(ChatAlerts.CALL_MESSAGE, 0);
+        if (chat > 0 && message > 0) {
+            incomingCall = new HashMap<>();
+            incomingCall.put("chat", chat);
+            incomingCall.put("message", message);
+        }
+    }
+
+    private void openChatmail(MethodChannel.Result result) {
+        Process backgroundCore = ChatSyncJob.claimForApp();
+        File core = ChatSyncJob.executable(this);
+        String path = core.canExecute() ? core.getAbsolutePath() : null;
+        if (backgroundCore == null) {
+            result.success(path);
+            return;
+        }
+        new Thread(() -> {
+            try {
+                backgroundCore.waitFor();
+                runOnUiThread(() -> result.success(path));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                runOnUiThread(() -> result.success(null));
+            }
+        }, "zompado-chat-handoff").start();
     }
 
     @Override

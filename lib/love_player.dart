@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'github_distribution.dart';
 import 'game_audio.dart';
+import 'voice_calls.dart';
 
 class LoveGameView extends StatefulWidget {
   LoveGameView.official({
@@ -46,8 +47,12 @@ class _LoveGameViewState extends State<LoveGameView>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final callAudioActive = VoiceScope.of(context)?.audioActive ?? false;
     final settings =
-        GameAudioScope.of(context)?.playerSettings ?? '100:100:100';
+        GameAudioScope.of(
+          context,
+        )?.playerSettings(callAudioActive: callAudioActive) ??
+        '100:100:100';
     if (_audio == settings) return;
     _audio = settings;
     _send('audio', settings);

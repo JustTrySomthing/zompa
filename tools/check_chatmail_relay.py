@@ -195,23 +195,47 @@ def main():
         bob.close()
         offline_text = "Zompado relay smoke check while receiver is stopped"
         sent = alice.rpc("misc_send_text_message", alice.account, alice_chat, offline_text)
+        offline_call = alice.rpc("place_outgoing_call", alice.account, alice_chat, offer, False)
         wait_for("server acceptance while the receiver is stopped", lambda:
-                 alice.rpc("get_messages", alice.account, [sent])[str(sent)]["state"] >= 26)
-        restarted = Core(executable, Path(root) / "bob")
-        cleanup.callback(restarted.close)
-        restarted.account = bob_account
-        restarted.rpc("start_io", bob_account)
+                 all(row["state"] >= 26 for row in alice.rpc(
+                     "get_messages", alice.account, [sent, offline_call]).values()))
+        background = Core(executable, Path(root) / "bob")
+        cleanup.callback(background.close)
 
-        def fresh_after_restart():
-            ids = restarted.rpc("get_fresh_msgs", bob_account)
-            rows = restarted.rpc("get_messages", bob_account, ids)
-            return any(
-                m.get("text") == offline_text and m.get("showPadlock") is True
-                for m in rows.values()
-            )
+        def background_activity():
+            background.rpc("background_fetch", 25)
+            ids = background.rpc("get_fresh_msgs", bob_account)
+            rows = background.rpc("get_messages", bob_account, ids)
+            new_text = False
+            new_call = None
+            for msg in rows.values():
+                if (msg.get("chatId") != bob_chat or msg.get("showPadlock") is not True
+                        or msg.get("fromId", 0) <= 1 or msg.get("state") != 10):
+                    continue
+                if msg.get("text") == offline_text:
+                    new_text = True
+                if msg.get("viewType") == "Call":
+                    details = background.rpc("call_info", bob_account, msg["id"])
+                    if (details["state"]["kind"] == "Alerting" and not details["hasVideo"]
+                            and 0 < msg["timestamp"] + 120 - time.time() <= 120):
+                        new_call = msg["id"]
+            return new_call if new_text else None
 
-        wait_for("fresh messages detected after restarting Chatmail", fresh_after_restart)
-        print("A separately restarted Core found encrypted activity that arrived while it was stopped.", flush=True)
+        if background.rpc("get_config", bob_account, "who_can_call_me") not in {None, "1"}:
+            raise RuntimeError("Fresh profile did not use the default incoming call policy")
+        recovered = wait_for("a fresh text and voice alert after a background fetch", background_activity)
+        background.close()
+        reopened = Core(executable, Path(root) / "bob")
+        cleanup.callback(reopened.close)
+        reopened.rpc("start_io", bob_account)
+        details = reopened.rpc("call_info", bob_account, recovered)
+        if details["state"]["kind"] != "Alerting" or details["sdpOffer"] != offer:
+            raise RuntimeError("Reopening the profile did not recover the pending voice offer")
+        reopened.rpc("accept_incoming_call", bob_account, recovered, answer)
+        wait_for("acceptance after background handoff", lambda: voice_state(alice, offline_call, "Active"))
+        reopened.rpc("end_call", bob_account, recovered)
+        wait_for("hangup after background handoff", lambda: voice_state(alice, offline_call, "Completed"))
+        print("Recovered a fresh encrypted text and answered a call after a background Core handoff.", flush=True)
 
 
 if __name__ == "__main__":
