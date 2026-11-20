@@ -1,0 +1,71 @@
+name: Verify Delta Chat Android interoperability
+
+on:
+  workflow_run:
+    workflows: ["Verify two Android friends"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  interop:
+    if: github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: android-friends-test-apk
+          path: artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install tools and fetch the official Delta Chat APK
+        run: |
+          bash tools/install_android_sdk.sh 'platform-tools' 'emulator' 'system-images;android-35;google_apis;x86_64'
+          curl -fLsS --retry 3 --max-time 180 https://download.delta.chat/android/deltachat-gplay-release-2.69.0.apk \
+            -o "$RUNNER_TEMP/delta-chat.apk"
+          printf '%s  %s\n' 6c3b69fba5422e2bc0338e00229547ce66ad8f8892faec802cfa36d8949277c2 "$RUNNER_TEMP/delta-chat.apk" |
+            sha256sum --check --status
+      - name: Prepare checks and start two emulators
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          avdmanager="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+          adb="$ANDROID_HOME/platform-tools/adb"
+          for port in 5554 5556; do
+            echo no | "$avdmanager" create avd --name "zompado$port" --package 'system-images;android-35;google_apis;x86_64'
+            "$ANDROID_HOME/emulator/emulator" -avd "zompado$port" -port "$port" -cores 2 -memory 2048 \
+              -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect \
+              -camera-front none -camera-back none > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
+          done
+          python3 -m venv "$RUNNER_TEMP/friends-check"
+          "$RUNNER_TEMP/friends-check/bin/pip" install --quiet opencv-python-headless==4.12.0.88
+          for port in 5554 5556; do
+            serial="emulator-$port"
+            timeout 240 "$adb" -s "$serial" wait-for-device
+            timeout 240 bash -c 'until [[ $("$1" -s "$2" shell getprop sys.boot_completed | tr -d "\r") == 1 ]]; do sleep 2; done' _ "$adb" "$serial"
+            "$adb" -s "$serial" shell wm size 720x1280
+            "$adb" -s "$serial" shell wm density 240
+            "$adb" -s "$serial" shell input keyevent KEYCODE_WAKEUP
+            "$adb" -s "$serial" shell wm dismiss-keyguard
+            "$adb" -s "$serial" shell settings put global window_animation_scale 0
+            "$adb" -s "$serial" shell settings put global transition_animation_scale 0
+            "$adb" -s "$serial" shell settings put global animator_duration_scale 0
+            if [[ "$port" == 5554 ]]; then
+              "$adb" -s "$serial" install artifacts/app-debug.apk
+            else
+              "$adb" -s "$serial" install "$RUNNER_TEMP/delta-chat.apk"
+            fi
+          done
+          "$RUNNER_TEMP/friends-check/bin/python" tools/check_delta_chat_android.py "$adb"
