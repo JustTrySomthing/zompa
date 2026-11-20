@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'love_player.dart';
+import 'game_audio.dart';
 
 class LoveImports extends StatefulWidget {
   const LoveImports({
@@ -121,7 +122,10 @@ class _LoveImportsState extends State<LoveImports> {
                               : () => Navigator.of(context).push<void>(
                                   MaterialPageRoute(
                                     builder: (_) => Scaffold(
-                                      appBar: AppBar(title: Text(title)),
+                                      appBar: AppBar(
+                                        title: Text(title),
+                                        actions: const [GameAudioButton()],
+                                      ),
                                       body: SafeArea(
                                         child: LoveGameView.imported(id: id),
                                       ),

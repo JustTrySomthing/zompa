@@ -1,5 +1,5 @@
 {
-  "version": "0.5.7",
-  "build": 13,
-  "purpose": "Run downloaded .zomp games and imported .love files in the built-in LÖVE player."
+  "version": "0.5.8",
+  "build": 14,
+  "purpose": "Verify Android game playback and persisted volume, music, and effects controls."
 }

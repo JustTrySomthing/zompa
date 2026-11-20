@@ -34,8 +34,28 @@ source = source.replace(old_sync,
 old_eval = b'function _emscripten_run_script(ptr){eval(UTF8ToString(ptr))}'
 if source.count(old_eval) != 1:
     raise SystemExit("Unexpected LÖVE script callback")
-path.write_bytes(source.replace(old_eval,
-    b'function _emscripten_run_script(ptr){if(Module["onAbort"])Module["onAbort"]()}'))
+source = source.replace(old_eval,
+    b'function _emscripten_run_script(ptr){if(Module["onAbort"])Module["onAbort"]()}')
+# Keep host volume separate from the game's own OpenAL listener and sources.
+context = b'function _alcCreateContext('
+connect = b'gain.connect(ac.destination);var ctx='
+if source.count(context) != 1 or source.count(connect) != 1:
+    raise SystemExit("Unexpected LÖVE audio context")
+source = source.replace(context, b"""
+var zompadoVolume=1;
+Module["setZompadoVolume"]=function(level){
+  if (!Number.isFinite(level) || level<0 || level>1) return;
+  zompadoVolume=level;
+  Object.values(AL.contexts).forEach(function(ctx){ctx.zompadoOutput.gain.value=level;});
+};
+""" + context)
+source = source.replace(connect,
+  b'var zompadoOutput=ac.createGain();zompadoOutput.gain.value=zompadoVolume;'
+  b'gain.connect(zompadoOutput);zompadoOutput.connect(ac.destination);var ctx=')
+anchor = b'audioCtx:ac,listener:'
+if source.count(anchor) != 1:
+    raise SystemExit("Unexpected LÖVE audio context fields")
+path.write_bytes(source.replace(anchor,b'audioCtx:ac,zompadoOutput:zompadoOutput,listener:'))
 PY
 mkdir -p "$output/love"
 cp "$scratch/love.js" "$scratch/love.wasm" "$output/love/"

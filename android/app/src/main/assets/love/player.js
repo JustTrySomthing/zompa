@@ -4,6 +4,14 @@ const canvas = document.getElementById('canvas');
 const status = document.getElementById('status');
 let runtime;
 let pendingMatch;
+let audio = [100, 100, 100];
+
+function applyAudio() {
+  if (!runtime) return;
+  const [volume, music, effects] = audio;
+  runtime.ZompadoFS.writeFile('/zompado/audio', `${music}:${effects}`);
+  runtime.setZompadoVolume(volume / 100);
+}
 let saveMounted = false;
 let syncing = false;
 let started = false;
@@ -23,6 +31,11 @@ window.zompadoGame = Object.freeze({
   setMatch(state) {
     pendingMatch = state;
     if (runtime) runtime.ZompadoFS.writeFile('/zompado/match', state);
+  },
+  setAudio(settings) {
+    if (typeof settings !== 'string' || !/^(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])$/.test(settings)) return;
+    audio = settings.split(':').map(Number);
+    applyAudio();
   },
   takeMove() {
     if (!runtime) return null;
@@ -63,6 +76,7 @@ async function start() {
       if (pendingMatch !== undefined) fs.writeFile('/zompado/match', pendingMatch);
       saveMounted = mode !== 'online' && Boolean(fs.filesystems.IDBFS);
       runtime = module;
+      applyAudio();
     }],
     postRun: [() => { status.hidden = true; }],
   });

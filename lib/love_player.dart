@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'github_distribution.dart';
+import 'game_audio.dart';
 
 class LoveGameView extends StatefulWidget {
   LoveGameView.official({
@@ -34,11 +35,22 @@ class LoveGameView extends StatefulWidget {
 class _LoveGameViewState extends State<LoveGameView>
     with WidgetsBindingObserver {
   MethodChannel? _channel;
+  String _audio = '100:100:100';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final settings =
+        GameAudioScope.of(context)?.playerSettings ?? '100:100:100';
+    if (_audio == settings) return;
+    _audio = settings;
+    _send('audio', settings);
   }
 
   @override
@@ -83,7 +95,11 @@ class _LoveGameViewState extends State<LoveGameView>
     }
     return AndroidView(
       viewType: 'io.zompado.love',
-      creationParams: {...widget.reference, 'mode': widget.mode},
+      creationParams: {
+        ...widget.reference,
+        'mode': widget.mode,
+        'audio': _audio,
+      },
       creationParamsCodec: const StandardMessageCodec(),
       gestureRecognizers: {
         Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
@@ -98,6 +114,7 @@ class _LoveGameViewState extends State<LoveGameView>
           }
         });
         _syncMatch();
+        _send('audio', _audio);
         final lifecycle = WidgetsBinding.instance.lifecycleState;
         if (lifecycle != null) didChangeAppLifecycleState(lifecycle);
       },

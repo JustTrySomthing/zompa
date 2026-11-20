@@ -1,0 +1,102 @@
+import 'package:flutter/material.dart';
+
+class GameAudio extends ChangeNotifier {
+  GameAudio(Map<String, dynamic> data, this._write)
+    : _levels = [
+        _read(data, 'gameVolume'),
+        _read(data, 'gameMusic'),
+        _read(data, 'gameEffects', fallback: data['effects'] == false ? 0 : 1),
+      ];
+
+  static const _keys = ['gameVolume', 'gameMusic', 'gameEffects'];
+  final void Function(String, dynamic) _write;
+  final List<double> _levels;
+
+  static double _read(
+    Map<String, dynamic> data,
+    String key, {
+    double fallback = 1,
+  }) {
+    final value = data[key];
+    return value is num && value.isFinite
+        ? value.clamp(0, 1).toDouble()
+        : fallback;
+  }
+
+  double level(int index) => _levels[index];
+
+  String get playerSettings =>
+      _levels.map((level) => (level * 100).round()).join(':');
+
+  void setLevel(int index, double level) {
+    if (_levels[index] == level) return;
+    _levels[index] = level;
+    _write(_keys[index], level);
+    notifyListeners();
+  }
+}
+
+class GameAudioScope extends InheritedNotifier<GameAudio> {
+  const GameAudioScope({
+    super.key,
+    required GameAudio audio,
+    required super.child,
+  }) : super(notifier: audio);
+
+  static GameAudio? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<GameAudioScope>()?.notifier;
+}
+
+class GameAudioButton extends StatelessWidget {
+  const GameAudioButton({super.key});
+
+  static void show(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => const SafeArea(child: _GameAudioControls()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Game audio',
+    onPressed: () => show(context),
+    icon: const Icon(Icons.volume_up_outlined),
+  );
+}
+
+class _GameAudioControls extends StatelessWidget {
+  const _GameAudioControls();
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = GameAudioScope.of(context);
+    if (audio == null) return const SizedBox.shrink();
+    const labels = ['Game volume', 'Music', 'Sound effects'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Game audio', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          for (var index = 0; index < labels.length; index++) ...[
+            Text('${labels[index]} · ${(audio.level(index) * 100).round()}%'),
+            Slider(
+              value: audio.level(index),
+              divisions: 20,
+              semanticFormatterCallback: (level) =>
+                  '${labels[index]} ${(level * 100).round()}%',
+              onChanged: (level) => audio.setLevel(index, level),
+            ),
+          ],
+          const Text(
+            'Music and sound effects are separate in games that use the Zompado SDK.',
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -7,6 +7,7 @@ import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
 import 'love_player.dart';
+import 'game_audio.dart';
 
 class OnlineMatchPage extends StatefulWidget {
   const OnlineMatchPage({
@@ -205,6 +206,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         appBar: AppBar(
           title: const Text('Online Drop Four'),
           actions: [
+            const GameAudioButton(),
             IconButton(
               tooltip: _chatOpen
                   ? 'Close match chat'

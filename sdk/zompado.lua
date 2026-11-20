@@ -19,20 +19,41 @@ function sdk.save(slot, data)
 end
 
 function sdk.load(slot)
-    return love.filesystem.read(savePath(slot), 262144)
+    local path = savePath(slot)
+    if not love.filesystem.getInfo(path, "file") then return nil end
+    return love.filesystem.read(path, 262144)
 end
 
 function sdk.audio()
     local gains = {music = 1, effects = 1}
+    local hostGains = {music = 1, effects = 1}
+    local hostSettings, elapsed = nil, 0
     local sources = setmetatable({}, {__mode = "k"})
     local muted = false
     local mixer = {}
 
     local function apply(source, settings)
-        source:setVolume(muted and 0 or gains[settings.bus] * settings.volume)
+        source:setVolume(muted and 0 or gains[settings.bus] * hostGains[settings.bus] * settings.volume)
+    end
+
+    function mixer:update(dt)
+        elapsed = elapsed + dt
+        if elapsed < 0.2 then return end
+        elapsed = 0
+        local file = io.open("/zompado/audio", "r")
+        if not file then return end
+        local settings = file:read(8)
+        file:close()
+        if not settings or settings == hostSettings then return end
+        local music, effects = settings:match("^(%d%d?%d?):(%d%d?%d?)$")
+        if not music or tonumber(music) > 100 or tonumber(effects) > 100 then return end
+        hostSettings = settings
+        hostGains.music, hostGains.effects = tonumber(music) / 100, tonumber(effects) / 100
+        for source, sourceSettings in pairs(sources) do apply(source, sourceSettings) end
     end
 
     function mixer:register(source, bus)
+        self:update(0.2)
         assert(gains[bus] ~= nil, "Choose the music or effects bus.")
         assert(not sources[source], "This source is already registered.")
         sources[source] = {bus = bus, volume = source:getVolume()}

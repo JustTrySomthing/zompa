@@ -18,6 +18,7 @@ import 'your_turn.dart';
 import 'online_match.dart';
 import 'love_imports.dart';
 import 'love_player.dart';
+import 'game_audio.dart';
 import 'voice_calls.dart';
 
 const gold = Color(0xffffdc71);
@@ -56,6 +57,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   AppUpdates? updates;
   Chatmail? chatmail;
   VoiceCalls? _voice;
+  GameAudio? _gameAudio;
   int _openChats = 0;
   StreamSubscription<(int, int)>? _incoming;
   bool get _background =>
@@ -111,7 +113,10 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       updates!.syncSchedule();
       updates!.checkIfDue();
     }
-    setState(() => loaded = true);
+    setState(() {
+      _gameAudio = GameAudio(data, write);
+      loaded = true;
+    });
   }
 
   Future<void> _openChatsIfRequested() async {
@@ -170,6 +175,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     _incoming?.cancel();
     bridge.setMethodCallHandler(null);
     _voice?.dispose();
+    _gameAudio?.dispose();
     chatmail?.close();
     super.dispose();
   }
@@ -195,19 +201,25 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       theme: ZompadoBrand.theme(Brightness.light),
       darkTheme: ZompadoBrand.theme(Brightness.dark),
-      builder: (context, child) => BrandLaunch(
-        child: _voice == null
-            ? child!
-            : VoiceScope(
-                calls: _voice!,
-                child: Column(
-                  children: [
-                    const VoiceBar(),
-                    Expanded(child: child!),
-                  ],
+      builder: (context, child) {
+        final launch = BrandLaunch(
+          child: _voice == null
+              ? child!
+              : VoiceScope(
+                  calls: _voice!,
+                  child: Column(
+                    children: [
+                      const VoiceBar(),
+                      Expanded(child: child!),
+                    ],
+                  ),
                 ),
-              ),
-      ),
+        );
+        final audio = _gameAudio;
+        return audio == null
+            ? launch
+            : GameAudioScope(audio: audio, child: launch);
+      },
       themeMode: mode,
       home: !loaded
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
@@ -357,8 +369,9 @@ class _HomeState extends State<Home> {
 
   void _gameNotice(String message) {
     if (mounted)
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<String?> _installedGameLink([GameRelease? game]) async {
@@ -505,9 +518,9 @@ class _HomeState extends State<Home> {
     }
     openingGameLink = true;
     try {
-      final game = (await distribution.catalog(includeArchive: true))
-          .where(link.matches)
-          .firstOrNull;
+      final game = (await distribution.catalog(
+        includeArchive: true,
+      )).where(link.matches).firstOrNull;
       if (!mounted) return;
       if (game == null) {
         _gameNotice('This exact game version isn’t available in Get Games.');
@@ -581,7 +594,10 @@ class _HomeState extends State<Home> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => Scaffold(
-          appBar: AppBar(title: Text(game.title)),
+          appBar: AppBar(
+            title: Text(game.title),
+            actions: const [GameAudioButton()],
+          ),
           body: SafeArea(
             child: LoveGameView.official(game: game, mode: mode),
           ),
@@ -739,8 +755,9 @@ class _HomeState extends State<Home> {
             Expanded(
               child: Text(
                 catalog ? 'Official game catalog' : 'Your library',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             if (catalog)
@@ -1072,8 +1089,9 @@ class _PreferencesState extends State<Preferences> {
             'Find answers about games, friends, and updates',
           ),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(context)
-              .push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
         ),
         ListTile(
           leading: const Icon(Icons.palette_outlined),
@@ -1094,6 +1112,12 @@ class _PreferencesState extends State<Preferences> {
               }
             },
           ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.volume_up_outlined),
+          title: const Text('Game audio'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => GameAudioButton.show(context),
         ),
         if (widget.updates case final updates?)
           ListenableBuilder(

@@ -16,6 +16,19 @@ Official packages use a ZIP archive with a root `zompado.json` and `main.lua`. U
 |---|---|
 | `zompado.save(slot, bytes)` | Write an opaque string of up to 256 KiB. Returns success and, on failure, an error. |
 | `zompado.load(slot)` | Read the save string from the game's LÖVE save directory. Keep formats versioned and tolerate a missing save. |
-| `zompado.audio()` | Create a mixer for one game. Register sources on the `music` or `effects` bus, then call `setGain` or `setMuted` to control registered sources. |
+| `zompado.audio()` | Create a mixer for one game. Register sources on the `music` or `effects` bus, then call `mixer:update(dt)` from `love.update(dt)` to apply Zompado settings. `setGain` and `setMuted` apply game-level controls on top of the host settings. |
 
-The built-in isolated player will own the storage and permissions boundary. The sample runs in an installed desktop LÖVE runtime for development. Android can validate and save manually selected `.love` archives while built-in playback is being implemented. Host-controlled audio, scoped saves, and a general turn API still require player integration.
+Host music and effect gains multiply each source’s volume and any game-level adjustments. The host master volume applies to game audio after mixing, including games with no SDK integration. The game can run with desktop LÖVE and defaults to its own mix there.
+
+```lua
+local mixer = require("zompado").audio()
+
+function love.load()
+    theme = mixer:register(love.audio.newSource("music.ogg", "stream"), "music")
+    drop = mixer:register(love.audio.newSource("drop.wav", "static"), "effects")
+end
+
+function love.update(dt)
+    mixer:update(dt)
+end
+```

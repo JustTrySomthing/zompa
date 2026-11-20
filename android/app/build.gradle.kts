@@ -8,6 +8,9 @@ val chatmailNativeLibraries = layout.buildDirectory.dir("chatmail/jniLibs")
 val chatmailInstaller = rootProject.file("../tools/install_chatmail_core.sh")
 val chatmailExecutable = chatmailNativeLibraries.map { it.file("arm64-v8a/libchatmail_rpc.so") }
 
+// Test-only x86_64 build for running the app's player on the CI emulator.
+val emulatorSmoke = providers.gradleProperty("zompadoEmulatorSmoke").orNull == "true"
+
 val androidSdkLocation = androidComponents.sdkComponents.sdkDirectory
 val installChatmailCore by tasks.registering(Exec::class) {
     environment("ANDROID_SDK_ROOT", androidSdkLocation.get().asFile.absolutePath)
@@ -23,7 +26,8 @@ val installLoveRuntime by tasks.registering(Exec::class) {
     commandLine("bash", loveInstaller.absolutePath, loveAssets.get().asFile.absolutePath)
 }
 tasks.named("preBuild") {
-    dependsOn(installChatmailCore, installLoveRuntime)
+    if (!emulatorSmoke) dependsOn(installChatmailCore)
+    dependsOn(installLoveRuntime)
 }
 
 android {
@@ -37,7 +41,7 @@ android {
         jniLibs.keepDebugSymbols.add("**/libchatmail_rpc.so")
     }
 
-    sourceSets["main"].jniLibs.srcDir(chatmailNativeLibraries.get().asFile)
+    if (!emulatorSmoke) sourceSets["main"].jniLibs.srcDir(chatmailNativeLibraries.get().asFile)
     sourceSets["main"].assets.srcDir(loveAssets.get().asFile)
 
     compileOptions {
@@ -51,7 +55,7 @@ android {
         // Chatmail ships for ARM64. Match that ABI when packaging WebRTC.
         ndk {
             abiFilters.clear()
-            abiFilters.add("arm64-v8a")
+            abiFilters.add(if (emulatorSmoke) "x86_64" else "arm64-v8a")
         }
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -94,4 +98,10 @@ dependencies {
     implementation("androidx.core:core:1.13.1")
     implementation("io.github.webrtc-sdk:android:150.7871.01")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+}
+
+if (emulatorSmoke) {
+    androidComponents.beforeVariants(androidComponents.selector().withBuildType("release")) {
+        it.enable = false
+    }
 }

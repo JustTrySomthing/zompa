@@ -10,6 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
+from urllib.parse import urlencode
 
 RELAY = "DCACCOUNT:https://nine.testrun.org/new"
 
@@ -120,8 +121,13 @@ def main():
         def turn(kind, **fields):
             return marker + json.dumps({"id": match_id, "type": kind, **fields}, separators=(",", ":"))
 
-        invite = turn("invite", game="https://justtrysomthing.github.io/zompado/game/"
-                      "?id=drop-four&build=2&sha=8cf42ab96bec8bf1075e9e744a2dfb475f9147edbd51fd54c7b0b220727186a3")
+        game = {"id": "drop-four", "build": 2,
+                "sha256": "8cf42ab96bec8bf1075e9e744a2dfb475f9147edbd51fd54c7b0b220727186a3"}
+        if len(sys.argv) > 2:
+            catalog = json.loads(Path(sys.argv[2]).read_text())
+            game = next(entry for entry in catalog["games"] if entry["id"] == "drop-four")
+        query = urlencode({"id": game["id"], "build": game["build"], "sha": game["sha256"]})
+        invite = turn("invite", game=f"https://justtrysomthing.github.io/zompado/game/?{query}")
         accept = turn("accept")
         move = turn("move", previous="", column=3)
         reply = turn("move", previous="3", column=4)
@@ -139,7 +145,7 @@ def main():
             records = {m.get("text") for m in messages.values()}
             if not {invite, accept, move, reply}.issubset(records):
                 raise RuntimeError("Match history is incomplete")
-        print("Both profiles exchanged match invites and turns and recovered the full history.", flush=True)
+        print(f"Both profiles recovered each other's moves for Drop Four build {game['build']}.", flush=True)
 
         def voice_message(core, chat):
             ids = core.rpc("get_message_ids", core.account, chat, False, False)

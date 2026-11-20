@@ -50,6 +50,7 @@ final class LovePlayer implements PlatformView {
     private boolean paused;
     private boolean online;
     private String match;
+    private String audio = "100:100:100";
     private final Runnable moves = new Runnable() {
         @Override public void run() {
             var view = web;
@@ -84,6 +85,7 @@ final class LovePlayer implements PlatformView {
         String mode = "online".equals(args.get("mode")) ? "online"
             : "local".equals(args.get("mode")) ? "local" : "solo";
         online = mode.equals("online");
+        if (args.get("audio") instanceof String) setAudio((String) args.get("audio"));
         channel.setMethodCallHandler((call, result) -> {
             switch (call.method) {
                 case "match":
@@ -92,6 +94,10 @@ final class LovePlayer implements PlatformView {
                         match = state;
                         sendMatch();
                     }
+                    result.success(null);
+                    break;
+                case "audio":
+                    setAudio(call.arguments());
                     result.success(null);
                     break;
                 case "pause":
@@ -257,6 +263,7 @@ final class LovePlayer implements PlatformView {
                 }
                 sendMatch();
                 allowPackage = true;
+                sendAudio();
                 view.evaluateJavascript("window.zompadoGame?.start()", null);
             }
 
@@ -297,6 +304,18 @@ final class LovePlayer implements PlatformView {
     private static WebResourceResponse denied() {
         return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden",
             Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
+    }
+
+    private void setAudio(String settings) {
+        if (settings == null || !settings.matches("(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])")) return;
+        audio = settings;
+        sendAudio();
+    }
+
+    private void sendAudio() {
+        if (web != null) {
+            web.evaluateJavascript("window.zompadoGame?.setAudio(" + JSONObject.quote(audio) + ")", null);
+        }
     }
 
     private void sendMatch() {
