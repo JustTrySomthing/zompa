@@ -782,6 +782,36 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
+  Future<void> _sendGame() async {
+    setState(() => _pickingGame = true);
+    try {
+      final link = await widget.pickGameLink!();
+      if (!mounted || link == null) return;
+      final send = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Share Cats vs Dogs?'),
+          content: const Text(
+            'Your friend will get a game card they can open to install or play Cats vs Dogs.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Send game'),
+            ),
+          ],
+        ),
+      );
+      if (mounted && send == true) await _send(gameLink: link);
+    } finally {
+      if (mounted) setState(() => _pickingGame = false);
+    }
+  }
+
   Future<void> _inviteMatch() async {
     if (_pickingGame || _sending || _thread?.canSend != true) return;
     setState(() => _pickingGame = true);
@@ -973,8 +1003,8 @@ class _FriendConversationState extends State<FriendConversation>
                                   if (invitation != null) ...[
                                     Text(
                                       message.outgoing
-                                          ? 'You invited ${thread?.name ?? widget.initialName} to play Cats vs Dogs.'
-                                          : '${thread?.name ?? widget.initialName} invited you to play Cats vs Dogs.',
+                                          ? 'You invited ${thread.name} to play Cats vs Dogs.'
+                                          : '${thread.name} invited you to play Cats vs Dogs.',
                                     ),
                                     if (!message.outgoing &&
                                         !invitation.accepted &&

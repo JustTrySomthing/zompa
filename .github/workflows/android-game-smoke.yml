@@ -7,6 +7,8 @@ on:
     paths:
       - ".github/workflows/android-game-smoke.yml"
       - "tools/check_android_game_flow.py"
+      - "android/app/src/main/assets/love/player.js"
+      - "lib/game_play_page.dart"
 
 permissions:
   contents: read

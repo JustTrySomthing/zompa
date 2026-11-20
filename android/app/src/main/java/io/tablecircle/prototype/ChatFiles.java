@@ -50,8 +50,8 @@ final class ChatFiles {
                 Uri output = uri(capture);
                 intent = new Intent(video ? MediaStore.ACTION_VIDEO_CAPTURE : MediaStore.ACTION_IMAGE_CAPTURE)
                     .putExtra(MediaStore.EXTRA_OUTPUT, output)
-                    .setClipData(ClipData.newRawUri("Capture destination", output))
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                intent.setClipData(ClipData.newRawUri("Capture destination", output));
             } else if ("capture-audio".equals(type)) {
                 intent = new Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION);
             } else {
