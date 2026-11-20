@@ -200,6 +200,9 @@ def check_match(alice, bob):
     bob.turn()
     bob.see("Your friend’s turn")
     alice.see("Your turn", 100)
+    bob.press("Quit")
+    bob.press("Quit match")
+    alice.see("Match ended.", 100)
     print("PASS: the online board opened on both phones after acceptance. The inviter took the first turn and the friend replied.", flush=True)
     print("PASS: an Android background job recovered a move, its alert opened the exact board, and the reply returned.", flush=True)
 

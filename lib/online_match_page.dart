@@ -366,6 +366,18 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                         .textTheme
                                         .titleMedium,
                                   ),
+                                  if (_game!.build >= 6)
+                                    Text(
+                                      match.mine
+                                          ? 'You play as Cats'
+                                          : 'You play as Dogs',
+                                    )
+                                  else
+                                    Text(
+                                      match.mine
+                                          ? 'Your pieces are gold'
+                                          : 'Your pieces are purple',
+                                    ),
                                   Expanded(
                                     child: Center(
                                       child: ConstrainedBox(

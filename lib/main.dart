@@ -843,7 +843,7 @@ class _HomeState extends State<Home> {
             ),
           if (isGames)
             IconButton(
-              tooltip: 'Import a .love game',
+              tooltip: 'Import a Game',
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
                   builder: (_) => LoveImports(

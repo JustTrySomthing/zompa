@@ -272,11 +272,11 @@ const _topics = [
       ),
       (
         'How do I share or open a game?',
-        'Tap Share game on Cats vs Dogs in My Games, or tap the game icon in a friend chat. Open a game card from the chat, or paste a shared link under Games → Open game link. Zompado checks the exact version before offering to install it.',
+        'Tap Share game on Cats vs Dogs in My Games. Open a game card from the chat, or paste a shared link under Games → Open game link. Zompado checks the exact version before offering to install it.',
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'Install Cats vs Dogs, open a friend chat, and tap Invite to a Cats vs Dogs match. Your friend opens the card and taps Accept and open match. Zompado gets the right game version if needed. The inviter plays Cats and goes first in current versions. Open Online matches in My Games or the Play menu to see whose turn it is and resume.',
+        'Install Cats vs Dogs and tap the gamepad in a friend chat. Your friend taps Accept on the invite. Zompado downloads the game if needed and shows Play Now to both players. The inviter plays Cats and goes first. Find ongoing games in My Games → Online matches.',
       ),
       (
         'How do I change game sounds?',
@@ -287,12 +287,16 @@ const _topics = [
         'Open My Games, tap the menu on the game, then tap Remove. This removes its download and keeps its save files.',
       ),
       (
-        'Can I import my own .love game?',
-        'Open Games → Import a .love game, choose the file, then tap Play next to its name. Zompado runs compatible LÖVE 11.5 games. A game that needs a native extension or online access may not run. Official catalog games use .zomp.',
+        'Can I import a game file?',
+        'Open Games → Import a Game and choose a .zomp or .love file. Then tap Play next to its name. Zompado runs compatible LÖVE 11.5 games. A game that needs a native extension or online access may not run. Official catalog games use .zomp.',
       ),
       (
         'Can I play with someone next to me?',
-        'In Cats vs Dogs, choose Pass and play to take turns on one phone. Choose Play solo to play against the computer.',
+        'Choose Pass & Play to take turns on one device. Choose Single Player to play against the computer.',
+      ),
+      (
+        'How do I pause or leave a game?',
+        'Use Pause, Resume, or Quit from the game screen. In an online match, a pause applies to both players, and the player who paused can resume. Quit ends the match for both players.',
       ),
     ],
   ),
@@ -303,7 +307,15 @@ const _topics = [
     answers: [
       (
         'How do I connect with a friend?',
-        'Open Chats and create a profile. Tap Invite friend to copy or share your invite link. On the other phone, open Chats → Accept invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
+        'Open Chats and create a profile. In Contacts, tap Add contact to share your invite link or accept one. On the other phone, open Chats → Accept invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
+      ),
+      (
+        'How do I manage contacts?',
+        'Open Chats → Contacts. Search by name or address. Use the menu beside a contact to block or delete them. Open Blocked to unblock someone.',
+      ),
+      (
+        'How do I edit my profile?',
+        'Open Settings → My profile to change your name, photo, or optional bio.',
       ),
       (
         'How do I call a friend?',

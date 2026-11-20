@@ -4,13 +4,15 @@ const canvas = document.getElementById('canvas');
 const status = document.getElementById('status');
 let runtime;
 let pendingMatch;
+let isPaused = false;
+let gameRunning = false;
 let audio = [100, 100, 100];
 
 function applyAudio() {
   if (!runtime) return;
   const [volume, music, effects] = audio;
   runtime.ZompadoFS.writeFile('/zompado/audio', `${music}:${effects}`);
-  runtime.setZompadoVolume(volume / 100);
+  runtime.setZompadoVolume(isPaused ? 0 : volume / 100);
 }
 let saveMounted = false;
 let syncing = false;
@@ -35,6 +37,16 @@ window.zompadoGame = Object.freeze({
   setAudio(settings) {
     if (typeof settings !== 'string' || !/^(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])$/.test(settings)) return;
     audio = settings.split(':').map(Number);
+    applyAudio();
+  },
+  setPaused(paused) {
+    if (isPaused === paused) return;
+    isPaused = paused;
+    if (paused) flushSaves();
+    if (gameRunning) {
+      if (paused) runtime.pauseMainLoop();
+      else runtime.resumeMainLoop();
+    }
     applyAudio();
   },
   takeMove() {
@@ -78,7 +90,11 @@ async function start() {
       runtime = module;
       applyAudio();
     }],
-    postRun: [() => { status.hidden = true; }],
+    postRun: [() => {
+      gameRunning = true;
+      if (isPaused) runtime.pauseMainLoop();
+      status.hidden = true;
+    }],
   });
 }
 

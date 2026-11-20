@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.Map;
 
 final class ChatFiles {
@@ -89,7 +90,7 @@ final class ChatFiles {
             try {
                 Map<String, String> file;
                 if (output != null && output.length() > 0) {
-                    file = Map.of("path", output.getAbsolutePath(), "name", outputName);
+                    file = reference(output, outputName);
                 } else {
                     if (output != null) output.delete();
                     file = copyDocument(data == null ? null : data.getData());
@@ -121,18 +122,25 @@ final class ChatFiles {
             file.delete();
             throw failure;
         }
-        return Map.of("path", file.getAbsolutePath(), "name", name);
+        return reference(file, name);
+    }
+
+    private static Map<String, String> reference(File file, String name) {
+        Map<String, String> values = new HashMap<>();
+        values.put("path", file.getAbsolutePath());
+        values.put("name", name);
+        return values;
     }
 
     void card(String vcard, MethodChannel.Result result) {
-        if (vcard == null || vcard.isBlank()) {
+        if (vcard == null || vcard.trim().isEmpty()) {
             result.error("ATTACHMENT", "The contact card is empty.", null);
             return;
         }
         try {
             File file = File.createTempFile("contact-", ".vcf", directory());
             Files.write(file.toPath(), vcard.getBytes(StandardCharsets.UTF_8));
-            result.success(Map.of("path", file.getAbsolutePath(), "name", "Contact card.vcf"));
+            result.success(reference(file, "Contact card.vcf"));
         } catch (IOException failure) {
             result.error("ATTACHMENT", "Couldn’t create a contact card.", null);
         }

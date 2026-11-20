@@ -103,12 +103,9 @@ final class LovePlayer implements PlatformView {
                 case "pause":
                     paused = Boolean.TRUE.equals(call.arguments);
                     if (web != null) {
-                        if (paused) {
-                            web.evaluateJavascript("window.zompadoGame?.flushSaves()", null);
-                            web.onPause();
-                        } else {
-                            web.onResume();
-                        }
+                        if (!paused) web.onResume();
+                        sendPause();
+                        if (paused) web.onPause();
                     }
                     updatePolling();
                     result.success(null);
@@ -264,6 +261,7 @@ final class LovePlayer implements PlatformView {
                 sendMatch();
                 allowPackage = true;
                 sendAudio();
+                sendPause();
                 view.evaluateJavascript("window.zompadoGame?.start()", null);
             }
 
@@ -310,6 +308,12 @@ final class LovePlayer implements PlatformView {
         if (settings == null || !settings.matches("(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])")) return;
         audio = settings;
         sendAudio();
+    }
+
+    private void sendPause() {
+        if (web != null) {
+            web.evaluateJavascript("window.zompadoGame?.setPaused(" + paused + ")", null);
+        }
     }
 
     private void sendAudio() {

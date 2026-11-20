@@ -1,5 +1,5 @@
 {
   "version": "0.5.14",
-  "build": 21,
-  "purpose": "Verify match invitation, download and pause flows, Android chat controls, contacts, profiles, and audio-first call setup."
+  "build": 22,
+  "purpose": "Verify the complete invitation and readiness flow, with pause synchronized to the embedded LÖVE runtime."
 }

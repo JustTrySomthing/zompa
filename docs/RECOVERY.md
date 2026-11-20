@@ -16,9 +16,10 @@ Both repositories use `main`. Check the latest published APK and the current `up
 | App updater feed, native Android bridge, and download validation | [update.json](../update.json), [Android sources](../android/app/src/main/java/io/tablecircle/prototype), [install controller](../lib/app_updates.dart), [GitHub distribution code](../lib/github_distribution.dart) |
 | Official .zomp catalog, versioned LÖVE sources, and release assets | [zompado-games](https://github.com/JustTrySomthing/zompado-games) |
 | Voice calls and scheduled Android chat alerts | [Call state and UI](../lib/voice_calls.dart), [Android WebRTC bridge](../android/app/src/main/java/io/tablecircle/prototype/VoicePeer.java), [Chat sync job](../android/app/src/main/java/io/tablecircle/prototype/ChatSyncJob.java), [relay verification workflow](../.github/workflows/verify-chatmail-relay.yml) |
-| Manual `.love` staging and Lua template | [Android archive validation](../android/app/src/main/java/io/tablecircle/prototype/LoveImport.java), [Lua SDK](../sdk/README.md) |
+| Manual `.zomp` and `.love` imports and Lua template | [Android archive validation](../android/app/src/main/java/io/tablecircle/prototype/LoveImport.java), [Lua SDK](../sdk/README.md) |
 | Embedded LÖVE and online match validation | [Runtime pin and hashes](../tools/install_love_runtime.sh), [Android player](../android/app/src/main/java/io/tablecircle/prototype/LovePlayer.java), [Flutter view](../lib/love_player.dart), [match validation](../lib/online_match.dart) |
 | Game audio and Android test workflow | [Flutter settings](../lib/game_audio.dart), [Lua mixer](../sdk/zompado.lua), [Android emulator workflow](../.github/workflows/android-game-smoke.yml) |
+| Contacts, self profile, and chat composer | [Contact list](../lib/contacts_page.dart), [Chatmail profile editor](../lib/profile_page.dart), [composer and invites](../lib/friends.dart) |
 | Two-device Android verification | [Emulator workflow](../.github/workflows/android-friends-smoke.yml), [verification script](../tools/check_android_friends.py) |
 | Implemented features and next milestones | [README](../README.md), [build plan](BUILD-PLAN.md) |
 | Public download page | [GitHub Pages source](index.html), published from `main:/docs` |
@@ -28,7 +29,7 @@ The Android app ships the LÖVE 11.5 compatibility WebAssembly runtime inside th
 
 Cats vs Dogs retains the `drop-four` game ID for saves and older match links. Starting with game build 8, the catalog title and .zomp filename use Cats vs Dogs. The catalog card uses the original OnKlav faceoff illustration bundled in `assets/games/cats-vs-dogs.webp`.
 
-The match invitation opens an online waiting screen for the sender. Acceptance prepares the exact game before sending the acceptance. The online match list is available from My Games and the Play menu, including while the friend has the next turn.
+The match invitation opens a waiting screen for the sender. The recipient’s Accept action sends a preparation status, gets the required game from the catalog if needed, then signals readiness. Both players can select Play Now. Pause and resume are tracked per player. Quit ends the match for both. The online match list is available from My Games and the Play menu.
 
 The [signed 0.5.13 calling preview, build 20](https://github.com/JustTrySomthing/zompado/actions/runs/44734662303/artifacts/14628706186) uses Chatmail Core signaling, Relay Lab’s UDP/TCP fallback for Chatmail TURN URLs, and the negotiated Delta Chat ICE and mute-state channels. See the [two-Zompado test](../.github/workflows/android-friends-smoke.yml) and [stock Delta Chat test](../.github/workflows/android-delta-chat-smoke.yml) for device coverage. The camera starts on user action and stops when the activity leaves the foreground. The [build 20 Android test](https://github.com/JustTrySomthing/zompado/actions/runs/44734662285) verified answering with the chat composer focused, video frames, controls, hangup, and the online game flow.
 
