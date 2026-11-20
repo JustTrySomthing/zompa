@@ -50,7 +50,7 @@ jobs:
           adb="$ANDROID_HOME/platform-tools/adb"
           for port in 5554 5556; do
             echo no | "$avdmanager" create avd --name "zompado$port" --package 'system-images;android-35;google_apis;x86_64'
-            "$ANDROID_HOME/emulator/emulator" -avd "zompado$port" -port "$port" -cores 2 -memory 1536 \
+            "$ANDROID_HOME/emulator/emulator" -avd "zompado$port" -port "$port" -cores 2 -memory 2048 \
               -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect \
               -camera-front none -camera-back none > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
           done
@@ -62,7 +62,11 @@ jobs:
             timeout 240 bash -c 'until [[ $("$1" -s "$2" shell getprop sys.boot_completed | tr -d "\r") == 1 ]]; do sleep 2; done' _ "$adb" "$serial"
             "$adb" -s "$serial" shell wm size 720x1280
             "$adb" -s "$serial" shell wm density 240
-            "$adb" -s "$serial" shell input keyevent 82
+            "$adb" -s "$serial" shell input keyevent KEYCODE_WAKEUP
+            "$adb" -s "$serial" shell wm dismiss-keyguard
+            "$adb" -s "$serial" shell settings put global window_animation_scale 0
+            "$adb" -s "$serial" shell settings put global transition_animation_scale 0
+            "$adb" -s "$serial" shell settings put global animator_duration_scale 0
             "$adb" -s "$serial" install build/app/outputs/flutter-apk/app-debug.apk
           done
           "$RUNNER_TEMP/friends-check/bin/python" tools/check_android_friends.py "$adb"

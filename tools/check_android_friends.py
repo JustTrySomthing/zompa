@@ -52,7 +52,7 @@ class Phone:
             editable = []
             for node in ET.fromstring(layout).iter("node"):
                 x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
-                if x2 <= x1 or y2 <= y1 or node.get("enabled") == "false":
+                if x2 <= x1 or y2 <= y1:
                     continue
                 center = ((x1 + x2) // 2, (y1 + y2) // 2)
                 if label in (node.get("text", "") + "\n" + node.get("content-desc", "")).splitlines():
@@ -79,7 +79,9 @@ class Phone:
         self.shell("input", "keyevent", 4)
 
     def start(self):
-        self.shell("am", "start", "-n", ACTIVITY)
+        result = self.shell("am", "start", "-W", "-n", ACTIVITY).decode()
+        if "Error" in result or "Exception" in result:
+            raise RuntimeError(f"{self.name}: could not launch Zompado: {result}")
 
     def install_game(self):
         self.press("Get Games")
@@ -91,7 +93,7 @@ class Phone:
         self.shell("pm", "grant", APP, "android.permission.POST_NOTIFICATIONS")
         self.shell("pm", "grant", APP, "android.permission.RECORD_AUDIO")
         self.start()
-        self.see("Setup")
+        self.see("Welcome to Zompado", 85)
         if not self.find("Finish setup"):
             self.shell("input", "swipe", 350, 1100, 350, 370, 400)
         self.press("Finish setup")
@@ -199,4 +201,18 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (RuntimeError, subprocess.SubprocessError):
+        for port in (5554, 5556):
+            phone = Phone(port, f"emulator-{port}")
+            try:
+                print(f"{phone.name} focus:", flush=True)
+                print(phone.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true").decode())
+                print(phone.adb("logcat", "-b", "crash", "-d", "-t", "120").decode())
+                layout = phone.shell("cat", "/sdcard/zompado-friends.xml")
+                labels = [node.get("content-desc") or node.get("text") for node in ET.fromstring(layout).iter("node")]
+                print("Visible labels:", [label for label in labels if label and len(label) <= 52])
+            except (RuntimeError, subprocess.SubprocessError, ET.ParseError):
+                pass
+        raise
