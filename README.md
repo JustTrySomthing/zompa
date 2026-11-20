@@ -1,6 +1,6 @@
 # Zompado for Android
 
-**[Download the latest Android APK](https://github.com/JustTrySomthing/zompado/releases/latest)**
+**[Download the latest Android APK](https://github.com/JustTrySomthing/zompado/releases/latest/download/Zompado-ARM64.apk)**
 
 Play, share and chat with friends.<br>
 Discover fun and unique games,<br>
