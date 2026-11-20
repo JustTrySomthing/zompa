@@ -72,5 +72,64 @@ void main() {
     resumed.started && resumed.moves == '3' && resumed.myTurn,
     'An older match with no start message replays its first move',
   );
-  print('PASS: match readiness, start delivery, retry, and legacy replay.');
+  final quit = invite.control('quit', 2);
+  final queuedQuit = replay([
+    message(start, outgoing: true),
+    message(quit, outgoing: true, state: 20),
+  ]);
+  check(
+    !queuedQuit.finished && queuedQuit.pending?.state == 20,
+    'A queued quit keeps the match available until delivery',
+  );
+  final failedQuit = replay([
+    message(start, outgoing: true),
+    message(quit, outgoing: true, state: 24),
+  ]);
+  check(
+    !failedQuit.finished && failedQuit.pending?.text == quit.wire,
+    'A failed quit remains available to retry',
+  );
+  final retriedQuit = replay([
+    message(start, outgoing: true),
+    message(quit, outgoing: true, state: 24),
+    message(quit, outgoing: true),
+  ]);
+  check(
+    retriedQuit.finished && retriedQuit.pending == null,
+    'A delivered retry ends the match',
+  );
+  final remoteQuit = replay([
+    message(start, outgoing: true),
+    message(quit, outgoing: true, state: 20),
+    message(invite.control('quit', 1), outgoing: false),
+  ]);
+  check(
+    remoteQuit.finished && remoteQuit.status == 'Match ended.',
+    'A confirmed remote quit overrides a queued local quit',
+  );
+  const winningMoves = '0101010';
+  final pendingWin = [
+    for (var i = 0; i < winningMoves.length; i++)
+      message(
+        invite.move(winningMoves.substring(0, i), int.parse(winningMoves[i])),
+        outgoing: i.isEven,
+        state: i == winningMoves.length - 1 ? 24 : null,
+      ),
+  ];
+  final failedWin = replay(pendingWin);
+  check(
+    failedWin.finished && failedWin.active && failedWin.pending?.state == 24,
+    'A failed winning move keeps the match available to reopen and retry',
+  );
+  final deliveredWin = replay([
+    ...pendingWin,
+    message(invite.move('010101', 0), outgoing: true),
+  ]);
+  check(
+    deliveredWin.finished && !deliveredWin.active,
+    'A delivered winning move leaves the active match list',
+  );
+  print(
+    'PASS: match readiness, start and quit delivery, retry, and legacy replay.',
+  );
 }

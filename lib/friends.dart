@@ -1353,7 +1353,7 @@ class _FriendConversationState extends State<FriendConversation>
                                                 ),
                                               ],
                                             )
-                                          else if (!invitation.finished)
+                                          else if (invitation.active)
                                             TextButton(
                                               onPressed: () => _openMatch(
                                                 invitation.invite.id,

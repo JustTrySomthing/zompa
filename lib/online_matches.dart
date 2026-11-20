@@ -86,7 +86,7 @@ class _OnlineMatchesState extends State<OnlineMatches>
       final active = [
         for (final entry in histories.entries)
           if (OnlineMatch.replay(entry.key.$2, entry.value) case final match?
-              when !match.finished)
+              when match.active)
             (chat: chats[entry.key.$1]!, match: match),
       ];
       if (mounted) {

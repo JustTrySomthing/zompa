@@ -120,6 +120,7 @@ class OnlineMatch {
   FriendMessage? pending;
 
   bool get finished => declined || quit || board.winner != 0 || board.full;
+  bool get active => !finished || (pending != null && !declined && !quit);
   bool get myTurn =>
       accepted &&
       started &&
@@ -238,6 +239,7 @@ class OnlineMatch {
       final event = record.event;
       if (event.revision == null || record.message.state == 24) continue;
       final own = record.message.outgoing;
+      if (own && event.kind == 'quit' && record.message.state == 20) continue;
       final previous = own ? match.localControl : match.remoteControl;
       if (previous?.kind == 'quit' ||
           (event.kind != 'quit' &&
@@ -248,6 +250,16 @@ class OnlineMatch {
       } else {
         match.remoteControl = event;
       }
+    }
+    if (match.quit) {
+      match.pending = null;
+    } else if (!match.finished) {
+      final pendingQuits = [
+        for (final record in events)
+          if (record.event.kind == 'quit' && record.message.outgoing)
+            record.message,
+      ];
+      if (pendingQuits.isNotEmpty) match.pending = pendingFor(pendingQuits);
     }
     return match;
   }

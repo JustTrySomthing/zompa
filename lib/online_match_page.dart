@@ -247,7 +247,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               ? 'The match invitation is unavailable.'
               : null;
         });
-        if (match != null && !match.finished) {
+        if (match != null && match.active) {
           if (widget.acceptOnOpen &&
               !_acceptedFromChat &&
               !match.mine &&
@@ -333,7 +333,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     );
     if (!mounted || confirmed != true || _match?.finished != false) return;
     await _send(match.invite.control('quit', match.nextRevision).wire);
-    if (mounted && _match?.quit == true) Navigator.pop(context);
+    if (mounted &&
+        _match?.quit == true &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _send(String message) async {
@@ -483,6 +487,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   @override
   Widget build(BuildContext context) {
     final match = _match;
+    final pendingQuit =
+        MatchEvent.parse(match?.pending?.text ?? '')?.kind == 'quit';
     return PopScope(
       canPop: !_chatOpen,
       onPopInvokedWithResult: (didPop, _) {
@@ -502,11 +508,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                 paused: match!.pausedByMe,
                 onPause:
                     _sending ||
+                        pendingQuit ||
                         match.finished ||
                         (match.pausedByFriend && !match.pausedByMe)
                     ? null
                     : () => _togglePause(match),
-                onQuit: _sending
+                onQuit: _sending || pendingQuit
                     ? null
                     : match.finished
                     ? () => Navigator.of(context).pop()
@@ -588,6 +595,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                 ],
                               ),
                               if (match.paused ||
+                                  pendingQuit ||
                                   _error != null ||
                                   (match.pending?.state == 24 && !_sending))
                                 Center(
@@ -599,7 +607,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                         children: [
                                           Text(
                                             _error ??
-                                                (match.pausedByMe
+                                                (pendingQuit
+                                                    ? match.status
+                                                    : match.pausedByMe
                                                     ? 'You paused the game.'
                                                     : match.pausedByFriend
                                                     ? '${widget.friendName ?? 'Your friend'} paused the game.'
@@ -651,7 +661,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               .titleLarge,
                                         ),
                                         if (match != null &&
-                                            !match.finished &&
+                                            match.active &&
                                             !match.conflict) ...[
                                           const SizedBox(height: 12),
                                           if (match.accepted &&
