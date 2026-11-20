@@ -28,6 +28,8 @@ The Android app ships the LÖVE 11.5 compatibility WebAssembly runtime inside th
 
 Cats vs Dogs retains the `drop-four` game ID for saves and older match links. Starting with game build 8, the catalog title and .zomp filename use Cats vs Dogs. The catalog card uses the original OnKlav faceoff illustration bundled in `assets/games/cats-vs-dogs.webp`.
 
+The match invitation opens an online waiting screen for the sender. Acceptance prepares the exact game before sending the acceptance. The online match list is available from My Games and the Play menu, including while the friend has the next turn.
+
 The Android friend invite scanner uses the bundled ZXing decoder and the Android Camera permission. Setup offers this permission, and the scanner also requests access when first used. Paste remains available on devices without a camera.
 
 For instant Android wakeups, Zompado needs an authorized push registration for `io.tablecircle.prototype` and a compatible Chatmail notifier that can send to that registration. The pinned Core has a push token API in its native interface; Zompado's JSON-RPC bridge would need to expose it. Keep provider credentials with the notifier. Current builds use Android's scheduled fetch. [Chatmail push behavior](https://delta.chat/en/help#instant-message-delivery-and-push-notifications).
@@ -54,11 +56,11 @@ Flutter creates `android/local.properties` for the local SDK paths. Gradle needs
 | Distribution ABI | `arm64-v8a` |
 | Certificate subject | `CN=Table Circle Prototype` |
 | Certificate SHA-256 | `d55fa5cc439bc4abfbf914e32675728de84c3267d2a86ec59c91781ff1bb39b8` |
-| Public reference APK | [Zompado 0.5.11, build 17](https://github.com/JustTrySomthing/zompado/releases/tag/v0.5.11) |
+| Public reference APK | [Zompado 0.5.12, build 18](https://github.com/JustTrySomthing/zompado/releases/tag/v0.5.12) |
 
 The public APK contains the certificate. Signing future updates requires the original private key and its credentials. Never put the private material in commits, issues, logs, or release assets. The verified certificate also matches the Table Circle 0.2.0 APK.
 
-The original signing key is stored in the `android-release` GitHub Actions environment with the other three signing secrets. The environment accepts deployments from the `main` branch only. The [signed Android build](../.github/workflows/android-release.yml) uses the key on GitHub and verifies its fingerprint before producing an APK. A fresh session can start this workflow from GitHub without recovering a local keystore. To publish through the connected GitHub account without a CLI sign-in, follow the explicit release request in [RELEASE.md](RELEASE.md). [Verified 0.5.11 release](https://github.com/JustTrySomthing/zompado/actions/runs/44676535298).
+The original signing key is stored in the `android-release` GitHub Actions environment with the other three signing secrets. The environment accepts deployments from the `main` branch only. The [signed Android build](../.github/workflows/android-release.yml) uses the key on GitHub and verifies its fingerprint before producing an APK. A fresh session can start this workflow from GitHub without recovering a local keystore. To publish through the connected GitHub account without a CLI sign-in, follow the explicit release request in [RELEASE.md](RELEASE.md). [Verified 0.5.12 release](https://github.com/JustTrySomthing/zompado/actions/runs/44725039586).
 
 The environment uses these secrets. If a repository administrator has to restore it from a backup, configure the environment under **Settings → Environments** with a `main` branch restriction before loading the original signing credentials.
 
