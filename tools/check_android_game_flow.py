@@ -74,13 +74,21 @@ def board():
     return image, x, (top + bottom) // 2, bottom - round((bottom - top) / 12)
 
 
-def is_gold():
+def has_center_token():
     result = board()
     if result is None:
         return False
     image, x, _, bottom_piece = result
-    r, g, b = image.getpixel((x, bottom_piece))
-    return r > 220 and g > 175 and 60 < b < 145
+    # Sample the center of the cell. Cats vs Dogs uses a portrait, while
+    # archived Drop Four builds draw a flat gold token.
+    radius = max(4, image.width // 70)
+    patch = image.crop((x - radius, bottom_piece - radius, x + radius, bottom_piece + radius))
+    warm_pixels = sum(
+        (r > 110 and r > g * 1.2 and r > b * 1.35)
+        or (r > 220 and g > 175 and 60 < b < 145)
+        for r, g, b in patch.getdata()
+    )
+    return warm_pixels > patch.width * patch.height // 8
 
 
 def main():
@@ -100,13 +108,13 @@ def main():
     tap(x, y)
     time.sleep(0.45)
     tap(x, y)
-    wait("the placed token", is_gold)
+    wait("the placed token", has_center_token)
     time.sleep(3)
     adb("shell", "am", "force-stop", APP)
     adb("shell", "am", "start", "-n", ACTIVITY)
     press("Play")
     press("Pass and play")
-    wait("the restored token", is_gold, seconds=50)
+    wait("the restored token", has_center_token, seconds=50)
     screenshot().save(DIAGNOSTICS / "restored-board.png")
     adb("shell", "input", "keyevent", 4)
     press("Game options")
