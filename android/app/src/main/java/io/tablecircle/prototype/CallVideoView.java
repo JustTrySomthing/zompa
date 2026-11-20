@@ -23,7 +23,7 @@ final class CallVideoView implements PlatformView {
 
     CallVideoView(Context context, EglBase.Context egl) {
         frame = new FrameLayout(context);
-        frame.setBackgroundColor(Color.BLACK);
+        frame.setBackgroundColor(Color.TRANSPARENT);
         remote = new SurfaceViewRenderer(context);
         local = new SurfaceViewRenderer(context);
         local.setZOrderMediaOverlay(true);
@@ -35,14 +35,14 @@ final class CallVideoView implements PlatformView {
             @Override public void onFrameResolutionChanged(int width, int height, int rotation) {}
         });
         local.init(egl, null);
-        remote.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT);
+        remote.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
         local.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT);
         frame.addView(remote, new FrameLayout.LayoutParams(-1, -1));
         float density = context.getResources().getDisplayMetrics().density;
-        inset = new FrameLayout.LayoutParams(Math.round(108 * density),
-            Math.round(144 * density), Gravity.END | Gravity.TOP);
-        inset.setMargins(0, Math.round(12 * density), Math.round(12 * density), 0);
-        frame.addView(local, new FrameLayout.LayoutParams(-1, -1));
+        inset = new FrameLayout.LayoutParams(Math.round(82 * density),
+            Math.round(109 * density), Gravity.END | Gravity.TOP);
+        inset.setMargins(0, Math.round(60 * density), Math.round(12 * density), 0);
+        frame.addView(local, inset);
     }
 
     void show(VideoTrack mine, VideoTrack theirs, boolean showMine, boolean showTheirs) {
@@ -59,7 +59,6 @@ final class CallVideoView implements PlatformView {
             if (theirs != null) theirs.addSink(remote);
             remoteTrack = theirs;
         }
-        local.setLayoutParams(inset);
         local.setVisibility(mine == null ? View.INVISIBLE : View.VISIBLE);
         remote.setVisibility(theirs == null ? View.INVISIBLE : View.VISIBLE);
     }

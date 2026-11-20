@@ -285,7 +285,7 @@ const _topics = [
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'Install Cats vs Dogs and tap the gamepad in a friend chat. Your friend taps Accept on the invite. Zompado downloads the game if needed and shows Play Now to both players. The inviter plays Cats and goes first. In My Games → Online matches, tap Resume Game to return directly to the board.',
+        'Install Cats vs Dogs and tap the gamepad in a friend chat. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and plays Cats on the first turn. In My Games → Online matches, tap Resume Game to return directly to the board.',
       ),
       (
         'How do I change game sounds?',
@@ -309,7 +309,7 @@ const _topics = [
       ),
       (
         'Can I talk to my friend while playing?',
-        'During an online match, tap the message button to open chat. Tap the bar at the bottom of the chat panel to close it. New messages briefly appear at the bottom of the board while chat is closed. Tap the phone to start a call, then use the phone button to hide or reopen it while you play.',
+        'During an online match, tap the message button to open chat. Tap the bar at the bottom of the chat panel to close it. New messages briefly appear at the bottom of the board while chat is closed. Tap the phone to start a call. Use Return to game to keep talking while you play, then tap the phone again to reopen the call controls.',
       ),
     ],
   ),
@@ -352,7 +352,7 @@ const _topics = [
       ),
       (
         'How do I restore a deleted chat or set a reply reminder?',
-        'Go to Chats → Trash to restore conversations or permanently empty Trash. Long-press an incoming message and choose Remind me to reply to schedule an Android notification.',
+        'Go to Chats → Trash to restore conversations or permanently empty Trash. Long-press a chat and choose Remind me later for its latest incoming message, or set a reminder from a specific message.',
       ),
       (
         'How do I move my chats to a new phone?',

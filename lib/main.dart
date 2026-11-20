@@ -1556,49 +1556,73 @@ class _PreferencesState extends State<Preferences> {
                   if (widget.updates case final updates?)
                     ListenableBuilder(
                       listenable: updates,
-                      builder: (context, _) => Column(
-                        children: [
-                          SwitchListTile(
-                            title: const Text('Automatic update checks'),
-                            subtitle: const Text(
-                              'Check GitHub daily and when you open the app.',
-                            ),
-                            value: updates.automatic,
-                            onChanged: updates.setAutomatic,
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.system_update_alt),
-                            title: const Text('Check for updates'),
-                            subtitle: updates.status == null
-                                ? null
-                                : Text(updates.status!),
-                            enabled: !updates.checking && !updates.downloading,
-                            onTap: () => updates.check(),
-                          ),
-                          if (updates.available case final release?)
+                      builder: (context, _) => _settingsCard(
+                        context,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                             ListTile(
-                              title: Text('Version ${release.version}'),
-                              trailing: FilledButton(
-                                onPressed: updates.downloading
-                                    ? null
-                                    : updates.install,
-                                child: Text(
-                                  updates.downloading
-                                      ? 'Downloading…'
-                                      : 'Update',
-                                ),
+                              leading: const Icon(Icons.system_update_alt),
+                              title: const Text('App updates'),
+                              subtitle: Text(
+                                'Installed version $installedVersion',
                               ),
                             ),
-                        ].map((tile) => _settingsCard(context, tile)).toList(),
+                            SwitchListTile(
+                              title: const Text('Check automatically'),
+                              value: updates.automatic,
+                              onChanged: updates.setAutomatic,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (updates.status case final status?)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Semantics(
+                                        liveRegion: true,
+                                        child: Text(status),
+                                      ),
+                                    ),
+                                  if (updates.available case final release?)
+                                    FilledButton.icon(
+                                      onPressed: updates.downloading
+                                          ? null
+                                          : updates.install,
+                                      icon: const Icon(Icons.download),
+                                      label: Text(
+                                        updates.downloading
+                                            ? 'Downloading…'
+                                            : 'Install ${release.version}',
+                                      ),
+                                    ),
+                                  OutlinedButton.icon(
+                                    onPressed:
+                                        updates.checking || updates.downloading
+                                        ? null
+                                        : updates.check,
+                                    icon: const Icon(Icons.refresh),
+                                    label: Text(
+                                      updates.checking
+                                          ? 'Checking…'
+                                          : 'Check for updates',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    )
+                  else
+                    ListTile(
+                      leading: const Icon(Icons.system_update_alt),
+                      title: const Text('App updates'),
+                      subtitle: Text('Installed version $installedVersion'),
                     ),
-                  ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: const Text('About this build'),
-                    subtitle: const Text(
-                      'Android prototype · $installedVersion',
-                    ),
-                  ),
                   ListTile(
                     leading: const Icon(Icons.receipt_long_outlined),
                     title: const Text('App Log'),

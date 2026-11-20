@@ -1,5 +1,5 @@
 {
-  "version": "0.5.20",
-  "build": 29,
-  "notes": "- Use the same latest GitHub release for Android update checks and the download button on the repository front page.\n- Request fresh metadata and show the installed version in Settings when it is current."
+  "version": "0.5.21",
+  "build": 30,
+  "notes": "- Keep the other person full-screen during video calls, with a private Preview tile, compact controls, and a clear voice-only option. Return to a game without ending the call.\n- Wait for the inviter to start Cats vs Dogs and see the current player and team above the board.\n- Set reply reminders from the chat list, find all update controls in one Settings card, and enjoy a smoother launch animation."
 }

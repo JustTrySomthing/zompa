@@ -71,10 +71,12 @@ class _BrandLaunchState extends State<BrandLaunch>
   void initState() {
     super.initState();
     _motion =
-        AnimationController(vsync: this, duration: const Duration(seconds: 1))
-          ..addStatusListener((status) {
-            if (status == AnimationStatus.completed) _finish();
-          });
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 1500),
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed) _finish();
+        });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_finished) _motion.forward();
@@ -117,22 +119,26 @@ class _BrandLaunchState extends State<BrandLaunch>
                 final t = _motion.value;
                 final settle = const Interval(
                   0,
-                  .52,
-                  curve: Curves.easeOutBack,
+                  .44,
+                  curve: Curves.easeOutCubic,
                 ).transform(t);
                 final lift = const Interval(
                   .19,
-                  .57,
+                  .50,
                   curve: Curves.easeOutCubic,
                 ).transform(t);
                 final reveal = const Interval(
                   .24,
+                  .55,
+                  curve: Curves.easeOutCubic,
+                ).transform(t);
+                final ring = const Interval(
+                  .07,
                   .62,
                   curve: Curves.easeOutCubic,
                 ).transform(t);
-                final ring = const Interval(.07, .64).transform(t);
                 final fade = const Interval(
-                  .76,
+                  .75,
                   1,
                   curve: Curves.easeInOutCubic,
                 ).transform(t);
@@ -166,7 +172,7 @@ class _BrandLaunchState extends State<BrandLaunch>
                             child: Transform.rotate(
                               angle: -.12 * (1 - settle),
                               child: Transform.scale(
-                                scale: .85 + .15 * settle,
+                                scale: .85 + .15 * settle + .035 * fade,
                                 child: Image.asset(
                                   ZompadoBrand.markAsset,
                                   width: 110,

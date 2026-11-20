@@ -117,7 +117,7 @@ class _OnlineMatchesState extends State<OnlineMatches>
           chatmail: widget.chatmail,
           chat: chat.id,
           id: match.invite.id,
-          playOnOpen: match.accepted && !match.conflict,
+          playOnOpen: match.started && !match.conflict,
           prepareGame: widget.prepareGame,
           friendName: chat.name,
           buildChatDock: (close) => FriendConversation.docked(
@@ -178,7 +178,7 @@ class _OnlineMatchesState extends State<OnlineMatches>
               ),
               title: Text('Cats vs Dogs with ${entry.chat.name}'),
               subtitle: Text(entry.match.status),
-              trailing: entry.match.accepted && !entry.match.conflict
+              trailing: entry.match.started && !entry.match.conflict
                   ? FilledButton.tonal(
                       onPressed: () => _open(entry.chat, entry.match),
                       child: const Text('Resume Game'),

@@ -105,6 +105,7 @@ class OnlineMatch {
   final board = Board();
   String moves = '';
   bool accepted = false;
+  bool started = false;
   bool declined = false;
   bool preparing = false;
   MatchEvent? localControl, remoteControl;
@@ -212,6 +213,17 @@ class OnlineMatch {
       match.moves += '$column';
       match.pending = pendingFor(candidates.map((r) => r.message).toList());
     }
+    // An inviter can send a resume before the first move to start both boards.
+    // Older clients also understand resume, and their first move starts the match.
+    match.started =
+        match.moves.isNotEmpty ||
+        events.any(
+          (record) =>
+              record.event.kind == 'resume' &&
+              record.message.outgoing == match.mine &&
+              record.message.state != 20 &&
+              record.message.state != 24,
+        );
     // Each player has a separate control revision. Replay is independent of
     // the order in which two devices receive simultaneous pause updates.
     for (final record in events) {

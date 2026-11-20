@@ -300,7 +300,7 @@ Future<void> showMessageActions(
         if (message.chat > 0 && !message.outgoing && !saved)
           ListTile(
             leading: const Icon(Icons.alarm_add_outlined),
-            title: const Text('Remind me to reply'),
+            title: const Text('Remind me later'),
             onTap: () => Navigator.pop(dialog, 'remind'),
           ),
         ListTile(
@@ -317,7 +317,7 @@ Future<void> showMessageActions(
   } else if (action == 'download') {
     await downloadChatFile(context, message);
   } else if (action == 'remind') {
-    await _replyReminder(context, message);
+    await showReplyReminder(context, message);
   } else if (action == 'delete') {
     final confirm = await showDialog<bool>(
       context: context,
@@ -352,17 +352,19 @@ Future<void> showMessageActions(
   }
 }
 
-Future<void> _replyReminder(BuildContext context, FriendMessage message) async {
+Future<void> showReplyReminder(
+  BuildContext context,
+  FriendMessage message,
+) async {
   final delay = await showDialog<Duration>(
     context: context,
     builder: (dialog) => SimpleDialog(
       title: const Text('Remind me to reply'),
       children: [
         for (final (label, delay) in const [
-          ('In 30 minutes', Duration(minutes: 30)),
           ('In 1 hour', Duration(hours: 1)),
-          ('In 3 hours', Duration(hours: 3)),
-          ('Tomorrow', Duration(days: 1)),
+          ('In 1 day', Duration(days: 1)),
+          ('In 1 week', Duration(days: 7)),
         ])
           SimpleDialogOption(
             onPressed: () => Navigator.pop(dialog, delay),

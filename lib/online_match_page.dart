@@ -59,6 +59,34 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   int _latestMessage = 0;
   String? _messagePreview;
 
+  Timer? _turnTimer;
+  int? _displayTurn;
+  String _myName = 'You';
+
+  Future<void> _loadMyName() async {
+    try {
+      final name = (await widget.chatmail.profile()).name.trim();
+      if (mounted && name.isNotEmpty) setState(() => _myName = name);
+    } catch (_) {
+      // The turn display can still identify the local player as You.
+    }
+  }
+
+  void _syncTurn(OnlineMatch? match) {
+    if (match == null) return;
+    final previous = _match;
+    if (previous != null && match.moves.length == previous.moves.length + 1) {
+      _turnTimer?.cancel();
+      _displayTurn = previous.board.turn;
+      _turnTimer = Timer(const Duration(milliseconds: 740), () {
+        if (mounted) setState(() => _displayTurn = null);
+      });
+    } else if (previous?.moves != match.moves) {
+      _turnTimer?.cancel();
+      _displayTurn = null;
+    }
+  }
+
   bool get _boardOpen =>
       _playing && _match != null && _game != null && !_match!.quit;
 
@@ -146,6 +174,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   void initState() {
     super.initState();
     _playing = widget.playOnOpen;
+    unawaited(_loadMyName());
     _messages = widget.chatmail.incoming.listen((event) {
       unawaited(_previewMessage(event.$1, event.$2));
     });
@@ -177,6 +206,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     _events?.cancel();
     _messages?.cancel();
     _messageTimer?.cancel();
+    _turnTimer?.cancel();
     super.dispose();
   }
 
@@ -208,7 +238,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       if (mounted) {
         final match = OnlineMatch.replay(widget.id, records);
         setState(() {
+          _syncTurn(match);
           _match = match;
+          if (match?.started == true && match?.conflict == false) {
+            _playing = true;
+          }
           _error = _match == null
               ? 'The match invitation is unavailable.'
               : null;
@@ -353,6 +387,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     if (match == null ||
         _sending ||
         _chatOpen ||
+        _displayTurn != null ||
         !_playing ||
         _error != null ||
         !match.myTurn ||
@@ -371,7 +406,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     if (match == null) return 'Opening match…';
     if (match.finished) return match.status;
     if (match.accepted && _game != null) {
-      return match.mine ? '$friend is ready to play.' : 'You’re ready to play.';
+      return match.mine
+          ? '$friend is ready to play.'
+          : 'Waiting for $friend to start the game.';
     }
     if (!match.accepted && !match.mine) {
       return '$friend invited you to play Cats vs Dogs.';
@@ -380,6 +417,62 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       return 'Getting the game ready for ${widget.friendName ?? 'your friend'}…';
     }
     return match.status;
+  }
+
+  Widget _turnHeading(BuildContext context, OnlineMatch match) {
+    final theme = Theme.of(context);
+    if (match.finished ||
+        match.paused ||
+        match.pending != null ||
+        match.conflict) {
+      return Padding(
+        padding: const EdgeInsets.all(8),
+        child: Text(match.status, style: theme.textTheme.titleMedium),
+      );
+    }
+    final side = _displayTurn ?? match.board.turn;
+    final yours = (side == 1) == match.mine;
+    final name = yours ? _myName : widget.friendName ?? 'Your friend';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      child: Semantics(
+        liveRegion: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ExcludeSemantics(
+                  child: Text(
+                    side == 1 ? '🐱' : '🐶',
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              yours ? 'Your Turn' : 'Their Turn',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: yours
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -463,25 +556,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                             children: [
                               Column(
                                 children: [
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    match.status,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium,
-                                  ),
-                                  if (_game!.build >= 6)
-                                    Text(
-                                      match.mine
-                                          ? 'You play as Cats'
-                                          : 'You play as Dogs',
-                                    )
-                                  else
-                                    Text(
-                                      match.mine
-                                          ? 'Your pieces are gold'
-                                          : 'Your pieces are purple',
-                                    ),
+                                  _turnHeading(context, match),
                                   Expanded(
                                     child: Center(
                                       child: ConstrainedBox(
@@ -498,7 +573,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                             mode: 'online',
                                             paused: match.paused,
                                             match:
-                                                '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _error == null && match.myTurn ? 1 : 0}',
+                                                '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}',
                                             onMove: _move,
                                           ),
                                         ),
@@ -573,12 +648,19 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                             !match.finished &&
                                             !match.conflict) ...[
                                           const SizedBox(height: 12),
-                                          if (match.accepted && _game != null)
+                                          if (match.accepted &&
+                                              match.mine &&
+                                              _game != null)
                                             FilledButton(
                                               onPressed: _sending
                                                   ? null
-                                                  : () => setState(
-                                                      () => _playing = true,
+                                                  : () => _send(
+                                                      match.invite
+                                                          .control(
+                                                            'resume',
+                                                            match.nextRevision,
+                                                          )
+                                                          .wire,
                                                     ),
                                               child: const Text('Play Now'),
                                             )

@@ -222,6 +222,7 @@ class _FriendsPaneState extends State<FriendsPane> {
                             : 'Mute notifications',
                         Icons.notifications_off_outlined,
                       ),
+                      ('remind', 'Remind me later', Icons.schedule),
                       ('block', 'Block sender', Icons.block),
                       ('delete', 'Delete chat', Icons.delete_outline),
                     ])
@@ -234,6 +235,36 @@ class _FriendsPaneState extends State<FriendsPane> {
       ),
     );
     if (!mounted || selected == null) return;
+    if (selected == 'remind') {
+      try {
+        final thread = await widget.chatmail.thread(chat.id);
+        if (!mounted) return;
+        final latest = thread.messages.reversed
+            .where(
+              (message) =>
+                  !message.outgoing &&
+                  !message.info &&
+                  message.viewType != 'Call' &&
+                  MatchEvent.parse(message.text) == null,
+            )
+            .firstOrNull;
+        if (latest != null) {
+          await showReplyReminder(context, latest);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('There’s no incoming message to reply to.'),
+            ),
+          );
+        }
+      } catch (_) {
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Couldn’t load the latest message.')),
+          );
+      }
+      return;
+    }
     if (selected == 'recover') {
       await _perform(() => widget.chatmail.restoreTrash(chat.id));
       if (mounted) await _refresh();
@@ -1326,7 +1357,7 @@ class _FriendConversationState extends State<FriendConversation>
                                             TextButton(
                                               onPressed: () => _openMatch(
                                                 invitation.invite.id,
-                                                play: invitation.accepted,
+                                                play: invitation.started,
                                               ),
                                               child: Text(
                                                 invitation.accepted
