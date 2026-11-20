@@ -7,6 +7,10 @@ To ship from the connected GitHub account, commit the code and increase the vers
 
 The workflow builds and signs on GitHub, publishes the verified APK, downloads the public asset to verify it, and then updates the in-app feed. Routine code changes and manual test runs do not publish a release. If the publish job fails after creating a release, rerun the failed jobs so the same signed artifact is used.
 
+## Promote an existing signed preview
+
+Add the numeric `preview_run` from the preview’s GitHub Actions URL to the release request to ship the same signed APK. The run must have succeeded on this repository’s main branch and still have its signed artifact. The workflow checks that build inputs match, re-verifies the APK and its manifest, then publishes it through the normal release job. Omit `preview_run` to build and sign a fresh APK.
+
 ## Signed previews
 
 A change to [the preview request](../.github/preview-request.json) on `main` builds and signs an APK. Download the `zompado-signed-android` artifact from the GitHub Actions run. Update the preview request without changing the release request to keep the public release and update feed on the stable build.
