@@ -1,77 +1,27 @@
 name: Build signed Android APK
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
-    paths: [".github/release-request.json", ".github/preview-request.json"]
+    paths: [".github/release-request.json"]
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   build:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    outputs:
-      publish: ${{ steps.mode.outputs.publish }}
-      preview_run: ${{ steps.preview.outputs.run_id }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-          fetch-depth: 0
-      - name: Detect an explicit release request
-        id: mode
-        env:
-          BEFORE: ${{ github.event.before }}
-        run: |
-          publish=false
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- .github/release-request.json)
-            if [[ -n "$changed" ]]; then
-              publish=true
-            fi
-          fi
-          echo "publish=$publish" >> "$GITHUB_OUTPUT"
-      - name: Validate the signed preview selected for release
-        if: steps.mode.outputs.publish == 'true'
-        id: preview
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          run_id=$(jq -r '.preview_run // ""' .github/release-request.json)
-          if [[ -z "$run_id" ]]; then exit 0; fi
-          [[ "$run_id" =~ ^[1-9][0-9]*$ ]]
-          run_path="repos/$GITHUB_REPOSITORY/actions/runs/$run_id"
-          head=$(gh api "$run_path" | jq -er --arg repo "$GITHUB_REPOSITORY" '
-            select(.head_repository.full_name == $repo and .head_branch == "main"
-              and .path == ".github/workflows/android-release.yml"
-              and .conclusion == "success")
-            | .head_sha | select(test("^[a-f0-9]{40}$"))')
-          git merge-base --is-ancestor "$head" "$GITHUB_SHA"
-          if ! git diff --quiet "$head" "$GITHUB_SHA" -- . \
-              ':!.github/release-request.json' ':!.github/preview-request.json' \
-              ':!README.md' ':!docs/RECOVERY.md' ':!docs/RELEASE.md' ':!update.json' \
-              ':!tools/check_android_friends.py' ':!tools/check_delta_chat_android.py' \
-              ':!.github/workflows/android-friends-smoke.yml' ':!.github/workflows/android-delta-chat-smoke.yml'; then
-            echo 'Build inputs changed after the preview. Build a fresh preview or omit preview_run.' >&2
-            exit 1
-          fi
-          gh api "$run_path/artifacts" | jq -e '
-            any(.artifacts[]; .name == "zompado-signed-android" and (.expired | not))' > /dev/null
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-          echo "Reusing the signed Android APK from run $run_id." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        if: steps.preview.outputs.run_id == ''
         with:
           distribution: temurin
           java-version: '21'
       - name: Install pinned Flutter
-        if: steps.preview.outputs.run_id == ''
         run: |
           flutter_revision=ab2912035e160d9cad6306df307576da6128ebdb
           git init -q "$RUNNER_TEMP/flutter"
@@ -79,10 +29,8 @@ jobs:
           git -C "$RUNNER_TEMP/flutter" checkout --detach FETCH_HEAD
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
       - name: Install Android SDK packages
-        if: steps.preview.outputs.run_id == ''
         run: bash tools/install_android_sdk.sh 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
       - name: Build the ARM64 package
-        if: steps.preview.outputs.run_id == ''
         run: |
           flutter pub get --enforce-lockfile
           flutter build apk --release --target-platform android-arm64 --no-pub
@@ -97,7 +45,6 @@ jobs:
         env:
           FLUTTER_SUPPRESS_ANALYTICS: 'true'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: steps.preview.outputs.run_id == ''
         with:
           name: android-build-input
           path: build/app/outputs/flutter-apk/app-release.apk
@@ -115,39 +62,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        if: needs.build.outputs.preview_run == ''
         with:
           name: android-build-input
           path: input
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        if: needs.build.outputs.preview_run != ''
-        with:
-          name: zompado-signed-android
-          path: release
-          run-id: ${{ needs.build.outputs.preview_run }}
-          github-token: ${{ github.token }}
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '21'
       - name: Install Android Build Tools
         run: bash tools/install_android_sdk.sh 'build-tools;36.0.0'
-      - name: Reverify the signed preview
-        if: needs.build.outputs.preview_run != ''
-        run: |
-          set -euo pipefail
-          version=$(jq -er '.version | select(test("^[0-9]+[.][0-9]+[.][0-9]+$"))' .github/release-request.json)
-          build=$(jq -er '.build | select(type == "number" and . >= 1 and floor == .)' .github/release-request.json)
-          grep -Fxq "version: $version+$build" pubspec.yaml
-          grep -Fxq "const installedVersion = '$version';" lib/app_updates.dart
-          grep -Fxq "const installedBuild = $build;" lib/app_updates.dart
-          apk="release/Zompado-$version-ARM64.apk"
-          bash tools/verify_release_apk.sh "$apk" "$version" "$build"
-          python3 tools/verify_android_elf_alignment.py "$apk"
-          python3 tools/release_manifest.py "$apk" --version "$version" --build "$build" > "$RUNNER_TEMP/preview-manifest.json"
-          cmp release/update.json "$RUNNER_TEMP/preview-manifest.json"
       - name: Sign and verify APK
-        if: needs.build.outputs.preview_run == ''
         env:
           KEYSTORE_BASE64: ${{ secrets.ZOMPADO_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ZOMPADO_KEYSTORE_PASSWORD }}
@@ -176,7 +100,7 @@ jobs:
           unset KEYSTORE_BASE64
           build_tools="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0"
           mkdir -p release
-          apk="release/Zompado-$version-ARM64.apk"
+          apk="release/Zompado-ARM64.apk"
           "$build_tools/apksigner" sign --ks "$keystore" --ks-key-alias "$KEY_ALIAS" \
             --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD \
             --v4-signing-enabled false --in input/app-release.apk --out "$apk"
@@ -189,7 +113,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    if: needs.build.outputs.publish == 'true' && github.ref == 'refs/heads/main' && github.repository == 'JustTrySomthing/zompado'
+    if: github.ref == 'refs/heads/main' && github.repository == 'JustTrySomthing/zompado'
     needs: [build, sign]
     runs-on: ubuntu-24.04
     timeout-minutes: 15

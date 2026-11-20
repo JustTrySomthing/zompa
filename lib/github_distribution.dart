@@ -123,23 +123,35 @@ class GithubDistribution {
         .toList();
   }
 
-  Future<AppRelease> appRelease() async =>
-      AppRelease.fromJson(await _manifest(appRepository, 'update.json'));
+  Future<AppRelease> appRelease() async => AppRelease.fromJson(
+    await _readManifest(
+      Uri.https(
+        'github.com',
+        '/$githubOwner/$appRepository/releases/latest/download/update.json',
+        {'check': DateTime.now().microsecondsSinceEpoch.toString()},
+      ),
+      schema: 1,
+      fresh: true,
+    ),
+  );
 
   Future<Map<String, dynamic>> _manifest(
     String repo,
     String name, {
     int schema = 1,
+  }) => _readManifest(
+    Uri.https('raw.githubusercontent.com', '/$githubOwner/$repo/main/$name'),
+    schema: schema,
+  );
+
+  Future<Map<String, dynamic>> _readManifest(
+    Uri url, {
+    required int schema,
+    bool fresh = false,
   }) async {
     final client = _client();
     try {
-      final response = await _get(
-        client,
-        Uri.https(
-          'raw.githubusercontent.com',
-          '/$githubOwner/$repo/main/$name',
-        ),
-      );
+      final response = await _get(client, url, fresh: fresh);
       final bytes = <int>[];
       await for (final chunk in response.timeout(const Duration(seconds: 20))) {
         if (bytes.length + chunk.length > 128 * 1024) {
@@ -219,7 +231,11 @@ class GithubDistribution {
   HttpClient _client() =>
       HttpClient()..connectionTimeout = const Duration(seconds: 12);
 
-  Future<HttpClientResponse> _get(HttpClient client, Uri url) async {
+  Future<HttpClientResponse> _get(
+    HttpClient client,
+    Uri url, {
+    bool fresh = false,
+  }) async {
     var next = url;
     for (var redirects = 0; redirects <= 4; redirects++) {
       if (next.scheme != 'https' ||
@@ -238,6 +254,8 @@ class GithubDistribution {
           .getUrl(next)
           .timeout(const Duration(seconds: 20));
       request.followRedirects = false;
+      if (fresh)
+        request.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
       final response = await request.close().timeout(
         const Duration(seconds: 20),
       );

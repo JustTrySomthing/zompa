@@ -7,7 +7,7 @@ request=.github/release-request.json
 version=$(jq -er '.version | select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' "$request")
 build=$(jq -er '.build | select(type == "number" and . >= 1 and floor == .)' "$request")
 tag="v$version"
-name="Zompado-$version-ARM64.apk"
+name=Zompado-ARM64.apk
 apk="release/$name"
 manifest=release/update.json
 scratch=$(mktemp -d)
@@ -21,10 +21,6 @@ cmp "$manifest" "$scratch/manifest.json"
 feed_endpoint="repos/$repo/contents/update.json"
 gh api "$feed_endpoint?ref=main" > "$scratch/feed.json"
 jq -r '.content' "$scratch/feed.json" | base64 --decode > "$scratch/published.json"
-if cmp -s "$manifest" "$scratch/published.json"; then
-  echo "$tag is already published and listed in the update feed."
-  exit 0
-fi
 python3 - "$manifest" "$scratch/published.json" <<'PY'
 import json
 import sys
@@ -34,7 +30,7 @@ def version(value):
     return tuple(int(part) for part in value.split("."))
 
 candidate, published = (json.loads(Path(path).read_text()) for path in sys.argv[1:])
-if candidate["build"] <= published["build"] or version(candidate["version"]) <= version(published["version"]):
+if candidate != published and (candidate["build"] <= published["build"] or version(candidate["version"]) <= version(published["version"])):
     raise SystemExit("The requested release must increase both the published version and build.")
 PY
 
@@ -46,20 +42,44 @@ fi
 
 if [[ $(jq -r '.isDraft' "$scratch/release.json") == true ]]; then
   jq -e --arg head "$GITHUB_SHA" '.targetCommitish == $head' "$scratch/release.json" > /dev/null
-  if jq -e --arg name "$name" '.assets | any(.name == $name)' "$scratch/release.json" > /dev/null; then
-    gh release download "$tag" -R "$repo" --pattern "$name" --dir "$scratch"
-    cmp "$apk" "$scratch/$name"
-  else
-    gh release upload "$tag" "$apk" -R "$repo"
-  fi
+  mkdir -p "$scratch/existing"
+  for asset in "$apk" "$manifest"; do
+    filename=${asset##*/}
+    if jq -e --arg name "$filename" '.assets | any(.name == $name)' "$scratch/release.json" > /dev/null; then
+      gh release download "$tag" -R "$repo" --pattern "$filename" --dir "$scratch/existing"
+      cmp "$asset" "$scratch/existing/$filename"
+    else
+      gh release upload "$tag" "$asset" -R "$repo"
+    fi
+  done
   gh release edit "$tag" -R "$repo" --draft=false --latest
 fi
 
-# Expose the update only after a public download matches the signed artifact.
-url=$(jq -er '.url' "$manifest")
-curl --fail --silent --show-error --location --retry 6 --retry-all-errors \
-  "$url" -o "$scratch/public.apk"
-cmp "$apk" "$scratch/public.apk"
+# The latest release is selected only after both assets exist. Verify the
+# public links before updating the compatibility feed for older clients.
+verify_download() {
+  local url=$1 expected=$2
+  local state
+  for state in 1 2 3 4 5 6; do
+    if curl --fail --silent --show-error --location --max-time 60 \
+        "$url?verify=$GITHUB_RUN_ID-$state" -o "$scratch/public" &&
+        cmp -s "$expected" "$scratch/public"; then
+      return 0
+    fi
+    sleep 5
+  done
+  echo "Public download does not match $expected" >&2
+  return 1
+}
+base="https://github.com/$repo/releases/latest/download"
+verify_download "$(jq -er '.url' "$manifest")" "$apk"
+verify_download "$base/$name" "$apk"
+verify_download "$base/update.json" "$manifest"
+
+if cmp -s "$manifest" "$scratch/published.json"; then
+  echo "$tag is already published and listed in the update feed."
+  exit 0
+fi
 
 jq -n --arg message "Publish $version (build $build) to the Android update feed" \
   --arg sha "$(jq -r '.sha' "$scratch/feed.json")" \

@@ -1,10 +1,12 @@
 # Zompado for Android
 
+**[Download the latest Android APK](https://github.com/JustTrySomthing/zompado/releases/latest)**
+
 Play, share and chat with friends.<br>
 Discover fun and unique games,<br>
 or make your own.
 
-[Download for Android (ARM64)](https://github.com/JustTrySomthing/zompado/releases/latest) · [Browse the game catalog](https://github.com/JustTrySomthing/zompado-games)
+[Browse the game catalog](https://github.com/JustTrySomthing/zompado-games)
 
 ## What you can do today
 
@@ -16,7 +18,7 @@ Downloaded games require Android 10 or later and a sandboxed WebView renderer. O
 
 After Android stops the process, Zompado checks for new activity on Android’s schedule. A call alert lets you answer if the call is still ringing. Reopen the app after using Android’s **Force stop**. **Settings → Setup** and **Help** cover alerts and permissions.
 
-**Calling preview.** Zompado 0.5.13 adds a call screen with mute, handset and speaker routing, and a camera toggle. [Signed preview from GitHub Actions](https://github.com/JustTrySomthing/zompado/actions/runs/44734662303/artifacts/14628706186).
+Calls support mute, handset and speaker routing, and a camera toggle.
 
 ## Game Builder coming soon
 

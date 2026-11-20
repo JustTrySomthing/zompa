@@ -8,7 +8,7 @@ git clone https://github.com/JustTrySomthing/zompado-games.git
 cd zompado
 ```
 
-Both repositories use `main`. Check the latest published APK and the current `update.json` before selecting a release version. The prototype was previously called Table Circle. Its Android package remains `io.tablecircle.prototype`.
+Both repositories use `main`. Check the latest GitHub Release and its `update.json` asset before selecting a release version. The prototype was previously called Table Circle. Its Android package remains `io.tablecircle.prototype`.
 
 | What you need | Where to look |
 |---|---|
@@ -25,11 +25,13 @@ Both repositories use `main`. Check the latest published APK and the current `up
 | Public download page | [GitHub Pages source](index.html), published from `main:/docs` |
 | Release preparation and feed update order | [RELEASE.md](RELEASE.md) |
 
-The Android app ships the LÖVE 11.5 compatibility WebAssembly runtime inside the APK. Players install and remove their games separately. The catalog uses `games` for current entries and `archive` for exact older shared links. The player opens the selected package in a sandboxed Android WebView renderer with a private origin per game. Playback requires Android 10 or later and a multiprocess WebView provider. The Gradle build fetches two pinned runtime files, checks their hashes, and packages them with the player assets. The version 1 catalog is kept for older APKs. The new Drop Four starts its own Lua save when upgrading from the Dart game. Chatmail and the remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md). The public APK and the developer preview can be on different versions.
+The Android app ships the LÖVE 11.5 compatibility WebAssembly runtime inside the APK. Players install and remove their games separately. The catalog uses `games` for current entries and `archive` for exact older shared links. The player opens the selected package in a sandboxed Android WebView renderer with a private origin per game. Playback requires Android 10 or later and a multiprocess WebView provider. The Gradle build fetches two pinned runtime files, checks their hashes, and packages them with the player assets. The version 1 catalog is kept for older APKs. The new Drop Four starts its own Lua save when upgrading from the Dart game. Chatmail and the remaining user-facing milestones are described in the [build plan](BUILD-PLAN.md).
 
 Cats vs Dogs retains the `drop-four` game ID for saves and older match links. Starting with game build 8, the catalog title and .zomp filename use Cats vs Dogs. The catalog card uses the original OnKlav faceoff illustration bundled in `assets/games/cats-vs-dogs.webp`.
 
 The match invitation opens a waiting screen for the sender. The recipient’s Accept action sends a preparation status, gets the required game from the catalog if needed, then signals readiness. Both players can select Play Now. Pause and resume are tracked per player. Quit ends the match for both. The online match list is available from My Games and the Play menu.
+
+## Previous builds
 
 The [signed 0.5.19 preview, build 28](https://github.com/JustTrySomthing/zompado/actions/runs/44803403814/artifacts/14663605112) was built from `d8ad902`. The game toolbar provides pause, resume, quit, and audio. During online matches it adds message and phone controls, a slide-down chat panel, and brief previews for incoming messages. Resume Game in My Games opens the active board directly. See the [Android game-flow check](https://github.com/JustTrySomthing/zompado/actions/runs/44803404116) and [two-device check](https://github.com/JustTrySomthing/zompado/actions/runs/44803403829). The APK SHA-256 is `3491d7b9e037cfeba4c66608775de1c741aaf3aa5fa3bca02331aeb524444672`.
 
@@ -96,10 +98,6 @@ for name in ZOMPADO_KEYSTORE_PASSWORD ZOMPADO_KEY_ALIAS ZOMPADO_KEY_PASSWORD; do
 done
 ```
 
-Run **Actions → Build signed Android APK → Run workflow** on `main`, or use the authenticated GitHub CLI. Download the `zompado-signed-android` artifact from a successful run. The workflow leaves Releases and the update feed untouched. Keep an owner-controlled encrypted backup of the same key and credentials to recover if the repository or Actions secrets are lost.
-
-```sh
-gh workflow run android-release.yml --ref main -R JustTrySomthing/zompado
-```
+To build and publish the next signed APK from GitHub, update the release request on `main` as described in [RELEASE.md](RELEASE.md). Keep an owner-controlled encrypted backup of the same key and credentials to recover if the repository or Actions secrets are lost.
 
 For local signing, set the same three credentials and set `ZOMPADO_KEYSTORE` to the secure local keystore path before building. See [RELEASE.md](RELEASE.md) for verification. A fresh debug or release key changes the APK signature and breaks updates over the existing install.

@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 
 import 'github_distribution.dart';
 
-const installedVersion = '0.5.19';
-const installedBuild = 28;
+const installedVersion = '0.5.20';
+const installedBuild = 29;
 
 class AppUpdates extends ChangeNotifier {
   AppUpdates(this.distribution, this.host, this.data, this.write);
@@ -17,6 +17,7 @@ class AppUpdates extends ChangeNotifier {
   AppRelease? available;
   bool checking = false;
   bool downloading = false;
+  bool _showCheckResult = false;
   bool disposed = false;
   String? status;
   bool get automatic => data['autoUpdates'] != false;
@@ -56,9 +57,16 @@ class AppUpdates extends ChangeNotifier {
   }
 
   Future<void> check({bool manual = true}) async {
-    if (checking || disposed) return;
+    if (disposed) return;
+    if (manual) {
+      _showCheckResult = true;
+      status = 'Checking GitHub…';
+    }
+    if (checking) {
+      if (manual) notifyListeners();
+      return;
+    }
     checking = true;
-    if (manual) status = 'Checking GitHub…';
     notifyListeners();
     try {
       final release = await distribution.appRelease();
@@ -66,13 +74,14 @@ class AppUpdates extends ChangeNotifier {
       available = release.build > installedBuild ? release : null;
       write('lastAvailableBuild', available?.build ?? 0);
       write('lastUpdateCheck', DateTime.now().toUtc().toIso8601String());
-      if (manual)
+      if (_showCheckResult)
         status = available == null
-            ? 'You’re up to date.'
+            ? 'You’re up to date ($installedVersion).'
             : 'Version ${release.version} is available.';
     } catch (_) {
-      if (manual) status = 'Couldn’t check for updates. Try again.';
+      if (_showCheckResult) status = 'Couldn’t check for updates. Try again.';
     } finally {
+      _showCheckResult = false;
       checking = false;
       if (!disposed) notifyListeners();
     }

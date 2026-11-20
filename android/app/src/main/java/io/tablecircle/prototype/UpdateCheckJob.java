@@ -31,7 +31,7 @@ public final class UpdateCheckJob extends JobService {
     private static final String NOTIFIED = "notified_update_build";
     private static final String CACHE_KEY = "background_update_build";
     private static final String FEED =
-        "https://raw.githubusercontent.com/JustTrySomthing/zompado/main/update.json";
+        "https://github.com/JustTrySomthing/zompado/releases/latest/download/update.json";
     private volatile Thread worker;
 
     static int cachedBuild(Context context) {
@@ -115,25 +115,44 @@ public final class UpdateCheckJob extends JobService {
     }
 
     private static int readBuild() throws Exception {
-        HttpsURLConnection connection = (HttpsURLConnection) new URL(FEED).openConnection();
-        connection.setConnectTimeout(12000);
-        connection.setReadTimeout(12000);
-        connection.setInstanceFollowRedirects(false);
-        try {
-            if (connection.getResponseCode() != 200) return 0;
-            try (InputStream input = connection.getInputStream();
-                 ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
-                byte[] buffer = new byte[4096];
-                for (int size; (size = input.read(buffer)) != -1;) {
-                    if (Thread.currentThread().isInterrupted() || bytes.size() + size > LIMIT) return 0;
-                    bytes.write(buffer, 0, size);
-                }
-                JSONObject json = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-                return json.optInt("schema") == 1 && "arm64-v8a".equals(json.optString("abi"))
-                    ? json.optInt("build") : 0;
+        URL url = new URL(FEED + "?check=" + System.currentTimeMillis());
+        for (int redirects = 0; redirects <= 4; redirects++) {
+            String host = url.getHost();
+            if (!"https".equals(url.getProtocol()) || url.getUserInfo() != null || url.getPort() != -1
+                    || !("github.com".equals(host) || "release-assets.githubusercontent.com".equals(host)
+                    || "objects.githubusercontent.com".equals(host)
+                    || "github-releases.githubusercontent.com".equals(host))) return 0;
+            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+            try {
+                connection.setConnectTimeout(12000);
+                connection.setReadTimeout(12000);
+                connection.setUseCaches(false);
+                connection.setRequestProperty("Cache-Control", "no-cache");
+                connection.setInstanceFollowRedirects(false);
+                int status = connection.getResponseCode();
+                if (status == 200) return readManifest(connection);
+                if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) return 0;
+                String location = connection.getHeaderField("Location");
+                if (location == null) return 0;
+                url = new URL(url, location);
+            } finally {
+                connection.disconnect();
             }
-        } finally {
-            connection.disconnect();
+        }
+        return 0;
+    }
+
+    private static int readManifest(HttpsURLConnection connection) throws Exception {
+        try (InputStream input = connection.getInputStream();
+             ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            for (int size; (size = input.read(buffer)) != -1;) {
+                if (Thread.currentThread().isInterrupted() || bytes.size() + size > LIMIT) return 0;
+                bytes.write(buffer, 0, size);
+            }
+            JSONObject json = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+            return json.optInt("schema") == 1 && "arm64-v8a".equals(json.optString("abi"))
+                ? json.optInt("build") : 0;
         }
     }
 }
