@@ -1,5 +1,5 @@
 {
-  "version": "0.5.12",
-  "build": 18,
-  "notes": "- Invitations open the online match and show who’s waiting.\n- Accept and open match installs the required Cats vs Dogs version if needed and opens the online board.\n- Resume active games from Online matches in My Games or the Play menu. Pass and play is labeled for sharing one phone."
+  "version": "0.5.14",
+  "build": 23,
+  "notes": "- Add, search, block, and delete contacts from Chats, and edit your name, photo, and bio from Settings.\n- Share attachments, use the emoji picker, and send game invites from chats.\n- Online Cats vs Dogs shows when both players are ready and synchronizes pause, resume, and quit.\n- Voice calls start without opening the camera. Messaging and calls were verified with stock Delta Chat.\n- Import .zomp and .love games and switch between Dark and Light directly in Appearance."
 }
