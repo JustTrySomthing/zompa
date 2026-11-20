@@ -159,7 +159,17 @@ final class VoicePeer {
             } else {
                 peer.setRemoteDescription(new Sdp() {
                     @Override public void onSetSuccess() {
-                        main.post(() -> { if (session == Session.this) createDescription(false); });
+                        main.post(() -> {
+                            if (session != Session.this) return;
+                            // Delta Chat reserves a video track in an audio call.
+                            // Reject that track in our answer without starting a camera.
+                            for (RtpTransceiver transceiver : peer.getTransceivers()) {
+                                if (transceiver.getMediaType() == MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO) {
+                                    transceiver.stop();
+                                }
+                            }
+                            createDescription(false);
+                        });
                     }
                     @Override public void onSetFailure(String ignored) {
                         main.post(() -> fail("Couldn’t read the call offer."));
@@ -202,7 +212,10 @@ final class VoicePeer {
         void sendDescription() {
             if (session != this || preparing == null || !localSet) return;
             var description = peer.getLocalDescription();
-            if (description == null || !description.description.contains("a=candidate:")) {
+            if (description == null || (!description.description.contains("a=candidate:")
+                    && (description.type != SessionDescription.Type.ANSWER
+                        || !description.description.contains("a=ice-ufrag:")
+                        || !description.description.contains("a=ice-pwd:")))) {
                 fail("No network path for voice audio was found.");
                 return;
             }

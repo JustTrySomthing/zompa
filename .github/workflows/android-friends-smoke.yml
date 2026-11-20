@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/android-friends-smoke.yml"
       - "tools/check_android_friends.py"
+      - "tools/check_voice_sdp.dart"
 
 permissions:
   contents: read
@@ -38,6 +39,7 @@ jobs:
           FLUTTER_SUPPRESS_ANALYTICS: "true"
         run: |
           flutter pub get --enforce-lockfile
+          dart tools/check_voice_sdp.dart
           flutter build apk --debug --target-platform android-x64 --no-pub
           unzip -l build/app/outputs/flutter-apk/app-debug.apk 'lib/x86_64/libchatmail_rpc.so'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

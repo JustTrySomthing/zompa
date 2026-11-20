@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
+import 'voice_sdp.dart';
 
 enum VoicePhase { incoming, starting, ringing, connecting, connected }
 
@@ -47,14 +48,6 @@ class VoiceCalls extends ChangeNotifier {
       _active?.phase == VoicePhase.connecting ||
       _active?.phase == VoicePhase.connected;
 
-  static bool _voiceSdp(Object? value) {
-    if (value is! String || !value.startsWith('v=0') || value.length > 24576) {
-      return false;
-    }
-    final media = value.split('\n').where((line) => line.startsWith('m='));
-    return media.length == 1 && media.single.startsWith('m=audio ');
-  }
-
   Future<void> dial(int chat, String name) async {
     if (busy || _disposed) return;
     final call = _Call(++_nextToken, chat, name, VoicePhase.starting);
@@ -94,7 +87,7 @@ class VoiceCalls extends ChangeNotifier {
           })
           .timeout(const Duration(seconds: 25));
       if (_active != call) return;
-      if (!_voiceSdp(sdp)) throw const FormatException();
+      if (!validVoiceSdp(sdp)) throw const FormatException();
       if (call.offer != null) {
         if (!await _chatmail.callIsRinging(call.message!)) {
           _end(call, signal: false, message: 'This call has ended.');
@@ -137,7 +130,7 @@ class VoiceCalls extends ChangeNotifier {
             call.phase != VoicePhase.ringing)
           return;
         final answer = event['accept_call_info'];
-        if (!_voiceSdp(answer)) {
+        if (!validVoiceSdp(answer)) {
           _end(call, message: 'This call used an unsupported audio format.');
           return;
         }
@@ -177,7 +170,7 @@ class VoiceCalls extends ChangeNotifier {
       );
       if (_disposed ||
           offer == null ||
-          !_voiceSdp(offer.offer) ||
+          !validVoiceSdp(offer.offer) ||
           _ended.contains(id) ||
           _active?.message == id)
         return;
