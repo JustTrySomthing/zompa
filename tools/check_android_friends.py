@@ -232,6 +232,10 @@ def check_match(alice, bob):
 
 
 def check_app_log(phone):
+    prior = phone.shell("run-as", APP, "cat", "files/app-log.txt")
+    startup = next((line for line in prior.splitlines() if b"App process started" in line), None)
+    if startup is None:
+        raise RuntimeError("App Log did not record startup")
     phone.shell("am", "force-stop", APP)
     wait("the app process to exit", lambda: not phone.shell(f"pidof {APP} || true").strip())
     phone.start()
@@ -243,19 +247,23 @@ def check_app_log(phone):
     phone.press("App Log")
     phone.see("Copy Log")
     log = phone.shell("run-as", APP, "cat", "files/app-log.txt")
-    if b"Outgoing phone button pressed" not in log or b"WebRTC native initialization finished" not in log:
-        raise RuntimeError("The call startup log was missing after reopening Zompado")
+    if startup not in log or log.count(b"App process started") < 2:
+        raise RuntimeError("App Log did not keep the first startup after reopening Zompado")
     phone.press("Copy Log")
     phone.press("Clear Log")
     wait("App Log to clear", lambda: not phone.shell(
         f"run-as {APP} ls files/app-log.txt 2>/dev/null || true"
     ))
-    print("PASS: App Log kept the call startup across a process restart and cleared the saved entries.", flush=True)
+    phone.back()
+    phone.back()
+    phone.press("Chats")
+    print("PASS: App Log kept activity across a restart and its Copy Log and Clear Log controls opened and ran.", flush=True)
 
 
 def main():
     alice, bob = Phone(5554, "Alice"), Phone(5556, "Bob")
     alice.profile()
+    check_app_log(alice)
     bob.profile()
     bob.press("Contacts")
     bob.press("Accept Invite")
@@ -304,7 +312,10 @@ def main():
     check_match(alice, bob)
     if voice_error:
         raise voice_error
-    check_app_log(alice)
+    log = alice.shell("run-as", APP, "cat", "files/app-log.txt")
+    if b"Outgoing phone button pressed" not in log or b"WebRTC native initialization finished" not in log:
+        raise RuntimeError("App Log did not record the call startup")
+    print("PASS: App Log captured the outgoing tap and native WebRTC startup.", flush=True)
 
 
 if __name__ == "__main__":
