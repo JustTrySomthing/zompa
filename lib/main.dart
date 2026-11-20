@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
@@ -9,6 +10,7 @@ import 'package:flutter/services.dart';
 
 import 'brand.dart';
 import 'app_updates.dart';
+import 'app_log.dart';
 import 'github_distribution.dart';
 import 'game_link.dart';
 import 'chatmail.dart';
@@ -34,6 +36,17 @@ typedef ChatAlertTarget = ({int chat, int message});
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  final previousFlutterError = FlutterError.onError;
+  FlutterError.onError = (details) {
+    recordAppEvent('Flutter error ${details.exception.runtimeType}');
+    previousFlutterError?.call(details);
+  };
+  final dispatcher = PlatformDispatcher.instance;
+  final previousPlatformError = dispatcher.onError;
+  dispatcher.onError = (error, stack) {
+    recordAppEvent('Uncaught Dart error ${error.runtimeType}');
+    return previousPlatformError?.call(error, stack) ?? false;
+  };
   LicenseRegistry.addLicense(() async* {
     final license = await rootBundle.loadString(
       'assets/licenses/Chatmail-Core-MPL-2.0.txt',
@@ -1510,6 +1523,14 @@ class _PreferencesState extends State<Preferences> {
           leading: const Icon(Icons.info_outline),
           title: const Text('About this build'),
           subtitle: const Text('Android prototype · $installedVersion'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.receipt_long_outlined),
+          title: const Text('App Log'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(
+            context,
+          ).push<void>(MaterialPageRoute(builder: (_) => const AppLogPage())),
         ),
       ],
     ),

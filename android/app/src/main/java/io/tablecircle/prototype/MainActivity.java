@@ -50,6 +50,12 @@ public final class MainActivity extends FlutterActivity {
     private MethodChannel.Result gamePicker;
 
     @Override
+    protected void onCreate(android.os.Bundle savedInstanceState) {
+        AppLog.install(this);
+        super.onCreate(savedInstanceState);
+    }
+
+    @Override
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
@@ -71,6 +77,28 @@ public final class MainActivity extends FlutterActivity {
                 @Override
                 public void onMethodCall(MethodCall call, MethodChannel.Result result) {
                 switch (call.method) {
+                    case "readAppLog":
+                        new Thread(() -> {
+                            try {
+                                AppLog.collectExits(MainActivity.this);
+                                String log = AppLog.read(MainActivity.this);
+                                runOnUiThread(() -> result.success(log));
+                            } catch (IOException | RuntimeException failure) {
+                                runOnUiThread(() -> result.error("APP_LOG", "Couldn’t read App Log.", null));
+                            }
+                        }, "zompado-read-app-log").start();
+                        break;
+                    case "clearAppLog":
+                        AppLog.clear(MainActivity.this);
+                        result.success(null);
+                        break;
+                    case "recordAppEvent":
+                        String event = call.argument("event");
+                        if (event != null && event.matches("[A-Za-z][A-Za-z0-9 ._-]{0,95}")) {
+                            AppLog.record(MainActivity.this, event);
+                        }
+                        result.success(null);
+                        break;
                     case "dataPath":
                         result.success(getFilesDir().getAbsolutePath());
                         break;
@@ -211,6 +239,7 @@ public final class MainActivity extends FlutterActivity {
                         }
                         break;
                     case "voiceStart":
+                        AppLog.record(MainActivity.this, "Android received the voice-start request");
                         voice.start(call.argument("token"), call.argument("ice"), call.argument("offer"), result);
                         break;
                     case "voiceAnswer":

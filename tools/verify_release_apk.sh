@@ -22,4 +22,6 @@ if ! grep -Fq "package: name='io.tablecircle.prototype' versionCode='$build' ver
   exit 1
 fi
 
+python3 "$(dirname "$0")/verify_webrtc_apk.py" "$apk"
+
 printf 'Verified Zompado %s (build %s), ARM64, signer SHA-256 %s\n' "$version" "$build" "$fingerprint"

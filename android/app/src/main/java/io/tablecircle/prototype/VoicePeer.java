@@ -55,15 +55,19 @@ final class VoicePeer {
 
             if (factory == null) {
                 if (!initialized) {
+                    AppLog.record(activity, "WebRTC native initialization started");
                     PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
                         .builder(activity.getApplicationContext())
                         .setEnableInternalTracer(false).createInitializationOptions());
                     initialized = true;
+                    AppLog.record(activity, "WebRTC native initialization finished");
                 }
+                AppLog.record(activity, "Creating WebRTC audio device");
                 JavaAudioDeviceModule device = JavaAudioDeviceModule.builder(activity.getApplicationContext())
                     .setAudioSource(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                     .createAudioDeviceModule();
                 try {
+                    AppLog.record(activity, "Creating WebRTC peer factory");
                     // Keep the software codecs used by existing Zompado releases.
                     // Camera and rendering also use the call's own EGL context.
                     factory = PeerConnectionFactory.builder().setAudioDeviceModule(device)
@@ -86,15 +90,19 @@ final class VoicePeer {
             config.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
             active.waitForRelay = servers.stream().flatMap(server -> server.urls.stream())
                 .anyMatch(url -> url.startsWith("turn:") || url.startsWith("turns:"));
+            AppLog.record(activity, "Creating WebRTC peer connection");
             active.peer = factory.createPeerConnection(config, active);
             if (active.peer == null) throw new IllegalStateException("No peer connection");
             active.peer.setAudioRecording(false);
             active.peer.setAudioPlayout(false);
+            AppLog.record(activity, "Creating WebRTC audio input");
             active.source = factory.createAudioSource(new MediaConstraints());
             active.track = factory.createAudioTrack("zompado_voice", active.source);
             VoiceAudioService.begin(activity);
+            AppLog.record(activity, offer == null ? "Preparing outgoing call offer" : "Preparing incoming call answer");
             active.start(offer);
         } catch (LinkageError | Exception failure) {
+            AppLog.failure(activity, "Call media startup failed", failure);
             Log.w(TAG, "Call media startup failed.", failure);
             if (session != null) {
                 session.fail("Couldn’t start voice audio.");
@@ -471,6 +479,7 @@ final class VoicePeer {
             main.removeCallbacks(iceTimeout);
             var result = preparing;
             preparing = null;
+            AppLog.record(activity, "Local call description prepared · relay candidate " + relayCandidate);
             Log.i(TAG, "Local " + description.type.canonicalForm() + " ICE candidates: "
                 + gatheredCandidates.size() + " (relay: " + relayCandidate + ")");
             result.success(sdp);
@@ -545,6 +554,7 @@ final class VoicePeer {
         @Override public void onConnectionChange(PeerConnection.PeerConnectionState state) {
             main.post(() -> {
                 if (session != this) return;
+                AppLog.record(activity, "WebRTC connection " + state);
                 Log.i(TAG, "Peer connection: " + state);
                 if (state == PeerConnection.PeerConnectionState.CONNECTED) {
                     main.removeCallbacks(lostConnection);
@@ -565,6 +575,7 @@ final class VoicePeer {
                             peer.setAudioRecording(true);
                             mediaStarted = true;
                         } catch (RuntimeException failure) {
+                            AppLog.failure(activity, "Call audio device failed", failure);
                             fail("Couldn’t start the call’s audio device.");
                             return;
                         }

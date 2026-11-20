@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
 import 'package:flutter/services.dart';
 
+import 'app_log.dart';
 import 'chatmail.dart';
 import 'voice_sdp.dart';
 
@@ -61,6 +62,7 @@ class VoiceCalls extends ChangeNotifier {
 
   Future<void> dial(int chat, String name) async {
     if (busy || _disposed) return;
+    recordAppEvent('Outgoing phone button pressed');
     final call = _Call(++_nextToken, chat, name, VoicePhase.starting);
     _set(call);
     await _start(call);
@@ -75,12 +77,15 @@ class VoiceCalls extends ChangeNotifier {
 
   Future<void> _start(_Call call) async {
     try {
+      recordAppEvent('Requesting call microphone access');
       final permission = await _host.invokeMethod<bool>('requestMicrophone');
       if (_active != call) return;
       if (permission != true) {
+        recordAppEvent('Call microphone access denied');
         _end(call, message: 'Allow microphone access to use voice calls.');
         return;
       }
+      recordAppEvent('Loading call relay settings');
       final ice = await _chatmail.iceServers();
       if (_active != call) return;
       if (call.message case final id? when call.offer != null) {
@@ -90,6 +95,7 @@ class VoiceCalls extends ChangeNotifier {
         }
       }
       if (_active != call) return;
+      recordAppEvent('Starting Android call media');
       final sdp = await _host
           .invokeMethod<String>('voiceStart', {
             'token': call.token,
@@ -123,8 +129,10 @@ class VoiceCalls extends ChangeNotifier {
         }
       }
     } on PlatformException catch (issue) {
+      recordAppEvent('Android call startup returned an error');
       _end(call, message: issue.message ?? 'Couldn’t start the voice call.');
-    } catch (_) {
+    } catch (error) {
+      recordAppEvent('Call setup error ${error.runtimeType}');
       _end(call, message: 'Couldn’t start the voice call.');
     }
   }

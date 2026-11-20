@@ -231,6 +231,27 @@ def check_match(alice, bob):
     print("PASS: an Android background job recovered a move, its alert opened the exact board, and the reply returned.", flush=True)
 
 
+def check_app_log(phone):
+    phone.stop_background_process()
+    phone.start()
+    phone.press("Settings")
+    for _ in range(3):
+        if phone.find("App Log"):
+            break
+        phone.shell("input", "swipe", 350, 1060, 350, 380, 350)
+    phone.press("App Log")
+    phone.see("Copy Log")
+    log = phone.shell("run-as", APP, "cat", "files/app-log.txt")
+    if b"Outgoing phone button pressed" not in log or b"WebRTC native initialization finished" not in log:
+        raise RuntimeError("The call startup log was missing after reopening Zompado")
+    phone.press("Copy Log")
+    phone.press("Clear Log")
+    wait("App Log to clear", lambda: not phone.shell(
+        f"run-as {APP} ls files/app-log.txt 2>/dev/null || true"
+    ))
+    print("PASS: App Log kept the call startup across a process restart and cleared the saved entries.", flush=True)
+
+
 def main():
     alice, bob = Phone(5554, "Alice"), Phone(5556, "Bob")
     alice.profile()
@@ -282,6 +303,7 @@ def main():
     check_match(alice, bob)
     if voice_error:
         raise voice_error
+    check_app_log(alice)
 
 
 if __name__ == "__main__":

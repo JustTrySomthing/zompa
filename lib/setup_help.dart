@@ -327,6 +327,10 @@ const _topics = [
         'Open Settings → My Profile to change your name, photo, or optional bio.',
       ),
       (
+        'Where can I get a log if a call crashes?',
+        'Reopen Zompado and go to Settings → App Log. Tap Copy Log to share the recorded call stages and available Android crash details. Tap Clear Log to erase the entries.',
+      ),
+      (
         'How do I call a friend?',
         'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, turn on video, or end the call. Camera stays off until you turn it on. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
       ),
