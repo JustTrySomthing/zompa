@@ -354,19 +354,22 @@ class VoiceBar extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  call == null
-                      ? error!
-                      : switch (call.phase) {
-                          VoicePhase.incoming =>
-                            'Incoming call from ${call.name}',
-                          VoicePhase.starting => 'Preparing voice audio…',
-                          VoicePhase.ringing => 'Calling ${call.name}…',
-                          VoicePhase.connecting =>
-                            'Connecting to ${call.name}…',
-                          VoicePhase.connected =>
-                            'Voice call with ${call.name}',
-                        },
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    call == null
+                        ? error!
+                        : switch (call.phase) {
+                            VoicePhase.incoming =>
+                              'Incoming call from ${call.name}',
+                            VoicePhase.starting => 'Preparing voice audio…',
+                            VoicePhase.ringing => 'Calling ${call.name}…',
+                            VoicePhase.connecting =>
+                              'Connecting to ${call.name}…',
+                            VoicePhase.connected =>
+                              'Voice call with ${call.name}',
+                          },
+                  ),
                 ),
               ),
               if (call == null)

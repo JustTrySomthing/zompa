@@ -230,9 +230,12 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
               : VoiceScope(
                   calls: _voice!,
                   child: Column(
+                    // Paint the call controls after the Navigator so route
+                    // barriers cannot hide the global controls from TalkBack.
+                    verticalDirection: VerticalDirection.up,
                     children: [
-                      const VoiceBar(),
                       Expanded(child: child!),
+                      const VoiceBar(),
                     ],
                   ),
                 ),

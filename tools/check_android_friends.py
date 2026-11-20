@@ -144,8 +144,8 @@ class Phone:
 
 def check_voice(alice, bob):
     alice.press("Voice call")
-    alice.see("Calling Bob…", 42)
-    bob.see("Incoming call from Alice", 100)
+    bob.see("Incoming call from Alice", 75)
+    alice.see("Calling Bob…", 20)
     bob.press("Answer")
     alice.see("Voice call with Bob", 65)
     bob.see("Voice call with Alice", 65)
@@ -201,6 +201,9 @@ def main():
         voice_error = error
         for phone in (alice, bob):
             print(f"{phone.name} while waiting for the call:", phone.labels(), flush=True)
+            logs = phone.adb("logcat", "-d", "-t", "800", "-s", "flutter:E").decode(errors="replace")
+            if logs.strip():
+                print(logs, flush=True)
             for action in ("End call", "Decline", "Dismiss call message"):
                 if point := phone.find(action):
                     phone.shell("input", "tap", *point)
