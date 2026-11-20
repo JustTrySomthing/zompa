@@ -11,6 +11,7 @@ import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.os.Build;
+import android.os.SystemClock;
 import android.provider.Settings;
 import androidx.core.content.FileProvider;
 import com.google.mlkit.vision.barcode.common.Barcode;
@@ -34,9 +35,11 @@ public final class MainActivity extends FlutterActivity {
     private MethodChannel host;
     private VoicePeer voice;
     private boolean openChats;
-    private Map<String, Integer> incomingCall;
+    private Map<String, Object> chatAlert;
     private Ringtone ringing;
     private int ringingId;
+    private int ringingChat;
+    private long ringDeadline;
     private boolean scanningInvite;
     private static final int PICK_LOVE = 392;
     private MethodChannel.Result gamePicker;
@@ -116,14 +119,13 @@ public final class MainActivity extends FlutterActivity {
                         break;
                     case "showIncomingCall":
                         Integer incoming = call.argument("message");
-                        if (incoming != null) {
-                            if (Boolean.TRUE.equals(call.argument("foreground"))) ring(incoming);
-                            else {
-                                Integer incomingChat = call.argument("chat");
-                                Integer secondsLeft = call.argument("secondsLeft");
-                                if (incomingChat != null && secondsLeft != null) {
-                                    ChatAlerts.incoming(MainActivity.this, incomingChat, incoming, secondsLeft);
-                                }
+                        Integer incomingChat = call.argument("chat");
+                        Integer secondsLeft = call.argument("secondsLeft");
+                        if (incoming != null && incomingChat != null && secondsLeft != null) {
+                            if (Boolean.TRUE.equals(call.argument("foreground"))) {
+                                ring(incomingChat, incoming, secondsLeft);
+                            } else {
+                                ChatAlerts.incoming(MainActivity.this, incomingChat, incoming, secondsLeft);
                             }
                         }
                         result.success(null);
@@ -136,13 +138,10 @@ public final class MainActivity extends FlutterActivity {
                         }
                         result.success(null);
                         break;
-                    case "takeOpenChats":
-                        result.success(openChats);
+                    case "takeChatAlert":
+                        result.success(openChats && chatAlert == null ? new HashMap<>() : chatAlert);
                         openChats = false;
-                        break;
-                    case "takeIncomingCall":
-                        result.success(incomingCall);
-                        incomingCall = null;
+                        chatAlert = null;
                         break;
                     case "requestMicrophone":
                         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
@@ -320,8 +319,11 @@ public final class MainActivity extends FlutterActivity {
         }
     }
 
-    private void ring(int message) {
+    private void ring(int chat, int message, int secondsLeft) {
         stopRinging();
+        ringingId = message;
+        ringingChat = chat;
+        ringDeadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L;
         if (getSystemService(AudioManager.class).getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
         try {
             Ringtone tone = RingtoneManager.getRingtone(this,
@@ -331,10 +333,9 @@ public final class MainActivity extends FlutterActivity {
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build());
             if (Build.VERSION.SDK_INT >= 28) tone.setLooping(true);
             ringing = tone;
-            ringingId = message;
             tone.play();
         } catch (RuntimeException ignored) {
-            stopRinging();
+            ringing = null;
         }
     }
 
@@ -342,10 +343,16 @@ public final class MainActivity extends FlutterActivity {
         if (ringing != null) ringing.stop();
         ringing = null;
         ringingId = 0;
+        ringingChat = 0;
+        ringDeadline = 0;
     }
 
     @Override
     protected void onStop() {
+        long remaining = ringDeadline - SystemClock.elapsedRealtime();
+        if (ringingId > 0 && remaining > 0) {
+            ChatAlerts.incoming(this, ringingChat, ringingId, (remaining + 999) / 1000);
+        }
         stopRinging();
         super.onStop();
     }
@@ -363,12 +370,19 @@ public final class MainActivity extends FlutterActivity {
     private void readChatIntent(Intent intent) {
         if (!ChatAlerts.OPEN_CHATS.equals(intent.getAction())) return;
         openChats = true;
-        int chat = intent.getIntExtra(ChatAlerts.CALL_CHAT, 0);
-        int message = intent.getIntExtra(ChatAlerts.CALL_MESSAGE, 0);
-        if (chat > 0 && message > 0) {
-            incomingCall = new HashMap<>();
-            incomingCall.put("chat", chat);
-            incomingCall.put("message", message);
+        int chat = intent.getIntExtra(ChatAlerts.ALERT_CHAT, 0);
+        int message = intent.getIntExtra(ChatAlerts.ALERT_MESSAGE, 0);
+        boolean call = intent.getBooleanExtra(ChatAlerts.INCOMING_CALL, false);
+        if (ChatAlerts.isTrustedAlert(this, intent) && chat > 0 && message > 0) {
+            chatAlert = new HashMap<>();
+            chatAlert.put("chat", chat);
+            chatAlert.put("message", message);
+            chatAlert.put("incomingCall", call);
+            intent.removeExtra(ChatAlerts.ALERT_CHAT);
+            intent.removeExtra(ChatAlerts.ALERT_MESSAGE);
+            intent.removeExtra(ChatAlerts.INCOMING_CALL);
+        } else {
+            chatAlert = null;
         }
     }
 

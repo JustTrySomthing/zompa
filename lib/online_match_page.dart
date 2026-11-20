@@ -17,6 +17,7 @@ class OnlineMatchPage extends StatefulWidget {
     required this.id,
     required this.prepareGame,
     required this.buildChatDock,
+    this.installedGame,
   });
 
   final Chatmail chatmail;
@@ -24,6 +25,7 @@ class OnlineMatchPage extends StatefulWidget {
   final String id;
   final Future<GameRelease?> Function(GameLink) prepareGame;
   final Widget Function(VoidCallback close) buildChatDock;
+  final GameRelease? installedGame;
 
   @override
   State<OnlineMatchPage> createState() => _OnlineMatchPageState();
@@ -87,8 +89,14 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         widget.id,
       );
       if (mounted) {
+        final match = OnlineMatch.replay(widget.id, records);
         setState(() {
-          _match = OnlineMatch.replay(widget.id, records);
+          _match = match;
+          if (widget.installedGame case final game?
+              when match?.invite.game?.matches(game) == true &&
+                  game.modes.contains('online')) {
+            _game ??= game;
+          }
           _error = _match == null
               ? 'The match invitation is unavailable.'
               : null;

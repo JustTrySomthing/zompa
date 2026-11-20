@@ -5,15 +5,19 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import androidx.core.app.NotificationCompat;
+import java.util.UUID;
 
 final class ChatAlerts {
     private static final String CHANNEL = "friend_activity";
     private static final String CALL_CHANNEL = "incoming_calls";
     static final String OPEN_CHATS = "io.zompado.OPEN_CHATS";
-    static final String CALL_CHAT = "callChat";
-    static final String CALL_MESSAGE = "callMessage";
+    static final String ALERT_CHAT = "alertChat";
+    static final String ALERT_MESSAGE = "alertMessage";
+    static final String INCOMING_CALL = "incomingCall";
+    private static final String ALERT_TOKEN = "alertToken";
 
     static void setup(Context context) {
         if (Build.VERSION.SDK_INT >= 26) {
@@ -46,17 +50,15 @@ final class ChatAlerts {
         var history = context.getSharedPreferences("chat_alerts", Context.MODE_PRIVATE);
         String key = "last_" + chat;
         if (history.getInt(key, 0) >= message) return;
+        PendingIntent open = alertIntent(context, chat, message, false);
         context.getSystemService(NotificationManager.class).notify("friend-activity", chat,
-            notification(context, title, CHANNEL, 391));
+            notification(context, title, CHANNEL, open).build());
         history.edit().putInt(key, message).apply();
     }
 
     static void incoming(Context context, int chat, int message, long secondsLeft) {
         if (chat <= 0 || message <= 0 || secondsLeft <= 0 || !callsEnabled(context)) return;
-        Intent intent = openChats(context).setData(android.net.Uri.parse("zompado-call:" + message))
-            .putExtra(CALL_CHAT, chat).putExtra(CALL_MESSAGE, message);
-        PendingIntent open = PendingIntent.getActivity(context, 395, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent open = alertIntent(context, chat, message, true);
         context.getSystemService(NotificationManager.class).notify("voice", message,
             notification(context, "Incoming Zompado voice call", CALL_CHANNEL, open)
                 .setContentText("Open Zompado to answer.")
@@ -65,6 +67,31 @@ final class ChatAlerts {
                 .setTimeoutAfter(secondsLeft * 1000)
                 .setOnlyAlertOnce(true)
                 .build());
+    }
+
+    private static PendingIntent alertIntent(Context context, int chat, int message, boolean call) {
+        // Use the message ID so separate chats and replaced alerts keep their own target.
+        Intent intent = openChats(context).setData(Uri.parse("zompado-alert:" + message))
+            .putExtra(ALERT_CHAT, chat).putExtra(ALERT_MESSAGE, message).putExtra(INCOMING_CALL, call)
+            .putExtra(ALERT_TOKEN, alertToken(context));
+        return PendingIntent.getActivity(context, call ? 395 : 391, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private static synchronized String alertToken(Context context) {
+        var prefs = context.getSharedPreferences("chat_alerts", Context.MODE_PRIVATE);
+        String token = prefs.getString(ALERT_TOKEN, null);
+        if (token != null) return token;
+        token = UUID.randomUUID().toString();
+        return prefs.edit().putString(ALERT_TOKEN, token).commit() ? token : null;
+    }
+
+    static boolean isTrustedAlert(Context context, Intent intent) {
+        String token = context.getSharedPreferences("chat_alerts", Context.MODE_PRIVATE)
+            .getString(ALERT_TOKEN, null);
+        boolean trusted = token != null && token.equals(intent.getStringExtra(ALERT_TOKEN));
+        intent.removeExtra(ALERT_TOKEN);
+        return trusted;
     }
 
     private static Intent openChats(Context context) {

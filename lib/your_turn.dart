@@ -14,10 +14,12 @@ class YourTurn extends StatefulWidget {
     super.key,
     required this.chatmail,
     required this.prepareGame,
+    this.installedGame,
   });
 
   final Chatmail chatmail;
   final Future<GameRelease?> Function(GameLink) prepareGame;
+  final GameRelease? installedGame;
 
   @override
   State<YourTurn> createState() => _YourTurnState();
@@ -110,6 +112,7 @@ class _YourTurnState extends State<YourTurn> with WidgetsBindingObserver {
           chat: chat.id,
           id: id,
           prepareGame: widget.prepareGame,
+          installedGame: widget.installedGame,
           buildChatDock: (close) => FriendConversation.docked(
             chatmail: widget.chatmail,
             id: chat.id,

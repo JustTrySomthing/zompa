@@ -16,6 +16,7 @@ import 'friends.dart';
 import 'setup_help.dart';
 import 'your_turn.dart';
 import 'online_match.dart';
+import 'online_match_page.dart';
 import 'love_imports.dart';
 import 'love_player.dart';
 import 'game_audio.dart';
@@ -24,6 +25,7 @@ import 'voice_calls.dart';
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
 const bridge = MethodChannel('io.zompado.host');
+typedef ChatAlertTarget = ({int chat, int message});
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +61,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   VoiceCalls? _voice;
   GameAudio? _gameAudio;
   int _openChats = 0;
+  ChatAlertTarget? _chatAlertTarget;
   StreamSubscription<(int, int)>? _incoming;
   bool get _background =>
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.paused ||
@@ -121,17 +124,27 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
 
   Future<void> _openChatsIfRequested() async {
     try {
-      final requested = await bridge.invokeMethod<bool>('takeOpenChats');
-      if (mounted && requested == true) setState(() => _openChats++);
       final voice = _voice;
-      if (voice == null || !mounted) return;
-      final call = await bridge.invokeMapMethod<String, int>(
-        'takeIncomingCall',
+      if (!mounted || voice == null) return;
+      final alert = await bridge.invokeMapMethod<String, Object>(
+        'takeChatAlert',
       );
-      if (!mounted || call == null) return;
-      if ((call['chat'], call['message']) case (final int chat, final int id)) {
-        unawaited(voice.restoreIncoming(chat, id));
+      if (!mounted || alert == null) return;
+      ChatAlertTarget? target;
+      if ((alert['chat'], alert['message']) case (
+        final int chat,
+        final int id,
+      )) {
+        if (alert['incomingCall'] == true) {
+          unawaited(voice.restoreIncoming(chat, id));
+        } else {
+          target = (chat: chat, message: id);
+        }
       }
+      setState(() {
+        _chatAlertTarget = target;
+        _openChats++;
+      });
     } catch (_) {
       // The desktop preview has no Android notification intent.
     }
@@ -139,7 +152,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
 
   Future<void> _chatAlert(Chatmail chatmail, int chat, int id) async {
     try {
-      final message = await chatmail.notificationMessage(chat, id);
+      final message = (await chatmail.notificationMessage(chat, id))?.message;
       if (message == null || !mounted || !_background) return;
       final event = MatchEvent.parse(message.text);
       var label = 'New message';
@@ -241,6 +254,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
               updates: updates,
               chatmail: chatmail,
               openChats: _openChats,
+              chatAlert: _chatAlertTarget,
               onTheme: (value) {
                 write('theme', value.name);
                 setState(() => mode = value);
@@ -260,8 +274,10 @@ class Home extends StatefulWidget {
     required this.updates,
     required this.chatmail,
     this.openChats = 0,
+    this.chatAlert,
   });
   final int openChats;
+  final ChatAlertTarget? chatAlert;
   final GithubDistribution? distribution;
   final Chatmail? chatmail;
   final AppUpdates? updates;
@@ -276,9 +292,71 @@ class _HomeState extends State<Home> {
   late int tab = widget.openChats > 0 ? 0 : 1;
 
   @override
+  void initState() {
+    super.initState();
+    _routeChatAlert();
+  }
+
+  @override
   void didUpdateWidget(Home oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.openChats != oldWidget.openChats) tab = 0;
+    if (widget.openChats != oldWidget.openChats) {
+      tab = 0;
+      _routeChatAlert();
+    }
+  }
+
+  void _routeChatAlert() {
+    final alert = widget.chatAlert;
+    final request = widget.openChats;
+    if (alert == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.openChats == request) {
+        unawaited(_openChatAlert(alert, request));
+      }
+    });
+  }
+
+  Future<void> _openChatAlert(ChatAlertTarget alert, int request) async {
+    final chatmail = widget.chatmail;
+    if (chatmail == null) return;
+    try {
+      if (!await chatmail.restore()) return;
+      final target = await chatmail.notificationMessage(
+        alert.chat,
+        alert.message,
+        forDelivery: false,
+      );
+      if (!mounted || widget.openChats != request || target == null) return;
+      final match = MatchEvent.parse(target.message.text);
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => match == null
+              ? FriendConversation(
+                  chatmail: chatmail,
+                  id: alert.chat,
+                  initialName: target.name,
+                  pickGameLink: _installedGameLink,
+                  openGameLink: _openGameLink,
+                  prepareGame: _prepareOnlineGame,
+                )
+              : OnlineMatchPage(
+                  chatmail: chatmail,
+                  chat: alert.chat,
+                  id: match.id,
+                  prepareGame: _prepareOnlineGame,
+                  installedGame: installedGames['drop-four'],
+                  buildChatDock: (close) => FriendConversation.docked(
+                    chatmail: chatmail,
+                    id: alert.chat,
+                    onClose: close,
+                  ),
+                ),
+        ),
+      );
+    } catch (_) {
+      // Chats stays available if an old alert can no longer be opened.
+    }
   }
 
   bool catalog = false;
@@ -758,7 +836,11 @@ class _HomeState extends State<Home> {
         const SizedBox(height: 20),
         if (!catalog)
           if (widget.chatmail case final Chatmail chatmail)
-            YourTurn(chatmail: chatmail, prepareGame: _prepareOnlineGame),
+            YourTurn(
+              chatmail: chatmail,
+              prepareGame: _prepareOnlineGame,
+              installedGame: installedGames['drop-four'],
+            ),
         Row(
           children: [
             Expanded(

@@ -265,7 +265,7 @@ const _topics = [
       ),
       (
         'How do I play Drop Four with a friend online?',
-        'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Resume from the match card or from Your turn in My Games. Tap the chat bubble on the board to talk to your friend.',
+        'Install Drop Four, open a friend chat, and tap Invite to a Drop Four match. Your friend opens the match card and accepts. You take the first turn. Resume from a turn alert, the match card, or Your turn in My Games. Tap the chat bubble on the board to talk to your friend.',
       ),
       (
         'How do I change game sounds?',
@@ -319,7 +319,7 @@ const _topics = [
       ),
       (
         'What alerts can I turn on?',
-        'Setup offers app update and friend activity alerts. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
+        'Setup offers app update and friend activity alerts. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
       ),
     ],
   ),

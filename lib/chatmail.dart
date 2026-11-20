@@ -311,14 +311,18 @@ class Chatmail {
   Future<List<FriendMessage>> recentMatchMessages(String marker) =>
       _search(null, marker);
 
-  Future<FriendMessage?> notificationMessage(int chat, int id) async {
+  Future<({String name, FriendMessage message})?> notificationMessage(
+    int chat,
+    int id, {
+    bool forDelivery = true,
+  }) async {
     final account = _accountId;
     final info = await _call('get_full_chat_by_id', [account, chat]) as Json;
     if (info['chatType'] != 'Single' ||
         info['isEncrypted'] != true ||
         info['isSelfTalk'] == true ||
         info['isDeviceChat'] == true ||
-        info['isMuted'] == true ||
+        (forDelivery && info['isMuted'] == true) ||
         info['isContactRequest'] == true)
       return null;
     final messages =
@@ -332,10 +336,11 @@ class Chatmail {
       final result = FriendMessage.fromJson(message);
       if (result.chat == chat &&
           !result.outgoing &&
-          !result.info &&
           result.encrypted &&
-          result.state == 10)
-        return result;
+          (!result.info || message['viewType'] == 'Call') &&
+          (!forDelivery || result.state == 10)) {
+        return (name: info['name'] as String, message: result);
+      }
     }
     return null;
   }
