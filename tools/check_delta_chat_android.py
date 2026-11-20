@@ -104,6 +104,9 @@ def main():
                 crash = phone.adb("logcat", "-b", "crash", "-d", "-t", "120")
                 if crash.strip():
                     print(f"{phone.name} Android crash log:\n{crash.decode(errors='replace')}", flush=True)
+                media = phone.adb("logcat", "-d", "-s", "ZompadoCall:I").decode(errors="replace")
+                if media.strip():
+                    print(media, flush=True)
             except Exception:
                 pass
         raise

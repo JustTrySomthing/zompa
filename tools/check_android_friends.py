@@ -231,7 +231,7 @@ def main():
         voice_error = error
         for phone in (alice, bob):
             print(f"{phone.name} while waiting for the call:", phone.labels(), flush=True)
-            logs = phone.adb("logcat", "-d", "-t", "800", "-s", "flutter:E").decode(errors="replace")
+            logs = phone.adb("logcat", "-d", "-t", "800", "-s", "flutter:E", "ZompadoCall:I").decode(errors="replace")
             if logs.strip():
                 print(logs, flush=True)
             for action in ("End call", "Decline", "Dismiss call message"):

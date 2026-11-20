@@ -436,6 +436,8 @@ final class VoicePeer {
             main.removeCallbacks(iceTimeout);
             var result = preparing;
             preparing = null;
+            Log.i(TAG, "Local " + description.type.canonicalForm() + " ICE candidates: "
+                + gatheredCandidates.size() + " (relay: " + relayCandidate + ")");
             result.success(sdp);
         }
 
@@ -508,6 +510,7 @@ final class VoicePeer {
         @Override public void onConnectionChange(PeerConnection.PeerConnectionState state) {
             main.post(() -> {
                 if (session != this) return;
+                Log.i(TAG, "Peer connection: " + state);
                 if (state == PeerConnection.PeerConnectionState.CONNECTED) {
                     main.removeCallbacks(lostConnection);
                     if (!mediaStarted) {
