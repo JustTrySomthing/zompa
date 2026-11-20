@@ -65,6 +65,12 @@ class Phone:
             return None
         return None
 
+    def labels(self):
+        self.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
+        layout = self.shell("cat", "/sdcard/zompado-friends.xml")
+        values = [node.get("content-desc") or node.get("text") for node in ET.fromstring(layout).iter("node")]
+        return [label for label in values if label and len(label) <= 60]
+
     def see(self, label, seconds=55):
         return wait(f"{self.name} to show {label}", lambda: self.find(label), seconds)
 
@@ -82,6 +88,16 @@ class Phone:
         result = self.shell("am", "start", "-W", "-n", ACTIVITY).decode()
         if "Error" in result or "Exception" in result:
             raise RuntimeError(f"{self.name}: could not launch Zompado: {result}")
+
+    def stop_background_process(self):
+        self.shell("input", "keyevent", 3)
+        def process():
+            return self.shell(f"pidof {APP} || true").decode().split()
+        for pid in process():
+            if pid.isdecimal():
+                # Run under the debug app's UID so this also works if LMK considers it active.
+                self.shell("run-as", APP, "kill", "-9", pid)
+        wait(f"{self.name}'s process to stop without force-stop", lambda: not process())
 
     def install_game(self):
         self.press("Get Games")
@@ -128,6 +144,7 @@ class Phone:
 
 def check_voice(alice, bob):
     alice.press("Voice call")
+    alice.see("Calling Bob…", 42)
     bob.see("Incoming call from Alice", 100)
     bob.press("Answer")
     alice.see("Voice call with Bob", 65)
@@ -150,9 +167,7 @@ def check_match(alice, bob):
     alice.press("Open Drop Four match")
     alice.see("Your turn", 100)
     alice.press("Install if needed and open board")
-    bob.shell("input", "keyevent", 3)
-    bob.shell("am", "kill", APP)
-    wait("Android to stop Bob’s app process", lambda: not bob.shell(f"pidof {APP} || true").strip())
+    bob.stop_background_process()
     alice.turn()
     alice.see("Your friend’s turn")
     bob.shell("cmd", "jobscheduler", "run", "-f", APP, 291)
@@ -185,6 +200,7 @@ def main():
     except RuntimeError as error:
         voice_error = error
         for phone in (alice, bob):
+            print(f"{phone.name} while waiting for the call:", phone.labels(), flush=True)
             for action in ("End call", "Decline", "Dismiss call message"):
                 if point := phone.find(action):
                     phone.shell("input", "tap", *point)
@@ -210,9 +226,7 @@ if __name__ == "__main__":
                 print(f"{phone.name} focus:", flush=True)
                 print(phone.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true").decode())
                 print(phone.adb("logcat", "-b", "crash", "-d", "-t", "120").decode())
-                layout = phone.shell("cat", "/sdcard/zompado-friends.xml")
-                labels = [node.get("content-desc") or node.get("text") for node in ET.fromstring(layout).iter("node")]
-                print("Visible labels:", [label for label in labels if label and len(label) <= 52])
+                print("Visible labels:", phone.labels())
             except (RuntimeError, subprocess.SubprocessError, ET.ParseError):
                 pass
         raise
