@@ -109,7 +109,7 @@ def main():
     wait("the downloaded game", lambda: find("Cats vs Dogs"), seconds=50)
     # Enter the game's own LÖVE scene and place a center token.
     press("Play")
-    press("Pass and play")
+    press("Pass & Play")
     _, x, y, _ = wait("a rendered LÖVE board", board, seconds=50)
     tap(x, y)
     time.sleep(0.45)
@@ -119,7 +119,7 @@ def main():
     adb("shell", "am", "force-stop", APP)
     adb("shell", "am", "start", "-n", ACTIVITY)
     press("Play")
-    press("Pass and play")
+    press("Pass & Play")
     wait("the restored token", has_center_token, seconds=50)
     screenshot().save(DIAGNOSTICS / "restored-board.png")
     adb("shell", "input", "keyevent", 4)

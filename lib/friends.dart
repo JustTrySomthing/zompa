@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
+import 'chat_files.dart';
+import 'chat_emoji.dart';
+import 'contacts_page.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
@@ -221,6 +225,23 @@ class _FriendsPaneState extends State<FriendsPane> {
     await _refresh();
   }
 
+  Future<void> _contacts() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ContactsPage(
+          chatmail: widget.chatmail,
+          invite: _invite,
+          acceptInvite: _accept,
+          open: (contact) async {
+            final chat = await widget.chatmail.openContact(contact.id);
+            if (mounted) await _open(chat, contact.name);
+          },
+        ),
+      ),
+    );
+    if (mounted) await _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -254,6 +275,11 @@ class _FriendsPaneState extends State<FriendsPane> {
             spacing: 8,
             runSpacing: 8,
             children: [
+              FilledButton.tonalIcon(
+                onPressed: _busy ? null : _contacts,
+                icon: const Icon(Icons.contacts_outlined),
+                label: const Text('Contacts'),
+              ),
               FilledButton.icon(
                 onPressed: _busy ? null : _invite,
                 icon: const Icon(Icons.person_add_alt_1),
@@ -510,6 +536,9 @@ class FriendConversation extends StatefulWidget {
 class _FriendConversationState extends State<FriendConversation>
     with WidgetsBindingObserver {
   final _composer = TextEditingController();
+  final _scroll = ScrollController();
+  bool _awayFromLatest = false;
+  ChatFile? _attachment;
   FriendThread? _thread;
   StreamSubscription<void>? _events;
   Timer? _timer;
@@ -524,6 +553,7 @@ class _FriendConversationState extends State<FriendConversation>
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_updateScroll);
     WidgetsBinding.instance.addObserver(this);
     _events = widget.chatmail.changes.listen((_) {
       _timer?.cancel();
@@ -543,6 +573,8 @@ class _FriendConversationState extends State<FriendConversation>
     _timer?.cancel();
     _events?.cancel();
     _composer.dispose();
+    _scroll.dispose();
+    if (!_sending) _attachment?.discard();
     super.dispose();
   }
 
@@ -583,19 +615,157 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
+  void _updateScroll() {
+    if (!_scroll.hasClients) return;
+    final away = _scroll.offset > 80;
+    if (away != _awayFromLatest) setState(() => _awayFromLatest = away);
+  }
+
+  void _latest() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<void> _showEmoji() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => ChatEmojiPicker(
+        insert: (value) {
+          final current = _composer.value;
+          final selection = current.selection;
+          final start = selection.isValid
+              ? selection.start
+              : current.text.length;
+          final end = selection.isValid ? selection.end : start;
+          final text = current.text.replaceRange(start, end, value);
+          if (text.length > 5000) return;
+          _composer.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: start + value.length),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _chooseAttachment() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Add attachment')),
+            for (final (label, icon, value) in const [
+              ('Other File Type', Icons.insert_drive_file_outlined, '*/*'),
+              ('Take photo', Icons.photo_camera_outlined, 'capture-photo'),
+              ('Record video', Icons.videocam_outlined, 'capture-video'),
+              ('Record audio', Icons.mic_none, 'capture-audio'),
+              ('Photos', Icons.photo_library_outlined, 'image/*'),
+              ('Videos', Icons.video_library_outlined, 'video/*'),
+              ('Audio', Icons.audiotrack_outlined, 'audio/*'),
+              ('Contact card (.vcf)', Icons.contact_page_outlined, 'contact'),
+            ])
+              ListTile(
+                leading: Icon(icon),
+                title: Text(label),
+                onTap: () => Navigator.pop(sheet, value),
+              ),
+            if (widget.pickGameLink != null)
+              ListTile(
+                leading: const Icon(Icons.link),
+                title: const Text('Share a game link'),
+                onTap: () => Navigator.pop(sheet, 'game-link'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'game-link') {
+      await _sendGame();
+      return;
+    }
+    try {
+      final file = choice == 'contact'
+          ? await _chooseContactCard()
+          : await ChatFile.pick(choice);
+      if (file == null) return;
+      if (!mounted) {
+        await file.discard();
+        return;
+      }
+      final prior = _attachment;
+      setState(() {
+        _attachment = file;
+        _sendError = null;
+      });
+      await prior?.discard();
+    } catch (_) {
+      if (mounted) setState(() => _sendError = 'Couldn’t add that attachment.');
+    }
+  }
+
+  Future<ChatFile?> _chooseContactCard() async {
+    final contacts = await widget.chatmail.contacts();
+    if (!mounted) return null;
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              title: const Text('Choose a .vcf file'),
+              onTap: () => Navigator.pop(sheet, 0),
+            ),
+            for (final contact in contacts)
+              ListTile(
+                title: Text(contact.name),
+                onTap: () => Navigator.pop(sheet, contact.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return null;
+    return selected == 0
+        ? ChatFile.pick('text/vcard')
+        : ChatFile.card(await widget.chatmail.contactCard(selected));
+  }
+
   Future<bool> _send({String? gameLink}) async {
     final original = _composer.text;
     final text = gameLink ?? original.trim();
-    if (_sending || text.isEmpty || _thread?.canSend != true) return false;
+    final attachment = gameLink == null ? _attachment : null;
+    if (_sending ||
+        (text.isEmpty && attachment == null) ||
+        _thread?.canSend != true)
+      return false;
     setState(() {
       _sending = true;
       _sendError = null;
     });
     try {
-      await widget.chatmail.send(widget.id, text);
+      await widget.chatmail.send(
+        widget.id,
+        text,
+        file: attachment?.path,
+        filename: attachment?.name,
+      );
+      await attachment?.discard();
       if (!mounted) return false;
+      if (attachment != null) setState(() => _attachment = null);
       if (gameLink == null && _composer.text == original) _composer.clear();
       await _load();
+      if (mounted) _latest();
       return true;
     } catch (error) {
       if (mounted)
@@ -605,6 +775,7 @@ class _FriendConversationState extends State<FriendConversation>
               : _failure(error),
         );
       if (error is TimeoutException) await _load();
+      if (!mounted) await attachment?.discard();
       return false;
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -679,22 +850,25 @@ class _FriendConversationState extends State<FriendConversation>
     }
   }
 
-  void _openMatch(String id) => Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (_) => OnlineMatchPage(
-        chatmail: widget.chatmail,
-        chat: widget.id,
-        id: id,
-        prepareGame: widget.prepareGame!,
-        friendName: _thread?.name ?? widget.initialName,
-        buildChatDock: (close) => FriendConversation.docked(
-          chatmail: widget.chatmail,
-          id: widget.id,
-          onClose: close,
+  void _openMatch(String id, {bool accept = false, bool play = false}) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => OnlineMatchPage(
+            chatmail: widget.chatmail,
+            chat: widget.id,
+            id: id,
+            acceptOnOpen: accept,
+            playOnOpen: play,
+            prepareGame: widget.prepareGame!,
+            friendName: _thread?.name ?? widget.initialName,
+            buildChatDock: (close) => FriendConversation.docked(
+              chatmail: widget.chatmail,
+              id: widget.id,
+              onClose: close,
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -708,6 +882,12 @@ class _FriendConversationState extends State<FriendConversation>
         }).toList() ??
         const <FriendMessage>[];
     final colors = Theme.of(context).colorScheme;
+    final history = <String, List<FriendMessage>>{};
+    for (final message in thread?.messages ?? const <FriendMessage>[]) {
+      if (MatchEvent.parse(message.text) case final event?) {
+        (history[event.id] ??= []).add(message);
+      }
+    }
     final docked = widget.onClose != null;
     final voice = VoiceScope.of(context);
     final appBar = AppBar(
@@ -728,14 +908,6 @@ class _FriendConversationState extends State<FriendConversation>
             tooltip: 'Close match chat',
             onPressed: widget.onClose,
             icon: const Icon(Icons.close),
-          )
-        else
-          IconButton(
-            tooltip: 'Invite to a Cats vs Dogs match',
-            onPressed: _pickingGame || _sending || thread?.canSend != true
-                ? null
-                : _inviteMatch,
-            icon: const Icon(Icons.sports_esports_outlined),
           ),
       ],
     );
@@ -761,111 +933,222 @@ class _FriendConversationState extends State<FriendConversation>
               ),
             ),
           Expanded(
-            child: thread == null || (visible.isEmpty && !thread.hasOlder)
-                ? Center(
-                    child: Text(
-                      thread?.canSend == true ? 'Send your first message.' : '',
-                    ),
-                  )
-                : ListView.builder(
-                    reverse: true,
-                    padding: const EdgeInsets.all(12),
-                    itemCount: visible.length + (thread.hasOlder ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == visible.length) {
-                        return TextButton(
-                          onPressed: () {
-                            _limit += 60;
-                            _load();
-                          },
-                          child: const Text('Load older messages'),
-                        );
-                      }
-                      final message = visible[visible.length - index - 1];
-                      final text = message.text.isEmpty
-                          ? 'Attachment'
-                          : message.text;
-                      if (message.info) {
-                        return Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Text(text, textAlign: TextAlign.center),
-                        );
-                      }
-                      final match = (message.outgoing || message.encrypted)
-                          ? MatchEvent.parse(message.text)
-                          : null;
-                      final gameLink = GameLink.parse(message.text);
-                      return Align(
-                        alignment: message.outgoing
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 7),
-                          constraints: const BoxConstraints(maxWidth: 340),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: message.outgoing
-                                ? colors.secondaryContainer
-                                : colors.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (match?.kind == 'invite')
-                                OutlinedButton.icon(
-                                  onPressed: () => _openMatch(match!.id),
-                                  icon: const Icon(
-                                    Icons.sports_esports_outlined,
-                                  ),
-                                  label: const Text('Open Cats vs Dogs match'),
-                                )
-                              else if (gameLink != null &&
-                                  widget.openGameLink != null)
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      widget.openGameLink!(gameLink),
-                                  icon: const Icon(
-                                    Icons.sports_esports_outlined,
-                                  ),
-                                  label: Text(
-                                    gameLink.id == 'drop-four'
-                                        ? 'Open Cats vs Dogs'
-                                        : 'Open game',
-                                  ),
-                                )
-                              else
-                                SelectableText(
-                                  text,
-                                  style: TextStyle(
-                                    color: message.outgoing
-                                        ? colors.onSecondaryContainer
-                                        : colors.onSurface,
-                                  ),
-                                ),
-                              if (message.delivery case final delivery?)
-                                Text(
-                                  delivery,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: colors.onSecondaryContainer,
-                                  ),
-                                ),
-                            ],
-                          ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                thread == null || (visible.isEmpty && !thread.hasOlder)
+                    ? Center(
+                        child: Text(
+                          thread?.canSend == true
+                              ? 'Send your first message.'
+                              : '',
                         ),
-                      );
-                    },
+                      )
+                    : ListView.builder(
+                        controller: _scroll,
+                        reverse: true,
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 60),
+                        itemCount: visible.length + (thread.hasOlder ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == visible.length) {
+                            return TextButton(
+                              onPressed: () {
+                                _limit += 60;
+                                _load();
+                              },
+                              child: const Text('Load older messages'),
+                            );
+                          }
+                          final message = visible[visible.length - index - 1];
+                          final text = message.text.isEmpty
+                              ? 'Attachment'
+                              : message.text;
+                          if (message.info) {
+                            return Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(text, textAlign: TextAlign.center),
+                            );
+                          }
+                          final match = (message.outgoing || message.encrypted)
+                              ? MatchEvent.parse(message.text)
+                              : null;
+                          final gameLink = GameLink.parse(message.text);
+                          final invitation = match?.kind == 'invite'
+                              ? OnlineMatch.replay(
+                                  match!.id,
+                                  history[match.id]!,
+                                )
+                              : null;
+                          return Align(
+                            alignment: message.outgoing
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 7),
+                              constraints: const BoxConstraints(maxWidth: 340),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: message.outgoing
+                                    ? colors.secondaryContainer
+                                    : colors.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (invitation != null) ...[
+                                    Text(
+                                      message.outgoing
+                                          ? 'You invited ${thread?.name ?? widget.initialName} to play Cats vs Dogs.'
+                                          : '${thread?.name ?? widget.initialName} invited you to play Cats vs Dogs.',
+                                    ),
+                                    if (!message.outgoing &&
+                                        !invitation.accepted &&
+                                        !invitation.finished)
+                                      Wrap(
+                                        spacing: 8,
+                                        children: [
+                                          TextButton(
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: colors.error,
+                                            ),
+                                            onPressed: _sending
+                                                ? null
+                                                : () => _send(
+                                                    gameLink: invitation.invite
+                                                        .decline()
+                                                        .wire,
+                                                  ),
+                                            child: const Text('Decline'),
+                                          ),
+                                          FilledButton(
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xff1b663c,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            onPressed: _sending
+                                                ? null
+                                                : () => _openMatch(
+                                                    invitation.invite.id,
+                                                    accept: true,
+                                                  ),
+                                            child: const Text('Accept'),
+                                          ),
+                                        ],
+                                      )
+                                    else if (!invitation.finished)
+                                      TextButton(
+                                        onPressed: () => _openMatch(
+                                          invitation.invite.id,
+                                          play: invitation.accepted,
+                                        ),
+                                        child: Text(
+                                          invitation.accepted
+                                              ? 'Play Now'
+                                              : 'Open Cats vs Dogs match',
+                                        ),
+                                      )
+                                    else
+                                      Text(invitation.status),
+                                  ] else if (gameLink != null &&
+                                      widget.openGameLink != null)
+                                    OutlinedButton.icon(
+                                      onPressed: () =>
+                                          widget.openGameLink!(gameLink),
+                                      icon: const Icon(
+                                        Icons.sports_esports_outlined,
+                                      ),
+                                      label: Text(
+                                        gameLink.id == 'drop-four'
+                                            ? 'Open Cats vs Dogs'
+                                            : 'Open game',
+                                      ),
+                                    )
+                                  else ...[
+                                    if (message.file case final path?
+                                        when message.mime?.startsWith(
+                                              'image/',
+                                            ) ==
+                                            true)
+                                      Image.file(
+                                        File(path),
+                                        fit: BoxFit.contain,
+                                        cacheWidth: 640,
+                                        errorBuilder: (_, _, _) =>
+                                            const SizedBox.shrink(),
+                                      ),
+                                    if (message.filename case final name?)
+                                      Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    if (message.text.isNotEmpty ||
+                                        message.filename == null)
+                                      SelectableText(text),
+                                  ],
+                                  if (message.delivery case final delivery?)
+                                    Text(
+                                      delivery,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: colors.onSecondaryContainer,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                if (_awayFromLatest || (!docked && thread?.canSend == true))
+                  Positioned(
+                    right: 10,
+                    bottom: 7,
+                    child: FloatingActionButton.small(
+                      heroTag: null,
+                      tooltip: _awayFromLatest
+                          ? 'Jump to latest message'
+                          : 'Invite to a Cats vs Dogs match',
+                      onPressed: _awayFromLatest
+                          ? _latest
+                          : _pickingGame || _sending
+                          ? null
+                          : _inviteMatch,
+                      child: Icon(
+                        _awayFromLatest
+                            ? Icons.arrow_downward
+                            : Icons.sports_esports_outlined,
+                      ),
+                    ),
                   ),
+              ],
+            ),
           ),
           if (_sendError case final error?)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(error, style: TextStyle(color: colors.error)),
+            ),
+          if (_attachment case final file?)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: InputChip(
+                label: Text(file.name, overflow: TextOverflow.ellipsis),
+                onDeleted: _sending
+                    ? null
+                    : () {
+                        setState(() => _attachment = null);
+                        unawaited(file.discard());
+                      },
+              ),
             ),
           if (thread?.canSend == true)
             Padding(
@@ -873,12 +1156,6 @@ class _FriendConversationState extends State<FriendConversation>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (!docked)
-                    IconButton(
-                      tooltip: 'Share a game',
-                      onPressed: _sending || _pickingGame ? null : _sendGame,
-                      icon: const Icon(Icons.sports_esports_outlined),
-                    ),
                   Expanded(
                     child: TextField(
                       controller: _composer,
@@ -890,6 +1167,16 @@ class _FriendConversationState extends State<FriendConversation>
                         counterText: '',
                       ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'Add attachment',
+                    onPressed: _sending ? null : _chooseAttachment,
+                    icon: const Icon(Icons.attach_file),
+                  ),
+                  IconButton(
+                    tooltip: 'Emoji',
+                    onPressed: _sending ? null : _showEmoji,
+                    icon: const Icon(Icons.emoji_emotions_outlined),
                   ),
                   IconButton(
                     tooltip: 'Send message',

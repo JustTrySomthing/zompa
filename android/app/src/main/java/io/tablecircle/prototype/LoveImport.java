@@ -31,8 +31,9 @@ final class LoveImport {
                 null, null, null)) {
             title = cursor != null && cursor.moveToFirst() ? cursor.getString(0) : null;
         }
-        if (title == null || !title.toLowerCase(Locale.ROOT).endsWith(".love")) {
-            throw new IOException("Choose a file ending in .love.");
+        String name = title == null ? "" : title.toLowerCase(Locale.ROOT);
+        if (!name.endsWith(".love") && !name.endsWith(".zomp")) {
+            throw new IOException("Choose a .zomp or .love file.");
         }
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IOException("Game storage is unavailable.");
@@ -49,7 +50,7 @@ final class LoveImport {
                     for (int count; (count = input.read(buffer)) != -1;) {
                         size += count;
                         if (size > MAX_PACKAGE_BYTES) {
-                            throw new IOException("This .love file exceeds 64 MB.");
+                            throw new IOException("This game file exceeds 64 MB.");
                         }
                         output.write(buffer, 0, count);
                     }

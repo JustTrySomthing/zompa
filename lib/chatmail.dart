@@ -244,6 +244,58 @@ class Chatmail {
     ];
   }
 
+  Future<List<ChatContact>> contacts({bool blocked = false}) async {
+    final values =
+        (await (blocked
+                ? _call('get_blocked_contacts', [_accountId])
+                : _call('get_contacts', [_accountId, 0, null])))
+            as List;
+    return [
+      for (final value in values.cast<Json>())
+        if ((value['id'] as int) > 9) ChatContact.fromJson(value),
+    ];
+  }
+
+  Future<int> openContact(int id) async =>
+      (await _call('create_chat_by_contact_id', [_accountId, id])) as int;
+
+  Future<void> manageContact(int id, String action) async {
+    final method = switch (action) {
+      'block' => 'block_contact',
+      'unblock' => 'unblock_contact',
+      'delete' => 'delete_contact',
+      _ => throw ArgumentError.value(action),
+    };
+    await _call(method, [_accountId, id]);
+    if (!_closed) _changes.add(null);
+  }
+
+  Future<({String name, String bio, String? photo})> profile() async {
+    final self = await _call('get_contact', [_accountId, 1]) as Json;
+    return (
+      name:
+          (await _call('get_config', [_accountId, 'displayname'])) as String? ??
+          '',
+      bio:
+          (await _call('get_config', [_accountId, 'selfstatus'])) as String? ??
+          '',
+      photo: self['profileImage'] as String?,
+    );
+  }
+
+  Future<void> editProfile(String name, String bio, {String? avatar}) async {
+    final account = _accountId;
+    await _call('set_config', [account, 'displayname', name]);
+    await _call('set_config', [account, 'selfstatus', bio]);
+    if (avatar != null)
+      await _call('set_config', [account, 'selfavatar', avatar]);
+  }
+
+  Future<String> contactCard(int id) async => (await _call('make_vcard', [
+    _accountId,
+    [id],
+  ])) as String;
+
   Future<String> invite() async =>
       await _call('get_chat_securejoin_qr_code', [_accountId, null]) as String;
 
@@ -434,7 +486,12 @@ class Chatmail {
     await _call('end_call', [_accountId, message]);
   }
 
-  Future<void> send(int chat, String message) async {
+  Future<void> send(
+    int chat,
+    String message, {
+    String? file,
+    String? filename,
+  }) async {
     final account = _accountId;
     final info = await _call('get_full_chat_by_id', [account, chat]) as Json;
     if (info['isEncrypted'] != true ||
@@ -442,7 +499,19 @@ class Chatmail {
         info['canSend'] != true) {
       throw ChatmailIssue.encrypted;
     }
-    await _call('misc_send_text_message', [account, chat, message]);
+    if (file == null) {
+      await _call('misc_send_text_message', [account, chat, message]);
+    } else {
+      await _call('misc_send_msg', [
+        account,
+        chat,
+        message,
+        file,
+        filename,
+        null,
+        null,
+      ]);
+    }
   }
 
   void close() {
@@ -453,6 +522,18 @@ class Chatmail {
     _incoming.close();
     _calls.close();
   }
+}
+
+class ChatContact {
+  ChatContact.fromJson(Json value)
+    : id = value['id'] as int,
+      name = value['displayName'] as String? ?? value['name'] as String? ?? '',
+      address = value['address'] as String? ?? '',
+      photo = value['profileImage'] as String?;
+
+  final int id;
+  final String name, address;
+  final String? photo;
 }
 
 class FriendChat {
@@ -475,12 +556,16 @@ class FriendMessage {
       state = message['state'] as int,
       chat = message['chatId'] as int? ?? 0,
       text = (message['text'] as String?) ?? '',
+      filename = message['fileName'] as String?,
+      file = message['file'] as String?,
+      mime = message['fileMime'] as String?,
       outgoing = message['fromId'] == 1,
       info = message['isInfo'] == true,
       encrypted = message['showPadlock'] == true;
 
   final int id, state, chat;
   final String text;
+  final String? file, filename, mime;
   final bool outgoing, info, encrypted;
 
   String? get delivery => switch (state) {

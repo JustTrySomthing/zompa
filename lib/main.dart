@@ -13,12 +13,13 @@ import 'github_distribution.dart';
 import 'game_link.dart';
 import 'chatmail.dart';
 import 'friends.dart';
+import 'profile_page.dart';
 import 'setup_help.dart';
 import 'online_matches.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
 import 'love_imports.dart';
-import 'love_player.dart';
+import 'game_play_page.dart';
 import 'game_audio.dart';
 import 'voice_calls.dart';
 
@@ -106,7 +107,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
           data = Map<String, dynamic>.from(
             jsonDecode(await storage!.readAsString()),
           );
-          mode = ThemeMode.values.byName(data['theme'] as String? ?? 'dark');
+          mode = data['theme'] == 'light' ? ThemeMode.light : ThemeMode.dark;
         }
       }
     } catch (e) {
@@ -160,15 +161,26 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     try {
       final message = (await chatmail.notificationMessage(chat, id))?.message;
       if (message == null || !mounted || !_background) return;
-      final event = MatchEvent.parse(message.text);
+      final event = message.encrypted ? MatchEvent.parse(message.text) : null;
       var label = 'New message';
       if (event != null) {
-        if (event.kind == 'invite') {
-          label = 'New game invitation';
-        } else {
-          final history = await chatmail.matchHistory(chat, event.id);
-          if (OnlineMatch.replay(event.id, history)?.myTurn != true) return;
-          label = 'Your turn in Cats vs Dogs';
+        switch (event.kind) {
+          case 'invite':
+            label = 'New game invitation';
+          case 'preparing':
+            label = 'Your friend is getting the game ready';
+          case 'accept':
+            label = 'Your friend is ready to play';
+          case 'decline':
+            label = 'Game invitation declined';
+          case 'quit':
+            label = 'Your friend ended the match';
+          case 'move':
+            final history = await chatmail.matchHistory(chat, event.id);
+            if (OnlineMatch.replay(event.id, history)?.myTurn != true) return;
+            label = 'Your turn in Cats vs Dogs';
+          default:
+            return;
         }
       }
       if (!mounted || !_background) return;
@@ -332,7 +344,9 @@ class _HomeState extends State<Home> {
         forDelivery: false,
       );
       if (!mounted || widget.openChats != request || target == null) return;
-      final match = MatchEvent.parse(target.message.text);
+      final match = target.message.encrypted
+          ? MatchEvent.parse(target.message.text)
+          : null;
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
           builder: (_) => match == null
@@ -348,6 +362,7 @@ class _HomeState extends State<Home> {
                   chatmail: chatmail,
                   chat: alert.chat,
                   id: match.id,
+                  playOnOpen: match.kind == 'move',
                   prepareGame: _prepareOnlineGame,
                   friendName: target.name,
                   buildChatDock: (close) => FriendConversation.docked(
@@ -669,23 +684,21 @@ class _HomeState extends State<Home> {
             children: [
               ListTile(
                 leading: const Icon(Icons.person_outline),
-                title: const Text('Play solo'),
+                title: const Text('Single Player'),
                 onTap: () => Navigator.pop(sheet, 'solo'),
               ),
               if (online)
                 ListTile(
                   leading: const Icon(Icons.public),
-                  title: const Text('Online matches'),
-                  subtitle: const Text(
-                    'Take turns with a friend on their phone',
-                  ),
+                  title: const Text('Online Match'),
+                  subtitle: const Text('Play against a friend online'),
                   onTap: () => Navigator.pop(sheet, 'matches'),
                 ),
               if (game.modes.contains('local'))
                 ListTile(
                   leading: const Icon(Icons.people_outline),
-                  title: const Text('Pass and play'),
-                  subtitle: const Text('Two players sharing this phone'),
+                  title: const Text('Pass & Play'),
+                  subtitle: const Text('Two Player share same device'),
                   onTap: () => Navigator.pop(sheet, 'local'),
                 ),
             ],
@@ -702,6 +715,11 @@ class _HomeState extends State<Home> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    FilledButton.icon(
+                      onPressed: () => Navigator.pop(page, false),
+                      icon: const Icon(Icons.person_add_outlined),
+                      label: const Text('Invite a friend'),
+                    ),
                     OnlineMatches(
                       chatmail: chatmail,
                       prepareGame: _prepareOnlineGame,
@@ -714,23 +732,73 @@ class _HomeState extends State<Home> {
           ),
         );
         if (mounted && openChats == true) setState(() => tab = 0);
+        if (mounted && openChats == false) await _inviteForGame(chatmail, game);
         return;
       }
       mode = choice;
     }
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(
-            title: Text(game.title),
-            actions: const [GameAudioButton()],
-          ),
-          body: SafeArea(
-            child: LoveGameView.official(game: game, mode: mode),
-          ),
-        ),
+        builder: (_) =>
+            GamePlayPage.official(game: game, title: game.title, mode: mode),
       ),
     );
+  }
+
+  Future<void> _inviteForGame(Chatmail chatmail, GameRelease game) async {
+    try {
+      if (!await chatmail.restore()) {
+        if (mounted) setState(() => tab = 0);
+        return;
+      }
+      final contacts = await chatmail.contacts();
+      if (!mounted) return;
+      final contact = await showModalBottomSheet<ChatContact>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(title: Text('Invite a friend to play')),
+              if (contacts.isEmpty)
+                const ListTile(title: Text('Add a contact in Chats first.')),
+              for (final entry in contacts)
+                ListTile(
+                  title: Text(entry.name),
+                  onTap: () => Navigator.pop(sheet, entry),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (contact == null || !mounted) return;
+      final chat = await chatmail.openContact(contact.id);
+      final invite = MatchEvent.invite(GameLink.fromRelease(game));
+      await chatmail.send(chat, invite.wire);
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => OnlineMatchPage(
+            chatmail: chatmail,
+            chat: chat,
+            id: invite.id,
+            friendName: contact.name,
+            prepareGame: _prepareOnlineGame,
+            buildChatDock: (close) => FriendConversation.docked(
+              chatmail: chatmail,
+              id: chat,
+              onClose: close,
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted)
+        _gameNotice(
+          'Couldn’t send an invitation. Check that this friend can receive encrypted messages.',
+        );
+    }
   }
 
   void settings() => Navigator.push(
@@ -741,6 +809,7 @@ class _HomeState extends State<Home> {
         write: widget.write,
         onTheme: widget.onTheme,
         updates: widget.updates,
+        chatmail: widget.chatmail,
       ),
     ),
   );
@@ -1202,8 +1271,10 @@ class Preferences extends StatefulWidget {
     required this.write,
     required this.onTheme,
     required this.updates,
+    required this.chatmail,
   });
   final AppUpdates? updates;
+  final Chatmail? chatmail;
   final Map<String, dynamic> data;
   final void Function(String, dynamic) write;
   final ValueChanged<ThemeMode> onTheme;
@@ -1242,25 +1313,27 @@ class _PreferencesState extends State<Preferences> {
           onTap: () => Navigator.of(context)
               .push(MaterialPageRoute<void>(builder: (_) => const HelpPage())),
         ),
-        ListTile(
-          leading: const Icon(Icons.palette_outlined),
-          title: const Text('Appearance'),
-          trailing: DropdownButton<ThemeMode>(
-            value: ThemeMode.values.byName(
-              widget.data['theme'] as String? ?? 'dark',
+        if (widget.chatmail case final chatmail?)
+          ListTile(
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('My profile'),
+            subtitle: const Text('Name, photo, and bio'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => ProfilePage(chatmail: chatmail),
+              ),
             ),
-            items: const [
-              DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
-              DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
-              DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                widget.onTheme(value);
-                setState(() {});
-              }
-            },
           ),
+        SwitchListTile(
+          secondary: const Icon(Icons.palette_outlined),
+          title: const Text('Appearance'),
+          subtitle: Text(widget.data['theme'] == 'light' ? 'Light' : 'Dark'),
+          value: widget.data['theme'] != 'light',
+          onChanged: (dark) {
+            widget.onTheme(dark ? ThemeMode.dark : ThemeMode.light);
+            setState(() {});
+          },
         ),
         ListTile(
           leading: const Icon(Icons.volume_up_outlined),

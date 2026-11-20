@@ -36,6 +36,7 @@ public final class MainActivity extends FlutterActivity {
     private MethodChannel.Result micRequest;
     private MethodChannel host;
     private VoicePeer voice;
+    private final ChatFiles chatFiles = new ChatFiles(this);
     private boolean openChats;
     private Map<String, Object> chatAlert;
     private Ringtone ringing;
@@ -90,6 +91,12 @@ public final class MainActivity extends FlutterActivity {
                                 runOnUiThread(() -> result.error("LOVE_IMPORT", error.getMessage(), null));
                             }
                         }, "zompado-love-check").start();
+                        break;
+                    case "pickChatFile":
+                        chatFiles.pick((String) call.arguments, result);
+                        break;
+                    case "stageContactCard":
+                        chatFiles.card((String) call.arguments, result);
                         break;
                     case "importLoveGame":
                         pickLoveGame(result);
@@ -294,6 +301,7 @@ public final class MainActivity extends FlutterActivity {
     @Override
     protected void onActivityResult(int request, int status, Intent data) {
         super.onActivityResult(request, status, data);
+        if (chatFiles.picked(request, status, data)) return;
         if (request == SCAN_INVITE && inviteScan != null) {
             MethodChannel.Result result = inviteScan;
             inviteScan = null;

@@ -90,18 +90,18 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           _GuideHeader(
             icon: Icons.tune_rounded,
             title: widget.firstRun ? 'Welcome to Zompado' : 'Set up Zompado',
-            text: 'Get ready to play. You can change these choices any time in Settings → Setup.',
+            text: 'Choose what Zompado can access.',
           ),
           const SizedBox(height: 16),
           const _SetupCard(
             icon: Icons.language_rounded,
             title: 'Internet access',
-            text: 'Android already allows Zompado to connect for game downloads, chats, and updates. Installed solo games can be played offline.',
+            text: 'Already enabled for chats, downloads, and updates.',
           ),
           _SetupCard(
             icon: Icons.notifications_active_outlined,
             title: 'Notifications',
-            text: 'Get alerts for messages, calls, matches, and app updates. After Android closes Zompado, friend activity alerts can arrive on the next scheduled check.',
+            text: 'Get alerts for messages, calls, matches, and updates.',
             enabled: _status?['notifications'],
             action: !_working && _status?['notifications'] == false
                 ? () => _open('requestUpdateNotifications')
@@ -122,8 +122,8 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
             icon: Icons.camera_alt_outlined,
             title: 'Camera for QR codes and calls',
             text: _status?['cameraAvailable'] == false
-                ? 'This device has no camera. You can paste invite links in Chats.'
-                : 'Scan invite QR codes or turn on video during a call. You can also paste invite links.',
+                ? 'Paste invite links in Contacts.'
+                : 'Scan invite codes or use video in calls.',
             enabled: _status?['camera'],
             action:
                 !_working &&
@@ -136,7 +136,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           _SetupCard(
             icon: Icons.system_update_alt_rounded,
             title: 'Install updates from Zompado',
-            text: 'Allow Zompado to open Android’s installer for future updates. Android still asks you to confirm each installation.',
+            text: 'Open Android’s installer when an update is ready.',
             enabled: _status?['updateInstall'],
             action: !_working && _status?['updateInstall'] == false
                 ? () => _open('openUpdateInstallSettings')

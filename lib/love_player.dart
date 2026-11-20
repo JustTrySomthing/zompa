@@ -16,9 +16,10 @@ class LoveGameView extends StatefulWidget {
     this.mode = 'solo',
     this.match,
     this.onMove,
+    this.paused = false,
   }) : reference = game.playerReference;
 
-  LoveGameView.imported({super.key, required String id})
+  LoveGameView.imported({super.key, required String id, this.paused = false})
     : reference = {'id': id},
       mode = 'solo',
       match = null,
@@ -28,6 +29,7 @@ class LoveGameView extends StatefulWidget {
   final String mode;
   final String? match;
   final ValueChanged<int>? onMove;
+  final bool paused;
 
   @override
   State<LoveGameView> createState() => _LoveGameViewState();
@@ -49,9 +51,8 @@ class _LoveGameViewState extends State<LoveGameView>
     super.didChangeDependencies();
     final callAudioActive = VoiceScope.of(context)?.audioActive ?? false;
     final settings =
-        GameAudioScope.of(
-          context,
-        )?.playerSettings(callAudioActive: callAudioActive) ??
+        GameAudioScope.of(context)
+            ?.playerSettings(callAudioActive: callAudioActive) ??
         '100:100:100';
     if (_audio == settings) return;
     _audio = settings;
@@ -62,11 +63,18 @@ class _LoveGameViewState extends State<LoveGameView>
   void didUpdateWidget(LoveGameView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.match != oldWidget.match) _syncMatch();
+    if (widget.paused != oldWidget.paused) {
+      _send(
+        'pause',
+        widget.paused ||
+            WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed,
+      );
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _send('pause', state != AppLifecycleState.resumed);
+    _send('pause', widget.paused || state != AppLifecycleState.resumed);
   }
 
   void _syncMatch() {
@@ -114,7 +122,10 @@ class _LoveGameViewState extends State<LoveGameView>
         final channel = MethodChannel('io.zompado.love/$id');
         _channel = channel;
         channel.setMethodCallHandler((call) async {
-          if (mounted && call.method == 'move' && call.arguments is int) {
+          if (mounted &&
+              !widget.paused &&
+              call.method == 'move' &&
+              call.arguments is int) {
             widget.onMove?.call(call.arguments as int);
           }
         });

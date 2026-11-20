@@ -8,7 +8,14 @@ import 'game_link.dart';
 const matchMarker = 'ZOMPADO_MATCH_V1 ';
 
 class MatchEvent {
-  MatchEvent._(this.id, this.kind, {this.game, this.previous, this.column});
+  MatchEvent._(
+    this.id,
+    this.kind, {
+    this.game,
+    this.previous,
+    this.column,
+    this.revision,
+  });
 
   factory MatchEvent.invite(GameLink game) {
     final random = Random.secure();
@@ -23,14 +30,18 @@ class MatchEvent {
   final String kind;
   final GameLink? game;
   final String? previous;
-  final int? column;
+  final int? column, revision;
 
   MatchEvent accept() => MatchEvent._(id, 'accept');
+  MatchEvent decline() => MatchEvent._(id, 'decline');
+  MatchEvent preparing() => MatchEvent._(id, 'preparing');
+  MatchEvent control(String kind, int revision) =>
+      MatchEvent._(id, kind, revision: revision);
   MatchEvent move(String previous, int column) =>
       MatchEvent._(id, 'move', previous: previous, column: column);
 
   String get wire =>
-      '$matchMarker${jsonEncode({'id': id, 'type': kind, if (game != null) 'game': game.toString(), if (previous != null) 'previous': previous, if (column != null) 'column': column})}';
+      '$matchMarker${jsonEncode({'id': id, 'type': kind, if (game != null) 'game': game.toString(), if (previous != null) 'previous': previous, if (column != null) 'column': column, if (revision != null) 'rev': revision})}';
 
   static MatchEvent? parse(String text) {
     if (!text.startsWith(matchMarker) || text.length > 800) return null;
@@ -48,7 +59,20 @@ class MatchEvent {
                 return MatchEvent._(id, 'invite', game: game);
             }
           case 'accept':
-            return MatchEvent._(id, 'accept');
+          case 'preparing':
+          case 'decline':
+            return MatchEvent._(id, data['type'] as String);
+          case 'pause':
+          case 'resume':
+          case 'quit':
+            final revision = data['rev'];
+            if (revision is int && revision >= 1 && revision <= 0x7fffffff) {
+              return MatchEvent._(
+                id,
+                data['type'] as String,
+                revision: revision,
+              );
+            }
           case 'move':
             final previous = data['previous'];
             final column = data['column'];
@@ -81,14 +105,25 @@ class OnlineMatch {
   final board = Board();
   String moves = '';
   bool accepted = false;
+  bool declined = false;
+  bool preparing = false;
+  MatchEvent? localControl, remoteControl;
+
+  bool get pausedByMe => localControl?.kind == 'pause';
+  bool get pausedByFriend => remoteControl?.kind == 'pause';
+  bool get paused => pausedByMe || pausedByFriend;
+  bool get quit =>
+      localControl?.kind == 'quit' || remoteControl?.kind == 'quit';
+  int get nextRevision => (localControl?.revision ?? 0) + 1;
   bool conflict = false;
   FriendMessage? pending;
 
-  bool get finished => board.winner != 0 || board.full;
+  bool get finished => declined || quit || board.winner != 0 || board.full;
   bool get myTurn =>
       accepted &&
       !conflict &&
       !finished &&
+      !paused &&
       pending == null &&
       (board.turn == 1) == mine;
 
@@ -96,6 +131,11 @@ class OnlineMatch {
     if (conflict) return 'Conflicting turns. Start a new match.';
     if (pending?.state == 20) return 'Sending match update…';
     if (pending?.state == 24) return 'Couldn’t send this match update.';
+    if (declined) return 'Invitation declined.';
+    if (quit) return 'Match ended.';
+    if (pausedByMe) return 'You paused the game.';
+    if (pausedByFriend) return 'Your friend paused the game.';
+    if (!accepted && preparing) return 'Getting the game ready…';
     if (!accepted) {
       return mine
           ? 'Waiting for your friend to accept.'
@@ -139,6 +179,17 @@ class OnlineMatch {
         )
         .map((r) => r.message)
         .toList();
+    final replies = events.where(
+      (record) =>
+          record.message.outgoing != match.mine &&
+          (record.event.kind == 'decline' ||
+              record.event.kind == 'preparing') &&
+          record.message.state != 24,
+    );
+    match.preparing = replies.any((record) => record.event.kind == 'preparing');
+    match.declined =
+        accepts.isEmpty &&
+        replies.any((record) => record.event.kind == 'decline');
     if (accepts.isEmpty) return match;
     match.accepted = true;
     match.pending = pendingFor(accepts);
@@ -160,6 +211,23 @@ class OnlineMatch {
       match.board.drop(column);
       match.moves += '$column';
       match.pending = pendingFor(candidates.map((r) => r.message).toList());
+    }
+    // Each player has a separate control revision. Replay is independent of
+    // the order in which two devices receive simultaneous pause updates.
+    for (final record in events) {
+      final event = record.event;
+      if (event.revision == null || record.message.state == 24) continue;
+      final own = record.message.outgoing;
+      final previous = own ? match.localControl : match.remoteControl;
+      if (previous?.kind == 'quit' ||
+          (event.kind != 'quit' &&
+              (previous?.revision ?? 0) >= event.revision!))
+        continue;
+      if (own) {
+        match.localControl = event;
+      } else {
+        match.remoteControl = event;
+      }
     }
     return match;
   }

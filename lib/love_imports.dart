@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'love_player.dart';
-import 'game_audio.dart';
+import 'game_play_page.dart';
 
 class LoveImports extends StatefulWidget {
   const LoveImports({
@@ -77,17 +76,17 @@ class _LoveImportsState extends State<LoveImports> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: Scaffold(
-      appBar: AppBar(title: const Text('Import a .love game')),
+      appBar: AppBar(title: const Text('Import a Game')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('Choose a .love file to add a game from this device.'),
+            const Text('Choose a .zomp or .love file to add a game'),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: _busy ? null : _import,
               icon: const Icon(Icons.file_open_outlined),
-              label: const Text('Choose .love file'),
+              label: const Text('Select a File'),
             ),
             if (_busy) const LinearProgressIndicator(),
             if (_error case final error?)
@@ -109,8 +108,8 @@ class _LoveImportsState extends State<LoveImports> {
                     title: Text(title),
                     subtitle: Text(
                       bytes < 1024
-                          ? '$bytes B · .love'
-                          : '${(bytes / 1024).toStringAsFixed(1)} KB · .love',
+                          ? '$bytes B'
+                          : '${(bytes / 1024).toStringAsFixed(1)} KB',
                     ),
                     trailing: Wrap(
                       spacing: 4,
@@ -121,14 +120,9 @@ class _LoveImportsState extends State<LoveImports> {
                               ? null
                               : () => Navigator.of(context).push<void>(
                                   MaterialPageRoute(
-                                    builder: (_) => Scaffold(
-                                      appBar: AppBar(
-                                        title: Text(title),
-                                        actions: const [GameAudioButton()],
-                                      ),
-                                      body: SafeArea(
-                                        child: LoveGameView.imported(id: id),
-                                      ),
+                                    builder: (_) => GamePlayPage.imported(
+                                      importedId: id,
+                                      title: title,
                                     ),
                                   ),
                                 ),

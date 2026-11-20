@@ -32,6 +32,11 @@
             android:exported="true"/>
         <service android:name=".UpdateCheckJob" android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="false"/>
+        <provider android:name=".ChatFileProvider"
+            android:authorities="${applicationId}.chatfiles"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/chat_file_paths" />
+        </provider>
         <provider android:name="io.tablecircle.prototype.UpdateProvider"
             android:authorities="io.tablecircle.prototype.updates"
             android:exported="false" android:grantUriPermissions="true">

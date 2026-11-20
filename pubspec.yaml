@@ -1,7 +1,7 @@
 name: zompado
 description: Zompado, an Android-first game and chat app.
 publish_to: none
-version: 0.5.13+20
+version: 0.5.14+21
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:
@@ -19,6 +19,7 @@ flutter:
     - assets/licenses/love.js-MIT.txt
     - assets/licenses/ZXing-Apache-2.0.txt
     - assets/games/cats-vs-dogs.webp
+    - assets/chat/emoji.json
   fonts:
     - family: Noto Sans
       fonts:

@@ -1,5 +1,5 @@
 {
-  "version": "0.5.13",
-  "build": 20,
-  "purpose": "Verify call setup and video using the Android camera surface and stock Delta Chat."
+  "version": "0.5.14",
+  "build": 21,
+  "purpose": "Verify match invitation, download and pause flows, Android chat controls, contacts, profiles, and audio-first call setup."
 }

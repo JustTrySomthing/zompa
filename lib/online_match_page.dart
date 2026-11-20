@@ -18,6 +18,8 @@ class OnlineMatchPage extends StatefulWidget {
     required this.prepareGame,
     required this.buildChatDock,
     this.friendName,
+    this.acceptOnOpen = false,
+    this.playOnOpen = false,
   });
 
   final Chatmail chatmail;
@@ -26,6 +28,7 @@ class OnlineMatchPage extends StatefulWidget {
   final Future<GameRelease?> Function(GameLink) prepareGame;
   final Widget Function(VoidCallback close) buildChatDock;
   final String? friendName;
+  final bool acceptOnOpen, playOnOpen;
 
   @override
   State<OnlineMatchPage> createState() => _OnlineMatchPageState();
@@ -36,11 +39,14 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   OnlineMatch? _match;
   GameRelease? _game;
   bool _preparing = false;
+  bool _acceptedFromChat = false;
+  bool _playing = false;
   bool _triedPreparation = false;
   bool _gameUnavailable = false;
   int _boardGeneration = 0;
   StreamSubscription<void>? _events;
   Timer? _timer;
+  Timer? _lobbyRefresh;
   Completer<void>? _refreshing;
   bool _again = false, _sending = false;
   String? _error;
@@ -59,10 +65,18 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   @override
   void initState() {
     super.initState();
+    _playing = widget.playOnOpen;
     WidgetsBinding.instance.addObserver(this);
     _events = widget.chatmail.changes.listen((_) {
       _timer?.cancel();
       _timer = Timer(const Duration(milliseconds: 180), _load);
+    });
+    _lobbyRefresh = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!_playing &&
+          _match?.finished != true &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_load());
+      }
     });
     unawaited(_load());
   }
@@ -76,6 +90,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _lobbyRefresh?.cancel();
     _events?.cancel();
     super.dispose();
   }
@@ -113,8 +128,16 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               ? 'The match invitation is unavailable.'
               : null;
         });
-        if (match?.accepted == true && _game == null && !_triedPreparation) {
-          unawaited(_openBoard(match!.invite.game!));
+        if (match != null && !match.finished) {
+          if (widget.acceptOnOpen &&
+              !_acceptedFromChat &&
+              !match.mine &&
+              !match.accepted) {
+            _acceptedFromChat = true;
+            unawaited(_accept(match));
+          } else if (match.accepted && _game == null && !_triedPreparation) {
+            unawaited(_openBoard(match.invite.game!));
+          }
         }
       }
       if (!_chatOpen && mounted) {
@@ -143,17 +166,64 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     }
   }
 
-  Future<void> _send(String message, {GameLink? prepare}) async {
+  Future<void> _accept(OnlineMatch match) async {
+    if (_sending || match.mine || match.finished || match.accepted) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      if (_game == null) {
+        if (!match.preparing) {
+          await widget.chatmail.send(
+            widget.chat,
+            match.invite.preparing().wire,
+          );
+        }
+        if (!mounted) return;
+        await _openBoard(match.invite.game!);
+        if (_game == null || !mounted) return;
+      }
+      await widget.chatmail.send(widget.chat, match.invite.accept().wire);
+      await _load();
+    } catch (_) {
+      if (mounted)
+        setState(() => _error = 'Couldn’t accept this match. Try again.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _quit(OnlineMatch match) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Quit this match?'),
+        content: const Text('This ends the match for both players.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Keep playing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Quit match'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || _match?.finished != false) return;
+    await _send(match.invite.control('quit', match.nextRevision).wire);
+    if (mounted && _match?.quit == true) Navigator.pop(context);
+  }
+
+  Future<void> _send(String message) async {
     if (_sending) return;
     setState(() {
       _sending = true;
       _error = null;
     });
     try {
-      if (prepare != null && _game == null) {
-        await _openBoard(prepare);
-        if (_game == null) return;
-      }
       if (!mounted) return;
       await widget.chatmail.send(widget.chat, message);
       await _load();
@@ -198,6 +268,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     if (match == null ||
         _sending ||
         _chatOpen ||
+        !_playing ||
         _error != null ||
         !match.myTurn ||
         column < 0 ||
@@ -205,6 +276,25 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         match.board.landing(column) < 0)
       return;
     unawaited(_send(match.invite.move(match.moves, column).wire));
+  }
+
+  String _lobbyText(OnlineMatch? match) {
+    final friend = widget.friendName ?? 'Your friend';
+    if (_error case final error?) return error;
+    if (_preparing) return 'Getting Cats vs Dogs ready…';
+    if (_gameUnavailable) return 'Couldn’t prepare the game.';
+    if (match == null) return 'Opening match…';
+    if (match.finished) return match.status;
+    if (match.accepted && _game != null) {
+      return match.mine ? '$friend is ready to play.' : 'You’re ready to play.';
+    }
+    if (!match.accepted && !match.mine) {
+      return '$friend invited you to play Cats vs Dogs.';
+    }
+    if (!match.accepted && match.preparing) {
+      return 'Getting the game ready for ${widget.friendName ?? 'your friend'}…';
+    }
+    return match.status;
   }
 
   @override
@@ -259,111 +349,233 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               return Stack(
                 children: [
                   Positioned.fill(
-                    child: ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        if (_sending ||
-                            _preparing ||
-                            (match == null && _error == null))
-                          const LinearProgressIndicator(),
-                        if (_error case final error?)
-                          ListTile(
-                            title: Text(error),
-                            trailing: TextButton(
-                              onPressed: _load,
-                              child: const Text('Refresh'),
-                            ),
-                          ),
-                        if (match != null) ...[
-                          Text(
-                            match.status,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 12),
-                          if (_preparing)
-                            const Text('Getting Cats vs Dogs ready…'),
-                          if (_gameUnavailable)
-                            const Text(
-                              'Couldn’t prepare this match’s game. Check your connection and try again.',
-                            ),
-                          if (!match.accepted && match.mine && !match.conflict)
-                            const Text(
-                              'You go first. You can leave this screen and return from Online matches.',
-                            ),
-                          if (!match.accepted &&
-                              !match.mine &&
-                              !match.conflict &&
-                              match.pending == null)
-                            FilledButton(
-                              onPressed: _sending
-                                  ? null
-                                  : () => _send(
-                                      match.invite.accept().wire,
-                                      prepare: match.invite.game,
+                    child:
+                        _playing &&
+                            match != null &&
+                            _game != null &&
+                            !match.quit
+                        ? Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Column(
+                                children: [
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    match.status,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                  Expanded(
+                                    child: Center(
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 560,
+                                        ),
+                                        child: AspectRatio(
+                                          aspectRatio: 540 / 620,
+                                          child: LoveGameView.official(
+                                            key: ValueKey(
+                                              '${widget.id}/${_game!.build}/$_boardGeneration',
+                                            ),
+                                            game: _game!,
+                                            mode: 'online',
+                                            paused: match.paused,
+                                            match:
+                                                '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _error == null && match.myTurn ? 1 : 0}',
+                                            onMove: _move,
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                              child: const Text('Accept and open match'),
-                            ),
-                          if (match.pending case final pending?
-                              when pending.state == 24 && !match.conflict)
-                            OutlinedButton(
-                              onPressed: _sending
-                                  ? null
-                                  : () => _send(pending.text),
-                              child: const Text('Retry send'),
-                            ),
-                          const SizedBox(height: 12),
-                          if (match.accepted && _game != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                (_game?.build ?? 0) >= 6
-                                    ? (match.mine
-                                          ? 'You play as Cats'
-                                          : 'You play as Dogs')
-                                    : (match.mine
-                                          ? 'Your pieces are gold'
-                                          : 'Your pieces are purple'),
+                                  ),
+                                  if (!match.finished)
+                                    Wrap(
+                                      alignment: WrapAlignment.center,
+                                      spacing: 12,
+                                      children: [
+                                        TextButton.icon(
+                                          onPressed:
+                                              _sending ||
+                                                  (match.pausedByFriend &&
+                                                      !match.pausedByMe)
+                                              ? null
+                                              : () => _send(
+                                                  match.invite
+                                                      .control(
+                                                        match.pausedByMe
+                                                            ? 'resume'
+                                                            : 'pause',
+                                                        match.nextRevision,
+                                                      )
+                                                      .wire,
+                                                ),
+                                          icon: Icon(
+                                            match.pausedByMe
+                                                ? Icons.play_arrow
+                                                : Icons.pause,
+                                          ),
+                                          label: Text(
+                                            match.pausedByMe
+                                                ? 'Resume'
+                                                : 'Pause',
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: _sending
+                                              ? null
+                                              : () => _quit(match),
+                                          child: const Text('Quit'),
+                                        ),
+                                      ],
+                                    ),
+                                ],
                               ),
-                            ),
-                          if (match.accepted && _gameUnavailable)
-                            FilledButton(
-                              onPressed: _preparing
-                                  ? null
-                                  : () => _openBoard(match.invite.game!),
-                              child: const Text('Try opening the board again'),
-                            ),
-                          if (_game case final GameRelease game
-                              when match.accepted)
-                            Center(
+                              if (match.paused ||
+                                  _error != null ||
+                                  (match.pending?.state == 24 && !_sending))
+                                Center(
+                                  child: Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(18),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _error ??
+                                                (match.pausedByMe
+                                                    ? 'You paused the game.'
+                                                    : match.pausedByFriend
+                                                    ? '${widget.friendName ?? 'Your friend'} paused the game.'
+                                                    : match.status),
+                                          ),
+                                          if (_error != null)
+                                            TextButton(
+                                              onPressed: _load,
+                                              child: const Text('Refresh'),
+                                            ),
+                                          if (match.pending case final pending?
+                                              when pending.state == 24)
+                                            TextButton(
+                                              onPressed: () =>
+                                                  _send(pending.text),
+                                              child: const Text('Retry send'),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          )
+                        : Center(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(24),
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
-                                  maxWidth: 560,
+                                  maxWidth: 420,
                                 ),
-                                child: AspectRatio(
-                                  aspectRatio: 540 / 620,
-                                  child: LoveGameView.official(
-                                    key: ValueKey(
-                                      '${widget.id}/${game.build}/$_boardGeneration',
+                                child: Card(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(22),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_preparing ||
+                                            _sending ||
+                                            (match == null && _error == null))
+                                          const LinearProgressIndicator(),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          _lobbyText(match),
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge,
+                                        ),
+                                        if (match != null &&
+                                            !match.finished &&
+                                            !match.conflict) ...[
+                                          const SizedBox(height: 12),
+                                          if (match.accepted && _game != null)
+                                            FilledButton(
+                                              onPressed: _sending
+                                                  ? null
+                                                  : () => setState(
+                                                      () => _playing = true,
+                                                    ),
+                                              child: const Text('Play Now'),
+                                            )
+                                          else if (!match.accepted &&
+                                              !match.mine)
+                                            Wrap(
+                                              alignment: WrapAlignment.center,
+                                              spacing: 12,
+                                              children: [
+                                                OutlinedButton(
+                                                  onPressed: _sending
+                                                      ? null
+                                                      : () => _send(
+                                                          match.invite
+                                                              .decline()
+                                                              .wire,
+                                                        ),
+                                                  style:
+                                                      OutlinedButton.styleFrom(
+                                                        foregroundColor:
+                                                            Theme.of(context)
+                                                                .colorScheme
+                                                                .error,
+                                                      ),
+                                                  child: const Text('Decline'),
+                                                ),
+                                                FilledButton(
+                                                  onPressed:
+                                                      _sending || _preparing
+                                                      ? null
+                                                      : () => _accept(match),
+                                                  style: FilledButton.styleFrom(
+                                                    backgroundColor:
+                                                        const Color(0xff1b663c),
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                  ),
+                                                  child: const Text('Accept'),
+                                                ),
+                                              ],
+                                            )
+                                          else if (_gameUnavailable)
+                                            FilledButton(
+                                              onPressed: _preparing
+                                                  ? null
+                                                  : () => _openBoard(
+                                                      match.invite.game!,
+                                                    ),
+                                              child: const Text(
+                                                'Retry download',
+                                              ),
+                                            ),
+                                          if (match.pending case final pending?
+                                              when pending.state == 24)
+                                            TextButton(
+                                              onPressed: _sending
+                                                  ? null
+                                                  : () => _send(pending.text),
+                                              child: const Text('Retry send'),
+                                            ),
+                                        ],
+                                        if (_error != null)
+                                          TextButton(
+                                            onPressed: _load,
+                                            child: const Text('Refresh'),
+                                          ),
+                                      ],
                                     ),
-                                    game: game,
-                                    mode: 'online',
-                                    match:
-                                        '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _error == null && match.myTurn ? 1 : 0}',
-                                    onMove: _move,
                                   ),
                                 ),
                               ),
                             ),
-                          if (match.accepted && _game != null)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 12),
-                              child: Text(
-                                'On your turn, tap a column to drop a piece.',
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
+                          ),
                   ),
                   if (_chatOpen)
                     Positioned(

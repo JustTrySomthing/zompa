@@ -11,7 +11,7 @@ import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 
-/** Reserves a video track without opening the camera until the user enables it. */
+/** Owns the local video track and camera capture while video is available. */
 final class CallCamera {
     private final Context context;
     private final Runnable onFailure;

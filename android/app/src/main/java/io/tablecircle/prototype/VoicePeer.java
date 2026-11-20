@@ -95,7 +95,7 @@ final class VoicePeer {
             VoiceAudioService.begin(activity);
             active.start(offer);
         } catch (LinkageError | Exception failure) {
-            Log.w(TAG, "Call media startup failed: " + failure.getClass().getSimpleName());
+            Log.w(TAG, "Call media startup failed.", failure);
             if (session != null) {
                 session.fail("Couldn’t start voice audio.");
             } else {
@@ -155,8 +155,8 @@ final class VoicePeer {
     private void refreshVideo() {
         if (videoView == null) return;
         if (session == null) videoView.show(null, null, false, false);
-        else videoView.show(session.camera.track, session.remoteVideo,
-            session.camera.enabled(), session.remoteCamera);
+        else videoView.show(session.camera == null ? null : session.camera.track,
+            session.remoteVideo, session.cameraEnabled(), session.remoteCamera);
     }
 
     boolean camera(int token, boolean enabled) {
@@ -165,14 +165,15 @@ final class VoicePeer {
         if (enabled && (activity.checkSelfPermission(Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED || !visible)) return false;
         try {
-            if (enabled && !active.camera.start(videoContext())) return false;
-            if (!enabled) active.camera.stop();
+            if (enabled && !active.startCamera()) return false;
+            if (!enabled && active.camera != null) active.camera.stop();
             active.sendMediaState();
             refreshVideo();
             active.status(enabled ? "cameraOn" : "cameraOff", null);
             return true;
         } catch (LinkageError | RuntimeException failure) {
-            active.camera.stop();
+            Log.w(TAG, "Call camera startup failed.", failure);
+            if (active.camera != null) active.camera.stop();
             active.sendMediaState();
             refreshVideo();
             return false;
@@ -185,7 +186,7 @@ final class VoicePeer {
     }
 
     private void suspendCamera() {
-        if (session != null && session.camera.enabled()) camera(session.token, false);
+        if (session != null && session.cameraEnabled()) camera(session.token, false);
     }
 
     void answer(int token, String answer, MethodChannel.Result result) {
@@ -249,7 +250,8 @@ final class VoicePeer {
         PeerConnection peer;
         AudioSource source;
         AudioTrack track;
-        final CallCamera camera;
+        CallCamera camera;
+        RtpSender videoSender;
         VideoTrack remoteVideo;
         boolean videoNegotiated;
         boolean remoteCamera;
@@ -271,17 +273,12 @@ final class VoicePeer {
             this.preparing = preparing;
             this.oldAudioMode = oldAudioMode;
             this.oldSpeaker = oldSpeaker;
-            camera = new CallCamera(activity, factory, () -> main.post(() -> {
-                if (session != this) return;
-                suspendCamera();
-                status("cameraError", "Couldn’t start or keep the camera open.");
-            }));
         }
 
         void start(String offer) {
             if (offer == null) {
                 setupChannels();
-                addLocalTracks(true);
+                addLocalTracks(false, true);
                 createDescription(true);
             } else {
                 peer.setRemoteDescription(new Sdp() {
@@ -291,7 +288,7 @@ final class VoicePeer {
                             try {
                                 remoteDescription(offer);
                                 if (hasMedia(offer, "application")) setupChannels();
-                                addLocalTracks(videoNegotiated);
+                                addLocalTracks(true, videoNegotiated);
                                 createDescription(false);
                             } catch (RuntimeException failure) {
                                 fail("Couldn’t prepare this call.");
@@ -305,13 +302,51 @@ final class VoicePeer {
             }
         }
 
-        void addLocalTracks(boolean withVideo) {
-            if (peer.addTrack(track, Collections.singletonList("zompado")) == null) {
+        void addLocalTracks(boolean answering, boolean withVideo) {
+            var streams = Collections.singletonList("zompado");
+            if (peer.addTrack(track, streams) == null) {
                 throw new IllegalStateException("No audio sender");
             }
-            if (withVideo && peer.addTrack(camera.track, Collections.singletonList("zompado")) == null) {
-                throw new IllegalStateException("No video sender");
+            if (!withVideo) return;
+
+            // Negotiate two-way video without creating its source on a voice call.
+            var direction = RtpTransceiver.RtpTransceiverDirection.SEND_RECV;
+            var mediaType = MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO;
+            if (answering) {
+                for (RtpTransceiver offered : peer.getTransceivers()) {
+                    if (offered.getMediaType() == mediaType) {
+                        offered.setDirection(direction);
+                        videoSender = offered.getSender();
+                        break;
+                    }
+                }
+            } else {
+                RtpTransceiver video = peer.addTransceiver(mediaType,
+                    new RtpTransceiver.RtpTransceiverInit(direction, streams));
+                if (video != null) videoSender = video.getSender();
             }
+            if (videoSender == null) throw new IllegalStateException("No video sender");
+        }
+
+        boolean cameraEnabled() {
+            return camera != null && camera.enabled();
+        }
+
+        boolean startCamera() {
+            if (videoSender == null) return false;
+            if (camera == null) {
+                CallCamera next = new CallCamera(activity, factory, () -> main.post(() -> {
+                    if (session != this) return;
+                    suspendCamera();
+                    status("cameraError", "Couldn’t start or keep the camera open.");
+                }));
+                if (!videoSender.setTrack(next.track, false)) {
+                    next.dispose();
+                    return false;
+                }
+                camera = next;
+            }
+            return camera.start(videoContext());
         }
 
         void remoteDescription(String description) {
@@ -371,7 +406,7 @@ final class VoicePeer {
             if (!isOpen(mediaState)) return;
             try {
                 sendJson(mediaState, new JSONObject().put("audioEnabled", track.enabled())
-                    .put("videoEnabled", camera.enabled()));
+                    .put("videoEnabled", cameraEnabled()));
             } catch (org.json.JSONException ignored) {}
         }
 
@@ -484,7 +519,7 @@ final class VoicePeer {
                 preparing.error("VOICE", "Call ended.", null);
                 preparing = null;
             }
-            camera.stop();
+            if (camera != null) camera.stop();
             closeChannel(trickle);
             closeChannel(mediaState);
             if (peer != null) {
@@ -492,7 +527,7 @@ final class VoicePeer {
                 peer.setAudioRecording(false);
                 peer.dispose();
             }
-            camera.dispose();
+            if (camera != null) camera.dispose();
             if (track != null) track.dispose();
             if (source != null) source.dispose();
             if (focus != null && Build.VERSION.SDK_INT >= 26) audio.abandonAudioFocusRequest(focus);
