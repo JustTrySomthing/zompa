@@ -96,6 +96,12 @@ def main():
                 print(f"{phone.name} screen:", phone.labels(), flush=True)
             except Exception:
                 pass
+            try:
+                crash = phone.adb("logcat", "-b", "crash", "-d", "-t", "120")
+                if crash.strip():
+                    print(f"{phone.name} Android crash log:\n{crash.decode(errors='replace')}", flush=True)
+            except Exception:
+                pass
         raise
 
 
