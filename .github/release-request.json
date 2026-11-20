@@ -1,5 +1,5 @@
 {
-  "version": "0.5.9",
-  "build": 15,
-  "notes": "- Install Drop Four separately from the official game catalog. The built-in LÖVE player supports solo play, pass and play, online turns, and compatible manual .love imports.\n- Invite friends by QR code or link, exchange encrypted messages, and place one-to-one voice calls. Control mute and speaker from the call bar.\n- Open the exact conversation or Drop Four match from an alert. Your turn in My Games also opens the board when the required game version is installed.\n- Set game volume, music, and sound effects. Game volume lowers during voice calls by default and returns to your setting afterward.\n- After Android closes the process, Zompado checks for alerts on Android’s schedule. Calls can be answered from an alert if they are still ringing when the check runs."
+  "version": "0.5.10",
+  "build": 16,
+  "notes": "- Verified SecureJoin pairing and two-way direct messages with the stock Delta Chat 2.69.0 Android app.\n- Zompado now recognizes Delta Chat voice offers with reserved video and data sections and keeps the call audio-only.\n- Answer and Decline are now independently accessible on Android. WebRTC codec initialization addresses an abort observed while answering a Delta Chat call.\n- Connected voice between the two apps is still being verified on Android."
 }
