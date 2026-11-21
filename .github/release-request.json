@@ -1,5 +1,5 @@
 {
-  "version": "0.5.26",
-  "build": 35,
-  "notes": "- Light mode uses a softer background, stronger contrast, and a deeper default blue.\n- Choose Light mode or Dark mode in Settings \u2192 Appearance, then drag Theme color to preview and save a hue for the app.\n- Tap Reset color to return to the default blue."
+  "version": "0.5.27",
+  "build": 36,
+  "notes": "- Choose Blue, Purple, Red, Orange, Yellow, or Green using labeled swatches in Settings \u2192 Appearance.\n- Each color has a separate light and dark palette. Fresh installs default to Blue in Dark mode. The upgrade keeps your saved Light or Dark mode."
 }
