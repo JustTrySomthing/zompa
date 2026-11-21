@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'chatmail.dart';
+import 'dialog_actions.dart';
 import 'friends.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
@@ -156,10 +157,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
               child: const Text('Keep game'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(dialog).colorScheme.error,
-                foregroundColor: Theme.of(dialog).colorScheme.onError,
-              ),
+              style: destructiveDialogAction(dialog),
               onPressed: () => Navigator.pop(dialog, true),
               child: const Text('End game'),
             ),

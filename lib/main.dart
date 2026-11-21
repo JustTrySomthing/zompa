@@ -13,6 +13,7 @@ import 'app_updates.dart';
 import 'app_log.dart';
 import 'github_distribution.dart';
 import 'game_link.dart';
+import 'dialog_actions.dart';
 import 'chatmail.dart';
 import 'chat_chrome.dart';
 import 'message_bubble.dart';
@@ -653,17 +654,11 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _pasteGameLink() async {
-    final text = await showDialog<String>(
+    final link = await showDialog<GameLink>(
       context: context,
       builder: (_) => const _GameLinkDialog(),
     );
-    if (!mounted || text == null) return;
-    final link = GameLink.parse(text);
-    if (link == null) {
-      _gameNotice('Paste a game link shared from Zompado.');
-      return;
-    }
-    await _openGameLink(link);
+    if (mounted && link != null) await _openGameLink(link);
   }
 
   Future<void> _openGameLink(GameLink link) async {
@@ -1397,7 +1392,31 @@ class _GameLinkDialog extends StatefulWidget {
 }
 
 class _GameLinkDialogState extends State<_GameLinkDialog> {
+  static const _maxLength = 512;
   final _input = TextEditingController();
+  String? _error;
+
+  Future<void> _paste() async {
+    try {
+      final text = await readPastedLink(_maxLength);
+      if (!mounted) return;
+      _input.text = text;
+      setState(() => _error = null);
+    } on FormatException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    }
+  }
+
+  void _open() {
+    final text = _input.text.trim();
+    if (text.isEmpty) return;
+    final link = GameLink.parse(text);
+    if (link == null) {
+      setState(() => _error = 'Use a game link shared from Zompado.');
+      return;
+    }
+    Navigator.pop(context, link);
+  }
 
   @override
   void dispose() {
@@ -1408,28 +1427,34 @@ class _GameLinkDialogState extends State<_GameLinkDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Open game link'),
+    scrollable: true,
     content: TextField(
       controller: _input,
-      decoration: const InputDecoration(labelText: 'Zompado game link'),
-      maxLength: 512,
-      onSubmitted: (value) => Navigator.pop(context, value),
+      decoration: InputDecoration(
+        labelText: 'Zompado game link',
+        border: const OutlineInputBorder(),
+        counterText: '',
+        errorText: _error,
+        errorMaxLines: 3,
+      ),
+      maxLength: _maxLength,
+      onChanged: (_) {
+        if (_error != null) setState(() => _error = null);
+      },
+      onSubmitted: (_) => _open(),
     ),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
-      TextButton(
-        onPressed: () async {
-          final data = await Clipboard.getData(Clipboard.kTextPlain);
-          final text = data?.text?.trim();
-          if (mounted && text != null && text.length <= 512) _input.text = text;
-        },
-        child: const Text('Paste'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, _input.text),
-        child: const Text('Open'),
+      TextButton(onPressed: _paste, child: const Text('Paste')),
+      ValueListenableBuilder(
+        valueListenable: _input,
+        builder: (context, input, _) => FilledButton(
+          onPressed: input.text.trim().isEmpty ? null : _open,
+          child: const Text('Open'),
+        ),
       ),
     ],
   );

@@ -320,7 +320,7 @@ const _topics = [
     answers: [
       (
         'How do I connect with a friend?',
-        'Open Chats and create a profile. From an empty Inbox, tap Add a contact and choose Share my invite or Accept an invite. You can also open Contacts from the top bar. Tap Create Invite to share your link, or Accept Invite to scan or paste a friend’s link. On the other phone, open Contacts → Accept Invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
+        'Open Chats and create a profile. From an empty Inbox, tap Add a contact and choose Share my invite or Accept an invite. You can also open Contacts from the top bar. Use Share my invite to show a QR code or send your link. On the other phone, choose Accept an invite to scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
       ),
       (
         'How do I manage contacts?',

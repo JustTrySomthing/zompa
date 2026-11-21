@@ -8,6 +8,7 @@ import 'chat_files.dart';
 import 'chat_emoji.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
+import 'dialog_actions.dart';
 import 'message_bubble.dart';
 import 'chat_preview.dart';
 import 'game_link.dart';
@@ -19,7 +20,8 @@ import 'voice_calls.dart';
 
 String _failure(Object error) => switch (error) {
   MatchInviteExpired() => MatchInviteExpired.message,
-  ChatmailIssue.invite => 'Use the invite link from a friend’s Invite screen.',
+  ChatmailIssue.invite =>
+    'Use a link from your friend’s Share my invite screen.',
   ChatmailIssue.encrypted => 'Wait for your friend connection to finish.',
   ChatmailIssue.unavailable =>
     'The Chatmail connection stopped. Retry from Chats.',
@@ -190,10 +192,7 @@ class _FriendsPaneState extends State<FriendsPane> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialog).colorScheme.error,
-              foregroundColor: Theme.of(dialog).colorScheme.onError,
-            ),
+            style: destructiveDialogAction(dialog),
             onPressed: () => Navigator.pop(dialog, true),
             child: const Text('Empty trash'),
           ),
@@ -539,7 +538,7 @@ class ContactInvites {
     await showDialog<void>(
       context: context,
       builder: (dialog) => AlertDialog(
-        title: const Text('Create invite'),
+        title: const Text('Share my invite'),
         scrollable: true,
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -559,7 +558,7 @@ class ContactInvites {
             if (modules.isNotEmpty) const SizedBox(height: 16),
             Text(
               modules.isEmpty
-                  ? 'Share the link for your friend to open in Accept invite.'
+                  ? 'Share the link so your friend can use Accept an invite.'
                   : 'Have your friend scan this code, or share the invite link.',
               textAlign: TextAlign.center,
             ),
@@ -612,15 +611,13 @@ class ContactInvites {
   });
 
   Future<void> accept() async {
-    final invite = await showDialog<String>(
+    final chat = await showDialog<int>(
       context: context,
-      builder: (_) => const _AcceptInviteDialog(),
+      builder: (_) => _AcceptInviteDialog(acceptInvite: chatmail.acceptInvite),
     );
-    if (!context.mounted || invite == null) return;
-    await _perform(() async {
-      final chat = await chatmail.acceptInvite(invite);
-      if (context.mounted) await open(chat, 'Friend');
-    });
+    if (context.mounted && chat != null) {
+      await _perform(() => open(chat, 'Friend'));
+    }
   }
 }
 
@@ -655,37 +652,33 @@ class _InviteQr extends CustomPainter {
 }
 
 class _AcceptInviteDialog extends StatefulWidget {
-  const _AcceptInviteDialog();
+  const _AcceptInviteDialog({required this.acceptInvite});
+
+  final Future<int> Function(String) acceptInvite;
 
   @override
   State<_AcceptInviteDialog> createState() => _AcceptInviteDialogState();
 }
 
 class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
+  static const _maxLength = 4096;
   final _input = TextEditingController();
-  bool _scanning = false;
+  bool _scanning = false, _accepting = false;
+  String? _linkError;
   bool _cameraPermissionNeeded = false;
   String? _scanError;
 
   Future<void> _scan() async {
+    if (_scanning || _accepting) return;
+    String? value;
     setState(() {
       _scanning = true;
       _scanError = null;
       _cameraPermissionNeeded = false;
     });
     try {
-      final value = await const MethodChannel('io.zompado.host')
+      value = await const MethodChannel('io.zompado.host')
           .invokeMethod<String>('scanFriendInvite');
-      if (!mounted || value == null) return;
-      if (value.isEmpty || value.length > 4096) {
-        setState(
-          () =>
-              _scanError = 'Scan the QR code from your friend’s Invite screen.',
-        );
-        return;
-      }
-      _input.text = value;
-      _accept();
     } on PlatformException catch (error) {
       if (mounted) {
         setState(() {
@@ -708,6 +701,17 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
     } finally {
       if (mounted) setState(() => _scanning = false);
     }
+    if (!mounted || value == null) return;
+    final invite = value.trim();
+    if (invite.isEmpty || invite.length > _maxLength) {
+      setState(
+        () => _scanError =
+            'Scan the QR code from your friend’s Share my invite screen.',
+      );
+      return;
+    }
+    _input.text = invite;
+    await _accept();
   }
 
   Future<void> _openCameraSettings() async {
@@ -729,62 +733,101 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
     super.dispose();
   }
 
-  void _accept() {
+  Future<void> _paste() async {
+    try {
+      final text = await readPastedLink(_maxLength);
+      if (!mounted || _scanning || _accepting) return;
+      _input.text = text;
+      setState(() => _linkError = null);
+    } on FormatException catch (error) {
+      if (mounted && !_scanning && !_accepting) {
+        setState(() => _linkError = error.message);
+      }
+    }
+  }
+
+  Future<void> _accept() async {
     final invite = _input.text.trim();
-    if (invite.isNotEmpty) Navigator.pop(context, invite);
+    if (_scanning || _accepting || invite.isEmpty) return;
+    setState(() {
+      _accepting = true;
+      _linkError = null;
+    });
+    try {
+      final chat = await widget.acceptInvite(invite);
+      if (mounted) Navigator.pop(context, chat);
+    } catch (error) {
+      if (mounted) setState(() => _linkError = _failure(error));
+    } finally {
+      if (mounted) setState(() => _accepting = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Accept invite'),
-    scrollable: true,
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        OutlinedButton.icon(
-          onPressed: _scanning ? null : _scan,
-          icon: const Icon(Icons.qr_code_scanner),
-          label: Text(_scanning ? 'Opening scanner…' : 'Scan QR code'),
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_accepting,
+    child: AlertDialog(
+      title: const Text('Accept an invite'),
+      scrollable: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _scanning || _accepting ? null : _scan,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: Text(_scanning ? 'Opening scanner…' : 'Scan QR code'),
+          ),
+          if (_cameraPermissionNeeded)
+            TextButton(
+              onPressed: _accepting ? null : _openCameraSettings,
+              child: const Text('Open camera settings'),
+            ),
+          if (_scanError case final error?)
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          const SizedBox(height: 16),
+          TextField(
+            enabled: !_scanning && !_accepting,
+            controller: _input,
+            maxLength: _maxLength,
+            decoration: InputDecoration(
+              labelText: 'Invite link',
+              hintText: 'Paste your friend’s link',
+              border: const OutlineInputBorder(),
+              counterText: '',
+              errorText: _linkError,
+              errorMaxLines: 4,
+            ),
+            onChanged: (_) {
+              if (_linkError != null) setState(() => _linkError = null);
+            },
+            onSubmitted: (_) => _accept(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _accepting ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
         ),
-        if (_cameraPermissionNeeded)
-          TextButton(
-            onPressed: _openCameraSettings,
-            child: const Text('Open camera settings'),
+        TextButton(
+          onPressed: _scanning || _accepting ? null : _paste,
+          child: const Text('Paste'),
+        ),
+        ValueListenableBuilder(
+          valueListenable: _input,
+          builder: (context, input, _) => FilledButton(
+            onPressed: _scanning || _accepting || input.text.trim().isEmpty
+                ? null
+                : _accept,
+            child: Text(_accepting ? 'Accepting…' : 'Accept'),
           ),
-        if (_scanError case final error?)
-          Text(
-            error,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        const SizedBox(height: 16),
-        TextField(
-          enabled: !_scanning,
-          controller: _input,
-          maxLength: 4096,
-          decoration: const InputDecoration(
-            labelText: 'Invite link',
-            hintText: 'Paste your friend’s link',
-            border: OutlineInputBorder(),
-            counterText: '',
-          ),
-          onSubmitted: (_) => _accept(),
         ),
       ],
     ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      ValueListenableBuilder(
-        valueListenable: _input,
-        builder: (context, input, _) => FilledButton(
-          onPressed: _scanning || input.text.trim().isEmpty ? null : _accept,
-          child: const Text('Accept'),
-        ),
-      ),
-    ],
   );
 }
 

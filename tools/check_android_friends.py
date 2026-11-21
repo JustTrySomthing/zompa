@@ -121,8 +121,8 @@ class Phone:
 
     def invite(self):
         self.press("Contacts")
-        self.press("Create Invite")
-        self.see("Create invite")
+        self.press("Share my invite")
+        self.see("Share my invite")
         detector = cv2.QRCodeDetector()
         link = wait("a decodable invite QR", lambda: detector.detectAndDecode(self.image())[0], 30)
         self.press("Done")
@@ -298,7 +298,7 @@ def main():
     check_app_log(alice)
     bob.profile()
     bob.press("Contacts")
-    bob.press("Accept Invite")
+    bob.press("Accept an invite")
     bob.press("Scan QR code")
     bob.shell("input", "tap", *wait("the camera permission denial button",
         lambda: bob.find("Don’t allow") or bob.find("Don't allow")))
@@ -309,6 +309,13 @@ def main():
     bob.back()
     bob.see("Scan QR code")
     print("PASS: Android requested camera access, handled denial, and opened the built-in QR scanner.", flush=True)
+
+    bob.type("https://example.org/not-an-invite")
+    bob.back()
+    bob.press("Accept")
+    bob.see("Use a link from your friend’s Share my invite screen.")
+    bob.press("Cancel")
+    bob.press("Accept an invite")
 
     link = alice.invite()
     bob.type(link)

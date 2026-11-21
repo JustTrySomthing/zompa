@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'brand.dart';
 import 'chatmail.dart';
+import 'dialog_actions.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
@@ -339,6 +340,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             child: const Text('Keep playing'),
           ),
           FilledButton(
+            style: destructiveDialogAction(dialog),
             onPressed: () => Navigator.pop(dialog, true),
             child: const Text('Quit match'),
           ),

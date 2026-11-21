@@ -1,3 +1,4 @@
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'chatmail.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
+import 'dialog_actions.dart';
 
 class ContactsPage extends StatefulWidget {
   const ContactsPage({
@@ -104,6 +106,7 @@ class _ContactsPageState extends State<ContactsPage> {
               child: const Text('Cancel'),
             ),
             FilledButton(
+              style: deleting ? destructiveDialogAction(dialog) : null,
               onPressed: () => Navigator.pop(dialog, true),
               child: Text(deleting ? 'Delete contact' : 'Block contact'),
             ),
@@ -169,14 +172,14 @@ class _ContactsPageState extends State<ContactsPage> {
                     await widget.invite();
                     if (mounted) await _load();
                   },
-                  child: const Text('Create Invite'),
+                  child: const Text('Share my invite'),
                 ),
                 OutlinedButton(
                   onPressed: () async {
                     await widget.acceptInvite();
                     if (mounted) await _load();
                   },
-                  child: const Text('Accept Invite'),
+                  child: const Text('Accept an invite'),
                 ),
               ],
             ),
