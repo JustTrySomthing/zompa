@@ -1473,7 +1473,6 @@ class _FriendConversationState extends State<FriendConversation>
                           photo: thread.photo,
                         ),
                 ),
-              search,
             ],
           );
     final composerFontSize =
@@ -1862,26 +1861,31 @@ class _FriendConversationState extends State<FriendConversation>
               if (showTabs)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('Feed')),
-                        ButtonSegment(value: true, label: Text('Media')),
-                      ],
-                      selected: {_showMedia},
-                      showSelectedIcon: false,
-                      onSelectionChanged: (selected) {
-                        FocusScope.of(context).unfocus();
-                        final showMedia = selected.single;
-                        if (showMedia == _showMedia) return;
-                        setState(() {
-                          _showMedia = showMedia;
-                          _openedMedia = _openedMedia || _showMedia;
-                        });
-                        if (!showMedia) unawaited(_load());
-                      },
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SegmentedButton<bool>(
+                          segments: const [
+                            ButtonSegment(value: false, label: Text('Feed')),
+                            ButtonSegment(value: true, label: Text('Media')),
+                          ],
+                          selected: {_showMedia},
+                          showSelectedIcon: false,
+                          onSelectionChanged: (selected) {
+                            FocusScope.of(context).unfocus();
+                            final showMedia = selected.single;
+                            if (showMedia == _showMedia) return;
+                            setState(() {
+                              _showMedia = showMedia;
+                              _openedMedia = _openedMedia || _showMedia;
+                            });
+                            if (!showMedia) unawaited(_load());
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      search,
+                    ],
                   ),
                 ),
               Expanded(
