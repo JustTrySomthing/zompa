@@ -147,6 +147,8 @@ class Phone:
 
 
 def check_locked_call(alice, bob):
+    # Exercise the Setup path where Android allows the live connection while idle.
+    bob.shell("cmd", "deviceidle", "whitelist", f"+{APP}")
     bob.shell("am", "force-stop", APP)
     bob.start()
     bob.see("My Games")
@@ -165,13 +167,23 @@ def check_locked_call(alice, bob):
         alice.press("Voice call")
         alice.press("Call")
         wait("an incoming-call notification while Bob’s screen is off", voice_notification_posted, 75)
-        alice.press("End call")
+    except RuntimeError:
+        for phone in (alice, bob):
+            app_log = phone.shell("run-as", APP, "cat", "files/app-log.txt").decode(errors="replace")
+            for line in app_log.splitlines()[-20:]:
+                print(f"{phone.name} App Log: {line}", flush=True)
+        raise
     finally:
+        if point := alice.find("End call"):
+            alice.shell("input", "tap", *point)
         bob.shell("input", "keyevent", "KEYCODE_WAKEUP")
         bob.shell("wm", "dismiss-keyguard")
+        bob.shell("cmd", "deviceidle", "whitelist", f"-{APP}")
+        if point := bob.find("Decline"):
+            bob.shell("input", "tap", *point)
+        bob.press("Chats")
+        bob.press("Alice")
     wait("the incoming-call notification to clear", lambda: not voice_notification_posted())
-    bob.press("Chats")
-    bob.press("Alice")
     print("PASS: a call alert arrived before waking the recipient, after launching only Games.", flush=True)
 
 
@@ -362,9 +374,13 @@ def main():
     voice_error = None
     try:
         check_locked_call(alice, bob)
-        check_voice(alice, bob)
     except RuntimeError as error:
         voice_error = error
+        print(f"Locked call check failed: {error}", flush=True)
+    try:
+        check_voice(alice, bob)
+    except RuntimeError as error:
+        voice_error = voice_error or error
         for phone in (alice, bob):
             print(f"{phone.name} while waiting for the call:", phone.labels(), flush=True)
             logs = phone.adb("logcat", "-d", "-t", "800", "-s", "flutter:E", "ZompadoCall:I").decode(errors="replace")

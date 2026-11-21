@@ -98,6 +98,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.paused ||
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.hidden;
   bool loaded = false;
+  bool _loggedChatConnection = false;
 
   @override
   void initState() {
@@ -160,7 +161,13 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     if (chat == null) return;
     try {
       final accounts = File('${chat.accountsDirectory.path}/accounts.toml');
-      if (await accounts.exists() && mounted) await chat.restore();
+      if (await accounts.exists() &&
+          mounted &&
+          await chat.restore() &&
+          !_loggedChatConnection) {
+        _loggedChatConnection = true;
+        recordAppEvent('Chatmail listener started for incoming calls');
+      }
     } catch (_) {
       recordAppEvent('Couldn’t reconnect Chatmail for incoming calls');
     }
