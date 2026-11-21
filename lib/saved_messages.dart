@@ -7,8 +7,11 @@ import 'package:flutter/services.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
 import 'chat_files.dart';
+import 'chat_links.dart';
+import 'chat_preview.dart';
 import 'chatmail.dart';
 import 'game_link.dart';
+import 'message_bubble.dart';
 import 'online_match.dart';
 
 class SavedMessagesPage extends StatefulWidget {
@@ -83,9 +86,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
         _ => 'Files',
       };
     }
-    return RegExp(r'https?://', caseSensitive: false).hasMatch(message.text)
-        ? 'Links'
-        : 'Messages';
+    return chatLinks(message.text).isNotEmpty ? 'Links' : 'Messages';
   }
 
   @override
@@ -206,9 +207,9 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
                                 IconButton(
                                   icon: Icon(
                                     Icons.star,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                   ),
                                   tooltip: 'Remove saved copy',
                                   onPressed: () => showMessageActions(
@@ -237,11 +238,14 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
                                 icon: const Icon(Icons.sports_esports_outlined),
                                 label: const Text('Open game'),
                               )
+                            else if (MatchEvent.parse(message.text) != null)
+                              const Text('Cats vs Dogs match invitation')
                             else if (message.text.isNotEmpty)
-                              Text(
-                                MatchEvent.parse(message.text) != null
-                                    ? 'Cats vs Dogs match invitation'
-                                    : message.text,
+                              ChatText(
+                                message.text,
+                                size:
+                                    ChatChrome.of(context)?.messageTextSize ??
+                                    defaultMessageTextSize,
                               ),
                             if (message.file != null)
                               TextButton.icon(

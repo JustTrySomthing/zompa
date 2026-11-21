@@ -32,6 +32,7 @@ class FriendsPane extends StatefulWidget {
   const FriendsPane({
     super.key,
     required this.chatmail,
+    required this.addContact,
     required this.installedGames,
     required this.verifiedGameLink,
     required this.openGameLink,
@@ -39,6 +40,7 @@ class FriendsPane extends StatefulWidget {
   });
 
   final Chatmail chatmail;
+  final Future<void> Function(BuildContext) addContact;
   final List<GameRelease> Function() installedGames;
   final Future<String?> Function(GameRelease) verifiedGameLink;
   final Future<void> Function(GameLink) openGameLink;
@@ -394,12 +396,41 @@ class _FriendsPaneState extends State<FriendsPane> {
             ),
           const SizedBox(height: 14),
           if (_busy) const LinearProgressIndicator(),
-          if (_chats.isEmpty)
-            Text(switch (_folder) {
-              _ChatFolder.archive => 'No archived chats.',
-              _ChatFolder.trash => 'Trash is empty.',
-              _ChatFolder.inbox => 'Use Contacts to connect with a friend.',
-            }),
+          if (_chats.isEmpty && !_busy && _error == null)
+            if (_folder == _ChatFolder.inbox)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 28, 0, 16),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.person_add_alt_outlined,
+                      size: 40,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 12),
+                    Text('No chats yet', style: theme.textTheme.titleLarge),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Connect with a friend to start chatting.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () async {
+                        await widget.addContact(context);
+                        if (mounted) await _refresh();
+                      },
+                      child: const Text('Add a contact'),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Text(
+                _folder == _ChatFolder.archive
+                    ? 'No archived chats.'
+                    : 'Trash is empty.',
+              ),
           for (final chat in _chats)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -464,6 +495,35 @@ class ContactInvites {
       if (context.mounted)
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(_failure(error))));
+    }
+  }
+
+  Future<void> choose() async {
+    final shareMine = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => SimpleDialog(
+        title: const Text('Add a contact'),
+        children: [
+          ListTile(
+            leading: const Icon(Icons.share_outlined),
+            title: const Text('Share my invite'),
+            subtitle: const Text('Send your link or show your QR code.'),
+            onTap: () => Navigator.pop(dialog, true),
+          ),
+          ListTile(
+            leading: const Icon(Icons.qr_code_scanner),
+            title: const Text('Accept an invite'),
+            subtitle: const Text('Scan a QR code or paste a link.'),
+            onTap: () => Navigator.pop(dialog, false),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || shareMine == null) return;
+    if (shareMine) {
+      await create();
+    } else {
+      await accept();
     }
   }
 
@@ -1445,7 +1505,8 @@ class _FriendConversationState extends State<FriendConversation>
                                         else ...[
                                           if (message.file != null)
                                             ChatAttachment(message),
-                                          if (message.filename case final name?)
+                                          if (message.bubbleFilename
+                                              case final name?)
                                             MessageBody(
                                               name,
                                               size: messageTextSize,
@@ -1493,12 +1554,21 @@ class _FriendConversationState extends State<FriendConversation>
                                                 ],
                                               ),
                                             )
-                                          else if (message.text.isNotEmpty ||
-                                              message.filename == null)
+                                          else if (message.bubbleCaption
+                                              .trim()
+                                              .isNotEmpty)
                                             ChatText(
-                                              text,
+                                              message.bubbleCaption,
                                               size: messageTextSize,
-                                            ),
+                                            )
+                                          else if (message.file == null &&
+                                              message.bubbleFilename == null)
+                                            MessageBody(switch (message.media) {
+                                              ChatMedia.image => 'Photo',
+                                              ChatMedia.video => 'Video',
+                                              ChatMedia.audio => 'Audio',
+                                              null => 'Attachment',
+                                            }, size: messageTextSize),
                                         ],
                                         if (message.reactions.isNotEmpty)
                                           _reactions(

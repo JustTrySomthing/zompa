@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
 import 'package:flutter/services.dart';
 
 import 'chat_chrome.dart';
+import 'chat_links.dart';
 import 'chatmail.dart';
 import 'message_bubble.dart';
 
@@ -22,12 +23,10 @@ class ChatAttachment extends StatelessWidget {
     final file = message.file;
     if (file == null) return const SizedBox.shrink();
     final path = File(file);
-    final mime = message.mime ?? '';
-    final image =
-        mime.startsWith('image/') ||
-        const {'Image', 'Gif', 'Sticker'}.contains(message.viewType);
-    final title = message.filename ?? (image ? 'Image' : 'Video');
-    if (image) {
+    final media = message.media;
+    final title =
+        message.filename ?? (media == ChatMedia.image ? 'Image' : 'Video');
+    if (media == ChatMedia.image) {
       return Semantics(
         button: true,
         label: 'Open image preview',
@@ -47,11 +46,10 @@ class ChatAttachment extends StatelessWidget {
         ),
       );
     }
-    if (mime.startsWith('video/') || message.viewType == 'Video') {
+    if (media == ChatMedia.video) {
       return _VideoAttachment(key: ValueKey(file), path: file, title: title);
     }
-    if (mime.startsWith('audio/') ||
-        const {'Audio', 'Voice'}.contains(message.viewType)) {
+    if (media == ChatMedia.audio) {
       return _AudioAttachment(key: ValueKey(file), path: file);
     }
     return const SizedBox.shrink();
@@ -298,11 +296,7 @@ class ChatText extends StatefulWidget {
 }
 
 class _ChatTextState extends State<ChatText> {
-  static final _web = RegExp(
-    r'https?://[^\s<>"\u0000-\u001f]+',
-    caseSensitive: false,
-  );
-  final _links = <(int, int, Uri, TapGestureRecognizer)>[];
+  final _links = <(ChatLink, String?, TapGestureRecognizer?)>[];
 
   @override
   void initState() {
@@ -318,22 +312,19 @@ class _ChatTextState extends State<ChatText> {
 
   void _parseLinks() {
     _clearLinks();
-    for (final match in _web.allMatches(widget.text)) {
-      final text = match.group(0)!.replaceFirst(RegExp(r'[.,!?;)\]}]+$'), '');
-      final url = Uri.tryParse(text);
-      if (url == null || url.host.isEmpty || url.userInfo.isNotEmpty) continue;
-      _links.add((
-        match.start,
-        match.start + text.length,
-        url,
-        TapGestureRecognizer()..onTap = () => _openBrowser(context, url),
-      ));
+    for (final link in chatLinks(widget.text)) {
+      final video = youtubeVideoId(link.uri);
+      final tap = video == null
+          ? (TapGestureRecognizer()
+              ..onTap = () => _openBrowser(context, link.uri))
+          : null;
+      _links.add((link, video, tap));
     }
   }
 
   void _clearLinks() {
-    for (final (_, _, _, tap) in _links) {
-      tap.dispose();
+    for (final (_, _, tap) in _links) {
+      tap?.dispose();
     }
     _links.clear();
   }
@@ -349,13 +340,18 @@ class _ChatTextState extends State<ChatText> {
     if (_links.isEmpty) return MessageBody(widget.text, size: widget.size);
     final primary = Theme.of(context).colorScheme.primary;
     var last = 0;
-    final spans = <InlineSpan>[];
-    (Uri, String)? video;
-    for (final (start, end, url, tap) in _links) {
-      spans.add(TextSpan(text: widget.text.substring(last, start)));
+    final spans = <TextSpan>[];
+    final videos = <(Uri, String)>[];
+    for (final (link, video, tap) in _links) {
+      spans.add(TextSpan(text: widget.text.substring(last, link.start)));
+      last = link.end;
+      if (video != null) {
+        videos.add((link.uri, video));
+        continue;
+      }
       spans.add(
         TextSpan(
-          text: widget.text.substring(start, end),
+          text: widget.text.substring(link.start, link.end),
           style: TextStyle(
             color: primary,
             decoration: TextDecoration.underline,
@@ -364,21 +360,19 @@ class _ChatTextState extends State<ChatText> {
           recognizer: tap,
         ),
       );
-      last = end;
-      if (_youtubeId(url) case final id? when video == null) {
-        video = (url, id);
-      }
     }
     spans.add(TextSpan(text: widget.text.substring(last)));
+    final hasText = spans.any((span) => span.text?.trim().isNotEmpty ?? false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text.rich(
-          TextSpan(children: spans),
-          style: TextStyle(fontSize: widget.size, height: 1.4),
-        ),
-        if (video case (final url, final id)) ...[
-          const SizedBox(height: 8),
+        if (hasText)
+          Text.rich(
+            TextSpan(children: spans),
+            style: TextStyle(fontSize: widget.size, height: 1.4),
+          ),
+        for (final (index, (url, id)) in videos.indexed) ...[
+          if (hasText || index > 0) const SizedBox(height: 8),
           InkWell(
             onTap: () => _openBrowser(context, url),
             child: _Thumbnail(
@@ -402,33 +396,15 @@ class _ChatTextState extends State<ChatText> {
   }
 }
 
-String? _youtubeId(Uri uri) {
-  final host = uri.host.toLowerCase();
-  final segments = uri.pathSegments;
-  final String? id;
-  if (host == 'youtu.be' && segments.isNotEmpty) {
-    id = segments.first;
-  } else if (const {
-    'youtube.com',
-    'www.youtube.com',
-    'm.youtube.com',
-  }.contains(host)) {
-    id = switch (segments) {
-      ['watch'] => uri.queryParameters['v'],
-      ['shorts' || 'embed' || 'live', final video, ...] => video,
-      _ => null,
-    };
-  } else {
-    return null;
-  }
-  return id != null && RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id) ? id : null;
-}
-
 void _openBrowser(BuildContext context, Uri url) {
-  final id = _youtubeId(url);
+  final id = youtubeVideoId(url);
   final target = id == null
       ? url
-      : Uri.https('m.youtube.com', '/watch', {'v': id, 'autoplay': '1'});
+      : Uri.https('m.youtube.com', '/watch', {
+          'v': id,
+          'autoplay': '1',
+          'mute': '0',
+        });
   Navigator.of(context)
       .push<void>(MaterialPageRoute(builder: (_) => _BrowserPreview(target)));
 }

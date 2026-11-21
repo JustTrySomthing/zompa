@@ -767,90 +767,114 @@ class VoicePanel extends StatelessWidget {
                                     ? _videoControlShadows
                                     : null,
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (connected) ...[
-                                    _VoiceButton(
-                                      tooltip: call.muted
-                                          ? 'Unmute microphone'
-                                          : 'Mute microphone',
-                                      label: call.muted ? 'Unmute' : 'Mute',
-                                      onPressed: () => controller.changeAudio(
-                                        speaker: false,
-                                      ),
-                                      icon: call.muted
-                                          ? Icons.mic_off
-                                          : Icons.mic_none,
-                                      selected: call.muted,
-                                    ),
-                                    _VoiceButton(
-                                      tooltip: call.speaker
-                                          ? 'Turn off speaker'
-                                          : 'Turn on speaker',
-                                      label: 'Speaker',
-                                      onPressed: () =>
-                                          controller.changeAudio(speaker: true),
-                                      icon: call.speaker
-                                          ? Icons.volume_up
-                                          : Icons.volume_down_outlined,
-                                      selected: call.speaker,
-                                    ),
-                                    if (call.canVideo ||
-                                        call.remoteCamera ||
-                                        call.camera)
-                                      _VoiceButton(
-                                        tooltip: videoVisible
-                                            ? 'Switch to audio'
-                                            : 'Switch to video',
-                                        label: videoVisible ? 'Audio' : 'Video',
-                                        onPressed: call.changingCamera
-                                            ? null
-                                            : controller.toggleVideoMode,
-                                        icon: videoVisible
-                                            ? Icons.call_outlined
-                                            : Icons.videocam_outlined,
-                                      ),
-                                    if (videoVisible && call.camera)
-                                      _VoiceButton(
-                                        tooltip: call.selfPreview
-                                            ? 'Hide preview'
-                                            : 'Show preview',
-                                        label: 'Preview',
-                                        onPressed: controller.toggleSelfPreview,
-                                        icon: call.selfPreview
-                                            ? Icons.picture_in_picture_alt
-                                            : Icons
-                                                  .picture_in_picture_alt_outlined,
-                                        selected: call.selfPreview,
-                                      )
-                                    else if (remoteVisible && call.canVideo)
-                                      _VoiceButton(
-                                        tooltip: 'Turn on camera',
-                                        label: 'Camera',
-                                        onPressed: call.changingCamera
-                                            ? null
-                                            : controller.changeCamera,
-                                        icon: Icons.videocam_outlined,
-                                      ),
-                                  ],
-                                  if (incoming)
-                                    _VoiceButton(
-                                      tooltip: 'Decline',
-                                      label: 'Decline',
-                                      onPressed: controller.hangUp,
-                                      color: colors.error,
-                                      icon: Icons.call_end,
-                                    ),
-                                  if (incoming)
-                                    _VoiceButton(
-                                      tooltip: 'Answer',
-                                      label: 'Answer',
-                                      onPressed: controller.accept,
-                                      color: const Color(0xff43b981),
-                                      icon: Icons.call,
-                                    ),
-                                ],
+                              child: LayoutBuilder(
+                                builder: (context, box) {
+                                  final labelSize = MediaQuery.textScalerOf(
+                                    context,
+                                  ).scale(14);
+                                  final targetWidth = labelSize > 18
+                                      ? labelSize * 5
+                                      : (box.maxWidth / (incoming ? 2 : 4))
+                                            .clamp(48.0, 82.0);
+                                  final width = targetWidth
+                                      .clamp(0.0, box.maxWidth)
+                                      .toDouble();
+                                  return Wrap(
+                                    alignment: WrapAlignment.center,
+                                    runSpacing: 4,
+                                    children: [
+                                      if (connected) ...[
+                                        _VoiceButton(
+                                          width: width,
+                                          tooltip: call.muted
+                                              ? 'Unmute microphone'
+                                              : 'Mute microphone',
+                                          label: call.muted ? 'Unmute' : 'Mute',
+                                          onPressed: () => controller
+                                              .changeAudio(speaker: false),
+                                          icon: call.muted
+                                              ? Icons.mic_off
+                                              : Icons.mic_none,
+                                          selected: call.muted,
+                                        ),
+                                        _VoiceButton(
+                                          width: width,
+                                          tooltip: call.speaker
+                                              ? 'Turn off speaker'
+                                              : 'Turn on speaker',
+                                          label: 'Speaker',
+                                          onPressed: () => controller
+                                              .changeAudio(speaker: true),
+                                          icon: call.speaker
+                                              ? Icons.volume_up
+                                              : Icons.volume_down_outlined,
+                                          selected: call.speaker,
+                                        ),
+                                        if (call.canVideo ||
+                                            call.remoteCamera ||
+                                            call.camera)
+                                          _VoiceButton(
+                                            width: width,
+                                            tooltip: videoVisible
+                                                ? 'Switch to audio'
+                                                : 'Switch to video',
+                                            label: videoVisible
+                                                ? 'Audio'
+                                                : 'Video',
+                                            onPressed: call.changingCamera
+                                                ? null
+                                                : controller.toggleVideoMode,
+                                            icon: videoVisible
+                                                ? Icons.call_outlined
+                                                : Icons.videocam_outlined,
+                                          ),
+                                        if (videoVisible && call.camera)
+                                          _VoiceButton(
+                                            width: width,
+                                            tooltip: call.selfPreview
+                                                ? 'Hide preview'
+                                                : 'Show preview',
+                                            label: 'Preview',
+                                            onPressed:
+                                                controller.toggleSelfPreview,
+                                            icon: call.selfPreview
+                                                ? Icons.picture_in_picture_alt
+                                                : Icons
+                                                      .picture_in_picture_alt_outlined,
+                                            selected: call.selfPreview,
+                                          )
+                                        else if (remoteVisible && call.canVideo)
+                                          _VoiceButton(
+                                            width: width,
+                                            tooltip: 'Turn on camera',
+                                            label: 'Camera',
+                                            onPressed: call.changingCamera
+                                                ? null
+                                                : controller.changeCamera,
+                                            icon: Icons.videocam_outlined,
+                                          ),
+                                      ],
+                                      if (incoming)
+                                        _VoiceButton(
+                                          width: width,
+                                          tooltip: 'Decline',
+                                          label: 'Decline',
+                                          onPressed: controller.hangUp,
+                                          color: colors.error,
+                                          icon: Icons.call_end,
+                                        ),
+                                      if (incoming)
+                                        _VoiceButton(
+                                          width: width,
+                                          tooltip: 'Answer',
+                                          label: 'Answer',
+                                          onPressed: controller.accept,
+                                          color: const Color(0xff43b981),
+                                          icon: Icons.call,
+                                        ),
+                                    ],
+                                  );
+                                },
                               ),
                             ),
                           ),
@@ -911,6 +935,7 @@ const _videoControlShadows = [Shadow(color: Colors.black, blurRadius: 6)];
 
 class _VoiceButton extends StatelessWidget {
   const _VoiceButton({
+    required this.width,
     required this.tooltip,
     required this.label,
     required this.icon,
@@ -919,6 +944,7 @@ class _VoiceButton extends StatelessWidget {
     this.selected = false,
   });
 
+  final double width;
   final String tooltip, label;
   final IconData icon;
   final VoidCallback? onPressed;
@@ -926,9 +952,10 @@ class _VoiceButton extends StatelessWidget {
   final bool selected;
 
   @override
-  Widget build(BuildContext context) => Flexible(
-    child: SizedBox(
-      width: 82,
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
       child: Semantics(
         container: true,
         label: tooltip,
@@ -944,7 +971,25 @@ class _VoiceButton extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 30, color: color),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? colors.secondaryContainer
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 26,
+                        color: selected ? colors.onSecondaryContainer : color,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     label,
@@ -963,6 +1008,6 @@ class _VoiceButton extends StatelessWidget {
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

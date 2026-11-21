@@ -320,7 +320,7 @@ const _topics = [
     answers: [
       (
         'How do I connect with a friend?',
-        'Open Chats and create a profile. Open Contacts from the top bar. Tap Create Invite to share your link, or Accept Invite to scan or paste a friend’s link. On the other phone, open Contacts → Accept Invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
+        'Open Chats and create a profile. From an empty Inbox, tap Add a contact and choose Share my invite or Accept an invite. You can also open Contacts from the top bar. Tap Create Invite to share your link, or Accept Invite to scan or paste a friend’s link. On the other phone, open Contacts → Accept Invite and scan the QR code or paste the link. Allow camera access when prompted or in Settings → Setup.',
       ),
       (
         'How do I manage contacts?',
@@ -348,7 +348,7 @@ const _topics = [
       ),
       (
         'Can I play media in chat?',
-        'GIFs play in the conversation. Tap a photo to enlarge and zoom it, Play video to watch an attachment, or the audio play button to listen in chat. Links open in Preview Browser. Use the top-right button to open the page in your default browser.',
+        'GIFs play in the conversation. Tap a photo to enlarge and zoom it, Play video to watch an attachment, or the audio play button to listen in chat. Tap a YouTube preview to play it. Website addresses like example.com open in Preview Browser, even without https://. Use the top-right button to open the page in your default browser.',
       ),
       (
         'How do I restore a deleted chat or set a reply reminder?',
@@ -360,7 +360,7 @@ const _topics = [
       ),
       (
         'Where are my saved messages?',
-        'Tap the star on a message to save it. Tap Saved in the top bar to search and filter your saved messages and attachments.',
+        'Tap the star on a message to save it. Tap Saved in the top bar to search and filter your saved messages and attachments. Website addresses in saved messages open in Preview Browser.',
       ),
       (
         'When can I send a message?',

@@ -11,7 +11,7 @@ or make your own.
 ## What you can do today
 
 - **Play Cats vs Dogs.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. To invite a friend from chat, tap the gamepad, choose an installed online game, and tap **Invite**. Resume from **Active Games** or a turn alert.
-- **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation.
+- **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation. Tap website addresses or YouTube previews to open them in the app.
 - **Manage your game library.** A fresh install starts with an empty library. Add official `.zomp` games and remove them from **My Games**. Open the import button for compatible `.love` files on your device.
 
 Downloaded games require Android 10 or later and a sandboxed WebView renderer. Open **Settings → Game audio** to adjust volume, mute the game, or control whether its volume lowers during a call. SDK games also support separate music and effects controls.

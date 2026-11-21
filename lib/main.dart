@@ -876,6 +876,15 @@ class _HomeState extends State<Home> {
         ),
       );
 
+  ContactInvites _contactInvites(BuildContext route, Chatmail chatmail) =>
+      ContactInvites(
+        route,
+        chatmail,
+        (chat, name) => _conversation(route, chat, name),
+        (invite) =>
+            bridge.invokeMethod<void>('shareFriendInvite', {'invite': invite}),
+      );
+
   Future<void> openContacts(BuildContext route) async {
     final chatmail = widget.chatmail;
     if (chatmail == null) return;
@@ -896,14 +905,7 @@ class _HomeState extends State<Home> {
       await Navigator.of(route).push<void>(
         MaterialPageRoute(
           builder: (contacts) {
-            final invites = ContactInvites(
-              contacts,
-              chatmail,
-              (chat, name) => _conversation(contacts, chat, name),
-              (invite) => bridge.invokeMethod<void>('shareFriendInvite', {
-                'invite': invite,
-              }),
-            );
+            final invites = _contactInvites(contacts, chatmail);
             return ContactsPage(
               chatmail: chatmail,
               invite: invites.create,
@@ -1003,6 +1005,8 @@ class _HomeState extends State<Home> {
                   )
                 : FriendsPane(
                     chatmail: widget.chatmail!,
+                    addContact: (route) =>
+                        _contactInvites(route, widget.chatmail!).choose(),
                     installedGames: _installedGameChoices,
                     verifiedGameLink: _installedGameLink,
                     openGameLink: _openGameLink,
@@ -1022,7 +1026,7 @@ class _HomeState extends State<Home> {
     final choice = await showDialog<String>(
       context: context,
       builder: (dialog) => SimpleDialog(
-        title: const Text('Import or Open Game Link'),
+        title: const Text('Import or open link'),
         children: [
           ListTile(
             leading: const Icon(Icons.file_open_outlined),
@@ -1078,9 +1082,11 @@ class _HomeState extends State<Home> {
         ),
         Align(
           child: TextButton(
-            style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
+            style: TextButton.styleFrom(
+              foregroundColor: colors.onSurfaceVariant,
+            ),
             onPressed: _openGameOptions,
-            child: const Text('Import or Open Game Link'),
+            child: const Text('Import or open link'),
           ),
         ),
         const SizedBox(height: 12),
@@ -1119,13 +1125,13 @@ class _HomeState extends State<Home> {
               ),
           ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          catalog
-              ? 'Games released independently from the app.'
-              : 'Installed games are ready to play.',
-          style: TextStyle(color: colors.onSurfaceVariant),
-        ),
+        if (catalog) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Games released independently from the app.',
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+        ],
         const SizedBox(height: 16),
         if (catalog) ...[
           if (loadingCatalog || downloadingGame)
