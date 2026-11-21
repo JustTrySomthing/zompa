@@ -1,5 +1,5 @@
 {
-  "version": "0.5.30",
-  "build": 39,
-  "notes": "- Simplified game cards and made screenshot previews easier to open in My Games and Get Games.\n- Shortened dates in chat bubbles and moved the game invite picker into a bottom sheet.\n- YouTube previews request autoplay with sound when the player allows it.\n- Incoming calls can still be missed with the recipient’s screen off."
+  "version": "0.5.31",
+  "build": 40,
+  "notes": "- Play starts a fresh round. Back saves a supported unfinished round for Active Games, and Quit clears the current round.\n- The game toolbar keeps the title and back arrow on the left, with game audio and Pause/Resume on the right. The circled speaker in Game Audio mutes all game sound and keeps your volume settings.\n- The Cats vs Dogs cover stays the same size while browsing. Get Games labels the current installed version.\n- Updated the game SDK guide for save and resume behavior, toolbar layout, and online controls.\n- Incoming calls can still be missed while the recipient’s screen is off."
 }
