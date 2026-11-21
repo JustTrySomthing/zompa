@@ -532,6 +532,7 @@ class Chatmail {
       info['isEncrypted'] == true && info['canSend'] == true,
       await _messages(account, recent),
       ids.length > recent.length,
+      photo: info['profileImage'] as String?,
     );
   }
 
@@ -744,8 +745,15 @@ class FriendChat {
 }
 
 class FriendThread {
-  const FriendThread(this.name, this.canSend, this.messages, this.hasOlder);
+  const FriendThread(
+    this.name,
+    this.canSend,
+    this.messages,
+    this.hasOlder, {
+    this.photo,
+  });
   final String name;
+  final String? photo;
   final bool canSend, hasOlder;
   final List<FriendMessage> messages;
 }
@@ -787,6 +795,15 @@ class FriendMessage {
   final String text, viewType;
   final String? file, filename, mime;
   final bool outgoing, info, encrypted;
+
+  // Chatmail includes the local call outcome as stock text in the message.
+  bool get unansweredCall =>
+      viewType == 'Call' &&
+      const {
+        'Canceled call',
+        'Missed call',
+        'Declined call',
+      }.contains(text.trim());
 
   String? get delivery => switch (state) {
     20 => 'Sending',

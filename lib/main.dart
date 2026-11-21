@@ -945,6 +945,7 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     final isGames = tab == 1;
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -1001,21 +1002,52 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        onDestinationSelected: (value) => setState(() => tab = value),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.chat_outlined),
-            selectedIcon: Icon(Icons.chat),
-            label: 'Chats',
+      bottomNavigationBar: Material(
+        color: colors.surfaceContainer,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+            child: Row(
+              children: [
+                for (final (index, label, icon, activeIcon) in const [
+                  (0, 'Chats', Icons.chat_outlined, Icons.chat),
+                  (
+                    1,
+                    'Games',
+                    Icons.sports_esports_outlined,
+                    Icons.sports_esports,
+                  ),
+                ])
+                  Expanded(
+                    child: Semantics(
+                      selected: tab == index,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(0, 56),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
+                          backgroundColor: tab == index
+                              ? colors.secondaryContainer
+                              : null,
+                          foregroundColor: tab == index
+                              ? colors.onSecondaryContainer
+                              : colors.onSurfaceVariant,
+                          iconSize: 28,
+                          textStyle: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        onPressed: () => setState(() => tab = index),
+                        icon: Icon(tab == index ? activeIcon : icon),
+                        label: Text(label, textAlign: TextAlign.center),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.sports_esports_outlined),
-            selectedIcon: Icon(Icons.sports_esports),
-            label: 'Games',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1434,212 +1466,241 @@ class Preferences extends StatefulWidget {
 
 class _PreferencesState extends State<Preferences> {
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Settings'),
-      actions: chatActions(context, settings: false),
-    ),
-    body: SafeArea(
-      top: false,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
-        children:
-            [
-                  if (widget.chatmail case final chatmail?)
-                    ListTile(
-                      leading: const Icon(Icons.account_circle_outlined),
-                      title: const Text('My Profile'),
-                      subtitle: const Text('Name, photo, and bio'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => ProfilePage(chatmail: chatmail),
+  Widget build(BuildContext context) {
+    final chatmail = widget.chatmail;
+    final chrome = ChatChrome.of(context);
+    void open(Widget page) => Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => page));
+
+    final buttons = <Widget>[
+      if (chatmail != null)
+        _SettingsButton(
+          'My Profile',
+          description: 'Name, photo, and bio',
+          onPressed: () => open(ProfilePage(chatmail: chatmail)),
+        ),
+      _SettingsButton(
+        'Appearance',
+        onPressed: () => open(
+          _AppearancePage(
+            data: widget.data,
+            write: widget.write,
+            onTheme: widget.onTheme,
+          ),
+        ),
+      ),
+      if (chrome != null)
+        _SettingsButton(
+          'Notifications',
+          onPressed: () =>
+              open(NotificationsPage(settings: chrome.notifications)),
+        ),
+      _SettingsButton(
+        'Quiet Hours',
+        onPressed: () => open(const QuietHoursPage()),
+      ),
+      _SettingsButton(
+        'Game audio',
+        onPressed: () => GameAudioButton.show(context),
+      ),
+      if (chatmail != null) ...[
+        _SettingsButton(
+          'Compression',
+          onPressed: () => open(CompressionPage(chatmail: chatmail)),
+        ),
+        _SettingsButton(
+          'Backup',
+          onPressed: () => open(BackupPage(chatmail: chatmail)),
+        ),
+        _SettingsButton(
+          'Connections',
+          onPressed: () => open(ConnectionsPage(chatmail: chatmail)),
+        ),
+      ],
+      _SettingsButton(
+        'Setup',
+        onPressed: () => Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (route) => SetupPage(
+              host: bridge,
+              onDone: () => Navigator.of(route).pop(),
+            ),
+          ),
+        ),
+      ),
+      _SettingsButton('Help', onPressed: () => open(const HelpPage())),
+      _SettingsButton('App Log', onPressed: () => open(const AppLogPage())),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        actions: chatActions(context, settings: false),
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
+          children: [
+            LayoutBuilder(
+              builder: (context, box) {
+                final scaledLabel = MediaQuery.textScalerOf(context).scale(16);
+                final columns =
+                    box.maxWidth >= 240 &&
+                        (box.maxWidth - 10) / 2 >= scaledLabel * 5
+                    ? 2
+                    : 1;
+                return Column(
+                  children: [
+                    for (var i = 0; i < buttons.length; i += columns)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: buttons[i]),
+                              if (columns == 2) ...[
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: i + 1 < buttons.length
+                                      ? buttons[i + 1]
+                                      : const SizedBox(),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  if (ChatChrome.of(context) case final chrome?)
-                    ListTile(
-                      leading: const Icon(Icons.notifications_none),
-                      title: const Text('Notifications'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              NotificationsPage(settings: chrome.notifications),
-                        ),
+                  ],
+                );
+              },
+            ),
+            if (widget.updates case final updates?)
+              ListenableBuilder(
+                listenable: updates,
+                builder: (context, _) => _settingsCard(
+                  context,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.system_update_alt),
+                        title: const Text('App updates'),
+                        subtitle: Text('Installed version $installedVersion'),
                       ),
-                    ),
-                  ListTile(
-                    leading: const Icon(Icons.bedtime_outlined),
-                    title: const Text('Quiet Hours'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(builder: (_) => const QuietHoursPage()),
-                    ),
-                  ),
-                  if (widget.chatmail case final chatmail?)
-                    ListTile(
-                      leading: const Icon(Icons.backup_outlined),
-                      title: const Text('Backup'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => BackupPage(chatmail: chatmail),
-                        ),
+                      SwitchListTile(
+                        title: const Text('Check automatically'),
+                        value: updates.automatic,
+                        onChanged: updates.setAutomatic,
                       ),
-                    ),
-                  if (widget.chatmail case final chatmail?)
-                    ListTile(
-                      leading: const Icon(Icons.hub_outlined),
-                      title: const Text('Connections'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => ConnectionsPage(chatmail: chatmail),
-                        ),
-                      ),
-                    ),
-                  if (widget.chatmail case final chatmail?)
-                    ListTile(
-                      leading: const Icon(Icons.compress),
-                      title: const Text('Compression'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => CompressionPage(chatmail: chatmail),
-                        ),
-                      ),
-                    ),
-                  ListTile(
-                    leading: const Icon(Icons.tune_rounded),
-                    title: const Text('Setup'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (route) => SetupPage(
-                          host: bridge,
-                          onDone: () => Navigator.of(route).pop(),
-                        ),
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.help_outline_rounded),
-                    title: const Text('Help'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const HelpPage()),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.palette_outlined),
-                    title: const Text('Appearance'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(
-                        builder: (_) => _AppearancePage(
-                          data: widget.data,
-                          write: widget.write,
-                          onTheme: widget.onTheme,
-                        ),
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.volume_up_outlined),
-                    title: const Text('Game audio'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => GameAudioButton.show(context),
-                  ),
-                  if (widget.updates case final updates?)
-                    ListenableBuilder(
-                      listenable: updates,
-                      builder: (context, _) => _settingsCard(
-                        context,
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            ListTile(
-                              leading: const Icon(Icons.system_update_alt),
-                              title: const Text('App updates'),
-                              subtitle: Text(
-                                'Installed version $installedVersion',
+                            if (updates.status case final status?)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Semantics(
+                                  liveRegion: true,
+                                  child: Text(status),
+                                ),
                               ),
-                            ),
-                            SwitchListTile(
-                              title: const Text('Check automatically'),
-                              value: updates.automatic,
-                              onChanged: updates.setAutomatic,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (updates.status case final status?)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Semantics(
-                                        liveRegion: true,
-                                        child: Text(status),
-                                      ),
-                                    ),
-                                  if (updates.available case final release?)
-                                    FilledButton.icon(
-                                      onPressed:
-                                          updates.checking ||
-                                              updates.downloading
-                                          ? null
-                                          : updates.install,
-                                      icon: const Icon(Icons.download),
-                                      label: Text(
-                                        updates.downloading
-                                            ? 'Downloading…'
-                                            : 'Install ${release.version}',
-                                      ),
-                                    ),
-                                  OutlinedButton.icon(
-                                    onPressed:
-                                        updates.checking || updates.downloading
-                                        ? null
-                                        : updates.check,
-                                    icon: const Icon(Icons.refresh),
-                                    label: Text(
-                                      updates.checking
-                                          ? 'Checking…'
-                                          : 'Check for updates',
-                                    ),
-                                  ),
-                                ],
+                            if (updates.available case final release?)
+                              FilledButton.icon(
+                                onPressed:
+                                    updates.checking || updates.downloading
+                                    ? null
+                                    : updates.install,
+                                icon: const Icon(Icons.download),
+                                label: Text(
+                                  updates.downloading
+                                      ? 'Downloading…'
+                                      : 'Install ${release.version}',
+                                ),
+                              ),
+                            OutlinedButton.icon(
+                              onPressed: updates.checking || updates.downloading
+                                  ? null
+                                  : updates.check,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(
+                                updates.checking
+                                    ? 'Checking…'
+                                    : 'Check for updates',
                               ),
                             ),
                           ],
                         ),
                       ),
-                    )
-                  else
-                    ListTile(
-                      leading: const Icon(Icons.system_update_alt),
-                      title: const Text('App updates'),
-                      subtitle: Text('Installed version $installedVersion'),
-                    ),
-                  ListTile(
-                    leading: const Icon(Icons.receipt_long_outlined),
-                    title: const Text('App Log'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(builder: (_) => const AppLogPage()),
-                    ),
+                    ],
                   ),
-                ]
-                .map(
-                  (tile) =>
-                      tile is ListTile ? _settingsCard(context, tile) : tile,
-                )
-                .toList(),
+                ),
+              )
+            else
+              _settingsCard(
+                context,
+                ListTile(
+                  leading: const Icon(Icons.system_update_alt),
+                  title: const Text('App updates'),
+                  subtitle: Text('Installed version $installedVersion'),
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _SettingsButton extends StatelessWidget {
+  const _SettingsButton(
+    this.label, {
+    required this.onPressed,
+    this.description,
+  });
+  final String label;
+  final String? description;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: theme.colorScheme.onSurface,
+        backgroundColor: theme.colorScheme.surfaceContainerLow,
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        minimumSize: const Size(0, 58),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      ),
+      onPressed: onPressed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium,
+          ),
+          if (description case final text?) ...[
+            const SizedBox(height: 3),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 Widget _settingsCard(BuildContext context, Widget child) {

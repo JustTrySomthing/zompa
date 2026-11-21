@@ -477,7 +477,8 @@ class ContactInvites {
     await showDialog<void>(
       context: context,
       builder: (dialog) => AlertDialog(
-        title: const Text('Invite a friend'),
+        title: const Text('Create invite'),
+        scrollable: true,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -485,48 +486,63 @@ class ContactInvites {
               Semantics(
                 label: 'Friend invite QR code',
                 image: true,
-                child: SizedBox(
-                  width: 220,
-                  height: 220,
-                  child: CustomPaint(painter: _InviteQr(modules)),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 220),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: CustomPaint(painter: _InviteQr(modules)),
+                  ),
                 ),
               ),
-            const Text(
-              'Share this invite with a friend. They can open Zompado and paste it under Accept invite.',
+            if (modules.isNotEmpty) const SizedBox(height: 16),
+            Text(
+              modules.isEmpty
+                  ? 'Share the link for your friend to open in Accept invite.'
+                  : 'Have your friend scan this code, or share the invite link.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: invite));
+                    if (!dialog.mounted) return;
+                    Navigator.pop(dialog);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Invite copied.')),
+                    );
+                  },
+                  child: const Text('Copy link'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(dialog);
+                    try {
+                      await share(invite);
+                    } catch (_) {
+                      if (context.mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Sharing is unavailable. Use Copy link.',
+                            ),
+                          ),
+                        );
+                    }
+                  },
+                  child: const Text('Share'),
+                ),
+              ],
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: invite));
-              if (!dialog.mounted) return;
-              Navigator.pop(dialog);
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Invite copied.')));
-            },
-            child: const Text('Copy link'),
-          ),
           FilledButton(
             onPressed: () => Navigator.pop(dialog),
             child: const Text('Done'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialog);
-              try {
-                await share(invite);
-              } catch (_) {
-                if (context.mounted)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Sharing is unavailable. Use Copy link.'),
-                    ),
-                  );
-              }
-            },
-            child: const Text('Share'),
           ),
         ],
       ),
@@ -674,13 +690,22 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
             onPressed: _openCameraSettings,
             child: const Text('Open camera settings'),
           ),
-        if (_scanError case final error?) Text(error),
-        const SizedBox(height: 12),
+        if (_scanError case final error?)
+          Text(
+            error,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        const SizedBox(height: 16),
         TextField(
           enabled: !_scanning,
           controller: _input,
           maxLength: 4096,
-          decoration: const InputDecoration(labelText: 'Paste invite link'),
+          decoration: const InputDecoration(
+            labelText: 'Invite link',
+            hintText: 'Paste your friend’s link',
+            border: OutlineInputBorder(),
+            counterText: '',
+          ),
           onSubmitted: (_) => _accept(),
         ),
       ],
@@ -690,20 +715,12 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
         onPressed: () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
-      TextButton(
-        onPressed: _scanning
-            ? null
-            : () async {
-                final data = await Clipboard.getData(Clipboard.kTextPlain);
-                final value = data?.text;
-                if (mounted && value != null && value.length <= 4096)
-                  _input.text = value;
-              },
-        child: const Text('Paste'),
-      ),
-      FilledButton(
-        onPressed: _scanning ? null : _accept,
-        child: const Text('Accept'),
+      ValueListenableBuilder(
+        valueListenable: _input,
+        builder: (context, input, _) => FilledButton(
+          onPressed: _scanning || input.text.trim().isEmpty ? null : _accept,
+          child: const Text('Accept'),
+        ),
       ),
     ],
   );
@@ -952,7 +969,7 @@ class _FriendConversationState extends State<FriendConversation>
             visualDensity: VisualDensity.compact,
             tooltip: 'React to message',
             onPressed: canSend ? () => _chooseReaction(message) : null,
-            iconSize: 19,
+            iconSize: 23,
             color: theme.colorScheme.onSurfaceVariant,
             icon: const Icon(Icons.add_reaction_outlined),
           ),
@@ -965,7 +982,7 @@ class _FriendConversationState extends State<FriendConversation>
               message,
               () => widget.chatmail.toggleSaved(message),
             ),
-            iconSize: 20,
+            iconSize: 24,
             icon: Icon(
               message.savedId == null ? Icons.star_border : Icons.star,
               color: message.savedId == null
@@ -1222,7 +1239,12 @@ class _FriendConversationState extends State<FriendConversation>
             icon: const Icon(Icons.call_outlined),
             onPressed: voice.busy || thread?.canSend != true
                 ? null
-                : () => voice.openDialer(context, widget.id, thread!.name),
+                : () => voice.openDialer(
+                    context,
+                    widget.id,
+                    thread!.name,
+                    photo: thread.photo,
+                  ),
           ),
         if (!docked) ...chatActions(context),
       ],
@@ -1279,7 +1301,7 @@ class _FriendConversationState extends State<FriendConversation>
                           final text = message.text.isEmpty
                               ? 'Attachment'
                               : message.text;
-                          if (message.info) {
+                          if (message.info && message.viewType != 'Call') {
                             return Padding(
                               padding: const EdgeInsets.all(8),
                               child: Text(text, textAlign: TextAlign.center),
@@ -1417,7 +1439,26 @@ class _FriendConversationState extends State<FriendConversation>
                                               size: messageTextSize,
                                               bold: true,
                                             ),
-                                          if (message.text.isNotEmpty ||
+                                          if (message.viewType == 'Call')
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.call_outlined,
+                                                  size: 17,
+                                                  color: message.unansweredCall
+                                                      ? bubbleColors.error
+                                                      : bubbleColors.onSurface,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: MessageBody(
+                                                    text,
+                                                    size: messageTextSize,
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          else if (message.text.isNotEmpty ||
                                               message.filename == null)
                                             ChatText(
                                               text,

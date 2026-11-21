@@ -164,13 +164,12 @@ class _ContactsPageState extends State<ContactsPage> {
             Wrap(
               spacing: 8,
               children: [
-                FilledButton.icon(
-                  icon: const Icon(Icons.person_add_outlined),
+                OutlinedButton(
                   onPressed: () async {
                     await widget.invite();
                     if (mounted) await _load();
                   },
-                  label: const Text('Create Invite'),
+                  child: const Text('Create Invite'),
                 ),
                 OutlinedButton(
                   onPressed: () async {

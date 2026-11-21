@@ -90,12 +90,19 @@ class VoiceCalls extends ChangeNotifier {
       _active?.phase == VoicePhase.connecting ||
       _active?.phase == VoicePhase.connected;
 
-  Future<void> openDialer(BuildContext context, int chat, String name) async {
+  Future<void> openDialer(
+    BuildContext context,
+    int chat,
+    String name, {
+    String? photo,
+  }) async {
     if (busy || _disposed) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    final confirmed = await Navigator.of(
-      context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => _CallDialer(name: name)));
+    final confirmed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _CallDialer(name: name, photo: photo),
+      ),
+    );
     if (confirmed == true && context.mounted) await dial(chat, name);
   }
 
@@ -491,51 +498,57 @@ class VoiceScope extends InheritedNotifier<VoiceCalls> {
 }
 
 class _CallDialer extends StatelessWidget {
-  const _CallDialer({required this.name});
+  const _CallDialer({required this.name, this.photo});
 
   final String name;
+  final String? photo;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Voice call')),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => Stack(
-            children: [
-              Align(
-                alignment: const Alignment(0, -0.33),
-                child: ChatAvatar(name, radius: 36),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: _callActionInset(constraints.maxHeight),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _CallAction(
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Voice call')),
+    body: SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+              minWidth: constraints.maxWidth,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        name,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      ChatAvatar(name, photo: photo, radius: 36),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: _CallAction(
                       label: 'Call',
                       icon: Icons.call,
                       onPressed: () => Navigator.of(context).pop(true),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      name,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 double _callActionInset(double height) =>

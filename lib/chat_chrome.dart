@@ -6,6 +6,7 @@ class ChatNotificationSettings extends ChangeNotifier {
 
   final MethodChannel host;
   bool _disposed = false;
+  bool changingMute = false;
   bool muted = false;
   bool messages = true;
   bool invites = true;
@@ -37,12 +38,26 @@ class ChatNotificationSettings extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> set(BuildContext context, String key, bool value) async {
+  Future<void> set(
+    BuildContext context,
+    String key,
+    bool value, {
+    bool showMuteFeedback = false,
+  }) async {
+    final changingMaster = key == 'muted';
+    if (changingMaster && changingMute) return;
+    final page = ModalRoute.of(context);
+    if (changingMaster) {
+      changingMute = true;
+      notifyListeners();
+    }
     try {
       await host.invokeMethod<void>('setChatNotification', {
         'key': key,
         'value': value,
       });
+      if (_disposed) return;
+      if (changingMaster) muted = value;
       await load();
     } catch (_) {
       if (context.mounted) {
@@ -50,6 +65,28 @@ class ChatNotificationSettings extends ChangeNotifier {
           const SnackBar(content: Text('Couldn’t change notifications.')),
         );
       }
+      return;
+    } finally {
+      if (changingMaster && !_disposed) {
+        changingMute = false;
+        notifyListeners();
+      }
+    }
+    if (showMuteFeedback && context.mounted && page?.isCurrent != false) {
+      final navigator = Navigator.of(context, rootNavigator: true);
+      final feedback = DialogRoute<void>(
+        context: context,
+        barrierColor: Colors.transparent,
+        builder: (_) => AlertDialog(
+          content: Text(
+            muted ? 'All notifications muted' : 'Notifications on',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+      navigator.push(feedback);
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      if (feedback.isActive) navigator.removeRoute(feedback);
     }
   }
 }
@@ -109,7 +146,14 @@ List<Widget> chatActions(
                 ? Icons.notifications_off_outlined
                 : Icons.notifications_none,
           ),
-          onPressed: () => settings.set(context, 'muted', !settings.muted),
+          onPressed: settings.changingMute
+              ? null
+              : () => settings.set(
+                  context,
+                  'muted',
+                  !settings.muted,
+                  showMuteFeedback: true,
+                ),
         );
       },
     ),
@@ -147,7 +191,9 @@ class NotificationsPage extends StatelessWidget {
             SwitchListTile(
               title: const Text('Mute all notifications'),
               value: settings.muted,
-              onChanged: (value) => settings.set(context, 'muted', value),
+              onChanged: settings.changingMute
+                  ? null
+                  : (value) => settings.set(context, 'muted', value),
             ),
             for (final (key, label, enabled) in [
               ('messages', 'Chat messages', settings.messages),

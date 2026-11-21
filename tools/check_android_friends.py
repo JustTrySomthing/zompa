@@ -122,7 +122,7 @@ class Phone:
     def invite(self):
         self.press("Contacts")
         self.press("Create Invite")
-        self.see("Invite a friend")
+        self.see("Create invite")
         detector = cv2.QRCodeDetector()
         link = wait("a decodable invite QR", lambda: detector.detectAndDecode(self.image())[0], 30)
         self.press("Done")
