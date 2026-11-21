@@ -184,6 +184,7 @@ class _FriendsPaneState extends State<FriendsPane> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: const Text('Empty trash?'),
         content: const Text('This permanently deletes all chats in Trash.'),
         actions: [
@@ -285,6 +286,7 @@ class _FriendsPaneState extends State<FriendsPane> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
+          scrollable: true,
           title: Text(
             deleting ? 'Move this chat to Trash?' : 'Block ${chat.name}?',
           ),
@@ -645,7 +647,9 @@ class ContactInvites {
   Future<void> accept() async {
     final chat = await showDialog<int>(
       context: context,
-      builder: (_) => _AcceptInviteDialog(acceptInvite: chatmail.acceptInvite),
+      builder: (_) => fitDialogToKeyboard(
+        _AcceptInviteDialog(acceptInvite: chatmail.acceptInvite),
+      ),
     );
     if (context.mounted && chat != null) {
       await _perform(() => open(chat, 'Friend'));

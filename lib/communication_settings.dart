@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'chat_chrome.dart';
 import 'chat_files.dart';
 import 'chatmail.dart';
+import 'dialog_actions.dart';
 
 const _host = MethodChannel('io.zompado.host');
 
@@ -55,6 +56,8 @@ class _QuietHoursPageState extends State<QuietHoursPage> {
     final chosen = await showTimePicker(
       context: context,
       initialTime: _time(start ? _start : _end),
+      builder: (_, picker) =>
+          fitDialogToKeyboard(picker!, minimumHeight: 440),
     );
     if (chosen == null || !mounted) return;
     final minutes = chosen.hour * 60 + chosen.minute;
@@ -197,7 +200,7 @@ class _BackupPageState extends State<BackupPage> {
       }
       final password = await showDialog<String>(
         context: context,
-        builder: (_) => _BackupPassword(create: export),
+        builder: (_) => fitDialogToKeyboard(_BackupPassword(create: export)),
       );
       if (password == null || !mounted) return;
       final cache = await _host.invokeMethod<String>('backupCache');

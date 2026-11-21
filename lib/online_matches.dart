@@ -147,6 +147,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
+          scrollable: true,
           title: const Text('End this game?'),
           content: Text(
             'This ends your online game with ${chat.name} for both players.',

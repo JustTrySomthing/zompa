@@ -341,6 +341,7 @@ Future<void> showMessageActions(
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: Text(saved ? 'Remove saved copy?' : 'Delete this message?'),
         content: Text(
           saved

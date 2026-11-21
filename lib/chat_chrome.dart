@@ -131,7 +131,8 @@ AppBar chatPageBar(
   List<Widget> firstActions = const [],
   List<Widget> lastActions = const [],
 }) {
-  final width = MediaQuery.sizeOf(context).width;
+  final width =
+      MediaQuery.sizeOf(context).width - MediaQuery.paddingOf(context).horizontal;
   final compact = width < 380;
   final shortcuts = chatActions(context, selected: selected);
   final actionWidth =

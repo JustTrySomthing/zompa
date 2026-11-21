@@ -36,6 +36,7 @@ class _GamePlayPageState extends State<GamePlayPage> {
     final quit = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: const Text('Quit this game?'),
         actions: [
           TextButton(
@@ -85,7 +86,7 @@ class _GamePlayPageState extends State<GamePlayPage> {
             const ModalBarrier(dismissible: false, color: Colors.black54),
             Center(
               child: Card(
-                child: Padding(
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,

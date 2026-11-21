@@ -621,6 +621,7 @@ class _HomeState extends State<Home> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: Text('Remove ${game.title}?'),
         content: const Text(
           'This deletes the downloaded game. Saved progress is kept on this device.',
@@ -656,7 +657,7 @@ class _HomeState extends State<Home> {
   Future<void> _pasteGameLink() async {
     final link = await showDialog<GameLink>(
       context: context,
-      builder: (_) => const _GameLinkDialog(),
+      builder: (_) => fitDialogToKeyboard(const _GameLinkDialog()),
     );
     if (mounted && link != null) await _openGameLink(link);
   }
@@ -689,6 +690,7 @@ class _HomeState extends State<Home> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
+          scrollable: true,
           title: Text(game.title),
           content: Text('Official Zompado game · Version ${game.version}'),
           actions: [

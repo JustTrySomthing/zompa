@@ -61,6 +61,7 @@ class ChatFile {
           context: context,
           barrierDismissible: false,
           builder: (dialog) => AlertDialog(
+            scrollable: true,
             title: const Text('Recording audio'),
             content: const Text('Tap Done to attach this recording.'),
             actions: [

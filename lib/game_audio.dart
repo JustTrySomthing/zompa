@@ -89,6 +89,7 @@ class GameAudioButton extends StatelessWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) => const SafeArea(child: _GameAudioControls()),
     );
   }

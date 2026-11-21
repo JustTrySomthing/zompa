@@ -332,6 +332,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: const Text('Quit this match?'),
         content: const Text('This ends the match for both players.'),
         actions: [
@@ -626,7 +627,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                   (match.pending?.state == 24 && !_sending))
                                 Center(
                                   child: Card(
-                                    child: Padding(
+                                    child: SingleChildScrollView(
                                       padding: const EdgeInsets.all(18),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,

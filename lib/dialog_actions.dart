@@ -23,3 +23,38 @@ Future<String> readPastedLink(int maxLength) async {
   }
   return text;
 }
+
+// Some dialogs need more vertical space than is available above the keyboard.
+Widget fitDialogToKeyboard(Widget dialog, {double minimumHeight = 320}) =>
+    LayoutBuilder(
+      builder: (context, constraints) {
+        final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+        final availableHeight = constraints.maxHeight - keyboard;
+        final compact = availableHeight < minimumHeight;
+        final theme = Theme.of(context);
+        return Padding(
+          padding: EdgeInsets.only(bottom: keyboard),
+          child: SingleChildScrollView(
+            primary: false,
+            hitTestBehavior: HitTestBehavior.deferToChild,
+            child: SizedBox(
+              height: compact ? minimumHeight : availableHeight,
+              child: MediaQuery.removeViewInsets(
+                context: context,
+                removeBottom: true,
+                child: Theme(
+                  data: compact
+                      ? theme.copyWith(
+                          dialogTheme: theme.dialogTheme.copyWith(
+                            alignment: Alignment.topCenter,
+                          ),
+                        )
+                      : theme,
+                  child: dialog,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );

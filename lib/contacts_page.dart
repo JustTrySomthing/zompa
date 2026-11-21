@@ -95,6 +95,7 @@ class _ContactsPageState extends State<ContactsPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
+          scrollable: true,
           title: Text('${deleting ? 'Delete' : 'Block'} ${contact.name}?'),
           content: Text(
             deleting
