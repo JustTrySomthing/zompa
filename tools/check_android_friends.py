@@ -110,7 +110,9 @@ class Phone:
         self.shell("pm", "grant", APP, "android.permission.RECORD_AUDIO")
         self.start()
         self.see("Welcome to Zompado", 85)
-        if not self.find("Finish setup"):
+        for _ in range(4):
+            if self.find("Finish setup"):
+                break
             self.shell("input", "swipe", 350, 1100, 350, 370, 400)
         self.press("Finish setup")
         self.press("Chats")
@@ -142,6 +144,35 @@ class Phone:
                 return x, int(rows[len(rows) // 2])
             return None
         self.shell("input", "tap", *wait(f"{self.name} online board", board_center, 75))
+
+
+def check_locked_call(alice, bob):
+    bob.shell("am", "force-stop", APP)
+    bob.start()
+    bob.see("My Games")
+
+    def voice_notification_posted():
+        active = bob.shell("dumpsys", "notification").decode().split("Notification List:", 1)[-1]
+        return any(
+            "NotificationRecord(" in line and f"pkg={APP}" in line and "tag=voice" in line
+            for line in active.splitlines()
+        )
+
+    bob.shell("input", "keyevent", "KEYCODE_SLEEP")
+    try:
+        wait("Bob’s screen to go to sleep", lambda:
+             re.search(rb"mWakefulness=(Asleep|Dozing)", bob.shell("dumpsys", "power")), 10)
+        alice.press("Voice call")
+        alice.press("Call")
+        wait("an incoming-call notification while Bob’s screen is off", voice_notification_posted, 75)
+        alice.press("End call")
+    finally:
+        bob.shell("input", "keyevent", "KEYCODE_WAKEUP")
+        bob.shell("wm", "dismiss-keyguard")
+    wait("the incoming-call notification to clear", lambda: not voice_notification_posted())
+    bob.press("Chats")
+    bob.press("Alice")
+    print("PASS: a call alert arrived before waking the recipient, after launching only Games.", flush=True)
 
 
 def check_voice(alice, bob):
@@ -330,6 +361,7 @@ def main():
     # Run the two independent checks even if voice media fails on the emulators.
     voice_error = None
     try:
+        check_locked_call(alice, bob)
         check_voice(alice, bob)
     except RuntimeError as error:
         voice_error = error
