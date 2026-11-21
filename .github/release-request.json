@@ -1,5 +1,5 @@
 {
-  "version": "0.5.23",
-  "build": 32,
-  "notes": "- Confirm calls from chat and use a larger End call button. Choose installed games from the chat invite picker.\n- Improve Saved and Quiet Hours layouts on narrower screens.\n- Keep reactions visible when tapped and simplify their appearance. Improve avatar contrast, composer spacing, Settings, and Trash actions."
+  "version": "0.5.24",
+  "build": 33,
+  "notes": "- Open Active Games or choose an active match from the Play menu. Game History keeps expired invites, match results, and saved boards.\n- Unanswered invites expire after seven days. Games without a move for 30 days and the oldest game when opening a 13th active game move to History.\n- Use the new two-column Settings layout, improved invite dialogs, call and notification controls, and refined Games and bottom navigation layouts."
 }
