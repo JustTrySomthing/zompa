@@ -1,5 +1,5 @@
 {
-  "version": "0.5.22",
-  "build": 31,
-  "notes": "- Show when online match starts, pauses, resumes, and quits are sending. Retry failed updates, including a final move, from the match.\n- Restore team colors for archived Drop Four boards and clarify match and update buttons.\n- Close outgoing calls after an early decline. Keep app update status accurate and prevent checks from interrupting downloads."
+  "version": "0.5.23",
+  "build": 32,
+  "notes": "- Confirm calls from chat and use a larger End call button. Choose installed games from the chat invite picker.\n- Improve Saved and Quiet Hours layouts on narrower screens.\n- Keep reactions visible when tapped and simplify their appearance. Improve avatar contrast, composer spacing, Settings, and Trash actions."
 }
