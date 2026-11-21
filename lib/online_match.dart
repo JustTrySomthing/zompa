@@ -28,7 +28,7 @@ typedef _MatchArchive = ({
 });
 
 String matchMovedNotice(MatchEntry entry) =>
-    'Your game with ${entry.chat.name} moved to Game History.';
+    'Your game with ${entry.chat.name} was removed from Active Games.';
 
 final _matchWrites = Expando<Future<void>>();
 
@@ -132,7 +132,6 @@ extension OnlineMatchHistory on Chatmail {
   Future<({MatchLibrary library, MatchEntry? moved})> _arrangeMatches(
     DateTime now, {
     String? keep,
-    String? reopen,
   }) async {
     final all = await _knownMatches(now);
     final archive = await _readMatchArchive();
@@ -151,11 +150,7 @@ extension OnlineMatchHistory on Chatmail {
         history.add(entry);
         continue;
       }
-      if (reopen == key) {
-        archive.reopened[key] = now.millisecondsSinceEpoch ~/ 1000;
-        archive.hidden.remove(key);
-        changed = true;
-      } else if (archive.hidden[key] case final marker?
+      if (archive.hidden[key] case final marker?
           when marker != match.activityMarker) {
         archive.hidden.remove(key);
         changed = true;
@@ -208,17 +203,6 @@ extension OnlineMatchHistory on Chatmail {
 
   Future<List<MatchEntry>> activeMatches() async =>
       (await matchLibrary()).active;
-
-  Future<MatchEntry?> reopenMatch(MatchEntry entry) =>
-      _withMatchLock(this, () async {
-        final key = _matchKey(entry);
-        final result = await _arrangeMatches(
-          DateTime.now(),
-          keep: key,
-          reopen: key,
-        );
-        return result.moved;
-      });
 
   Future<void> checkInviteExpiry(int chat, String id) async {
     final match = OnlineMatch.replay(id, await matchHistory(chat, id));

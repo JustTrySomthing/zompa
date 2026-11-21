@@ -3,18 +3,27 @@ import 'package:flutter/material.dart';
 class GameAudio extends ChangeNotifier {
   GameAudio(Map<String, dynamic> data, this._write)
     : _lowerDuringCalls = data['lowerGameAudioDuringCalls'] != false,
-      _muted = data['gameAudioMuted'] == true,
+      _mutes = [
+        data['gameAudioMuted'] == true,
+        data['gameMusicMuted'] == true,
+        data['gameEffectsMuted'] == true,
+      ],
       _levels = [
-        _read(data, 'gameVolume'),
+        _read(data, 'gameVolume', fallback: 0.2),
         _read(data, 'gameMusic'),
         _read(data, 'gameEffects', fallback: data['effects'] == false ? 0 : 1),
       ];
 
   static const _keys = ['gameVolume', 'gameMusic', 'gameEffects'];
+  static const _muteKeys = [
+    'gameAudioMuted',
+    'gameMusicMuted',
+    'gameEffectsMuted',
+  ];
   final void Function(String, dynamic) _write;
   final List<double> _levels;
   bool _lowerDuringCalls;
-  bool _muted;
+  final List<bool> _mutes;
 
   static double _read(
     Map<String, dynamic> data,
@@ -30,15 +39,13 @@ class GameAudio extends ChangeNotifier {
   double level(int index) => _levels[index];
 
   bool get lowerDuringCalls => _lowerDuringCalls;
-  bool get muted => _muted;
+  bool muted(int index) => _mutes[index];
 
   String playerSettings({required bool callAudioActive}) {
-    final master = _muted ? 0.0 : _levels[0];
     final gain = callAudioActive && _lowerDuringCalls ? 0.25 : 1.0;
     return [
-      master * gain,
-      _levels[1],
-      _levels[2],
+      for (var i = 0; i < _levels.length; i++)
+        muted(i) ? 0.0 : _levels[i] * (i == 0 ? gain : 1.0),
     ].map((level) => (level * 100).round()).join(':');
   }
 
@@ -49,10 +56,9 @@ class GameAudio extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setMuted(bool value) {
-    if (_muted == value) return;
-    _muted = value;
-    _write('gameAudioMuted', value);
+  void toggleMute(int index) {
+    _mutes[index] = !_mutes[index];
+    _write(_muteKeys[index], _mutes[index]);
     notifyListeners();
   }
 
@@ -111,20 +117,28 @@ class _GameAudioControls extends StatelessWidget {
         children: [
           Text('Game audio', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Mute game audio'),
-            value: audio.muted,
-            onChanged: audio.setMuted,
-          ),
           for (var index = 0; index < labels.length; index++) ...[
             Text('${labels[index]} · ${(audio.level(index) * 100).round()}%'),
-            Slider(
-              value: audio.level(index),
-              divisions: 20,
-              semanticFormatterCallback: (level) =>
-                  '${labels[index]} ${(level * 100).round()}%',
-              onChanged: (level) => audio.setLevel(index, level),
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: audio.level(index),
+                    divisions: 20,
+                    semanticFormatterCallback: (level) =>
+                        '${labels[index]} ${(level * 100).round()}%',
+                    onChanged: (level) => audio.setLevel(index, level),
+                  ),
+                ),
+                IconButton(
+                  tooltip:
+                      '${audio.muted(index) ? 'Unmute' : 'Mute'} ${labels[index].toLowerCase()}',
+                  isSelected: audio.muted(index),
+                  icon: const Icon(Icons.volume_up_outlined),
+                  selectedIcon: const Icon(Icons.volume_off_outlined),
+                  onPressed: () => audio.toggleMute(index),
+                ),
+              ],
             ),
           ],
           SwitchListTile(

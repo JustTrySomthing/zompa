@@ -285,11 +285,11 @@ const _topics = [
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to return to the board or End game to close a match for both players. Unanswered invitations expire after 7 days. If an online match has no moves for 30 days, it moves to Game History. When a new game would take you over 12 active games, the least recently played game moves to History. Open Active Games → Game History to pick up a saved game.',
+        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to return to the board or End game to close a match for both players. Unanswered invitations expire after 7 days. Games with no moves for 30 days leave Active Games. If a new game would take you over 12 active games, the least recently played game leaves the list.',
       ),
       (
         'How do I change game sounds?',
-        'Open Settings → Game audio or tap the speaker icon while playing. Mute keeps your volume settings. Zompado lowers game volume during voice calls by default and restores it when the call ends. Separate Music and Sound effects sliders work with games that use the Zompado SDK.',
+        'Open Settings → Game audio or tap the speaker icon while playing. Game volume starts at 20% until you change it. Each slider has its own mute button, which keeps that slider’s level. Zompado lowers game volume during voice calls by default and restores it when the call ends. Separate Music and Sound effects sliders work with games that use the Zompado SDK.',
       ),
       (
         'How do I remove a downloaded game?',
@@ -340,7 +340,7 @@ const _topics = [
       ),
       (
         'How do I call a friend?',
-        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, turn on video, or end the call. Camera stays off until you turn it on. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
+        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, switch between Video and Audio, or end the call. When your camera is on, Preview shows or hides your own picture. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
       ),
       (
         'How do I send files or keep their original quality?',

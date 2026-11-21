@@ -314,10 +314,10 @@ class _FriendsPaneState extends State<FriendsPane> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
       children: [
-        if (_busy) const LinearProgressIndicator(),
         if (!_ready) ...[
+          if (_busy) const LinearProgressIndicator(),
           Text('Set up chats', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
           const Text(
@@ -392,7 +392,8 @@ class _FriendsPaneState extends State<FriendsPane> {
                 ),
               ],
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
+          if (_busy) const LinearProgressIndicator(),
           if (_chats.isEmpty)
             Text(switch (_folder) {
               _ChatFolder.archive => 'No archived chats.',
@@ -938,9 +939,13 @@ class _FriendConversationState extends State<FriendConversation>
           ChatAvatar(
             author,
             photo: message.sender?.photo,
-            radius: 14,
-            backgroundColor: message.outgoing ? Colors.white : null,
-            foregroundColor: message.outgoing ? const Color(0xff00516a) : null,
+            radius: 16,
+            backgroundColor: message.outgoing
+                ? Colors.white
+                : theme.colorScheme.primaryContainer,
+            foregroundColor: message.outgoing
+                ? const Color(0xff00516a)
+                : theme.colorScheme.onPrimaryContainer,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -1451,23 +1456,46 @@ class _FriendConversationState extends State<FriendConversation>
                                               bold: true,
                                             ),
                                           if (message.viewType == 'Call')
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.call_outlined,
-                                                  size: 17,
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 5,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                border: Border.all(
                                                   color: message.unansweredCall
                                                       ? bubbleColors.error
-                                                      : bubbleColors.onSurface,
+                                                      : bubbleColors.outline,
                                                 ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: MessageBody(
-                                                    text,
-                                                    size: messageTextSize,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.call_outlined,
+                                                    size: 15,
+                                                    color:
+                                                        message.unansweredCall
+                                                        ? bubbleColors.error
+                                                        : bubbleColors
+                                                              .onSurface,
                                                   ),
-                                                ),
-                                              ],
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: MessageBody(
+                                                      text,
+                                                      size:
+                                                          (messageTextSize - 1)
+                                                              .clamp(
+                                                                12.0,
+                                                                maxMessageTextSize,
+                                                              ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             )
                                           else if (message.text.isNotEmpty ||
                                               message.filename == null)
@@ -1505,8 +1533,15 @@ class _FriendConversationState extends State<FriendConversation>
                   Positioned(
                     right: 10,
                     bottom: 7,
-                    child: FloatingActionButton.small(
+                    width: 48,
+                    height: 48,
+                    child: FloatingActionButton(
                       heroTag: null,
+                      elevation: 5,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colors.outline),
+                      ),
                       tooltip: _awayFromLatest
                           ? 'Jump to latest message'
                           : 'Invite to play a game',
@@ -1519,6 +1554,7 @@ class _FriendConversationState extends State<FriendConversation>
                         _awayFromLatest
                             ? Icons.arrow_downward
                             : Icons.sports_esports_outlined,
+                        size: 26,
                       ),
                     ),
                   ),

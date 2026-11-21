@@ -1008,51 +1008,45 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
-      bottomNavigationBar: Material(
-        color: colors.surfaceContainer,
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-            child: Row(
-              children: [
-                for (final (index, label, icon, activeIcon) in const [
-                  (0, 'Chats', Icons.chat_outlined, Icons.chat),
-                  (
-                    1,
-                    'Games',
-                    Icons.sports_esports_outlined,
-                    Icons.sports_esports,
-                  ),
-                ])
-                  Expanded(
-                    child: Semantics(
-                      selected: tab == index,
-                      child: TextButton.icon(
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size(0, 56),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 8,
-                          ),
-                          backgroundColor: tab == index
-                              ? colors.secondaryContainer
-                              : null,
-                          foregroundColor: tab == index
-                              ? colors.onSecondaryContainer
-                              : colors.onSurfaceVariant,
-                          iconSize: 28,
-                          textStyle: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        onPressed: () => setState(() => tab = index),
-                        icon: Icon(tab == index ? activeIcon : icon),
-                        label: Text(label, textAlign: TextAlign.center),
-                      ),
-                    ),
-                  ),
-              ],
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+        child: SegmentedButton<int>(
+          showSelectedIcon: false,
+          expandedInsets: EdgeInsets.zero,
+          segments: [
+            ButtonSegment(
+              value: 0,
+              label: const Text('Chats'),
+              icon: Icon(isGames ? Icons.chat_outlined : Icons.chat, size: 26),
+            ),
+            ButtonSegment(
+              value: 1,
+              label: const Text('Games'),
+              icon: Icon(
+                isGames ? Icons.sports_esports : Icons.sports_esports_outlined,
+                size: 26,
+              ),
+            ),
+          ],
+          style: ButtonStyle(
+            minimumSize: const WidgetStatePropertyAll(Size(0, 52)),
+            textStyle: WidgetStatePropertyAll(
+              Theme.of(context).textTheme.titleMedium,
+            ),
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? colors.secondaryContainer
+                  : colors.surface,
+            ),
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? colors.onSecondaryContainer
+                  : colors.onSurfaceVariant,
             ),
           ),
+          selected: {tab},
+          onSelectionChanged: (value) => setState(() => tab = value.single),
         ),
       ),
     );
@@ -1128,7 +1122,11 @@ class _HomeState extends State<Home> {
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: FilledButton.tonalIcon(
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 48),
+                backgroundColor: colors.surfaceContainer,
+                foregroundColor: colors.onSurfaceVariant,
+              ),
               onPressed: () => showActiveGames(
                 context,
                 chatmail: widget.chatmail!,
@@ -1496,8 +1494,7 @@ class _PreferencesState extends State<Preferences> {
     final buttons = <Widget>[
       if (chatmail != null)
         _SettingsButton(
-          'My Profile',
-          description: 'Name, photo, and bio',
+          'Profile',
           onPressed: () => open(ProfilePage(chatmail: chatmail)),
         ),
       _SettingsButton(
@@ -1568,21 +1565,21 @@ class _PreferencesState extends State<Preferences> {
                 final scaledLabel = MediaQuery.textScalerOf(context).scale(16);
                 final columns =
                     box.maxWidth >= 240 &&
-                        (box.maxWidth - 10) / 2 >= scaledLabel * 5
+                        (box.maxWidth - 14) / 2 >= scaledLabel * 5
                     ? 2
                     : 1;
                 return Column(
                   children: [
                     for (var i = 0; i < buttons.length; i += columns)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.only(bottom: 14),
                         child: IntrinsicHeight(
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(child: buttons[i]),
                               if (columns == 2) ...[
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 14),
                                 Expanded(
                                   child: i + 1 < buttons.length
                                       ? buttons[i + 1]
@@ -1676,13 +1673,8 @@ class _PreferencesState extends State<Preferences> {
 }
 
 class _SettingsButton extends StatelessWidget {
-  const _SettingsButton(
-    this.label, {
-    required this.onPressed,
-    this.description,
-  });
+  const _SettingsButton(this.label, {required this.onPressed});
   final String label;
-  final String? description;
   final VoidCallback onPressed;
 
   @override
@@ -1691,33 +1683,18 @@ class _SettingsButton extends StatelessWidget {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
         foregroundColor: theme.colorScheme.onSurface,
-        backgroundColor: theme.colorScheme.surfaceContainerLow,
+        backgroundColor:
+            theme.cardTheme.color ?? theme.colorScheme.surfaceContainer,
         side: BorderSide(color: theme.colorScheme.outlineVariant),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         minimumSize: const Size(0, 58),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       ),
       onPressed: onPressed,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium,
-          ),
-          if (description case final text?) ...[
-            const SizedBox(height: 3),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.titleMedium,
       ),
     );
   }

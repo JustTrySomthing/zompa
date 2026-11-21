@@ -34,6 +34,7 @@ class _Call {
   final bool incomingVideo;
   bool canVideo = false;
   bool camera = false;
+  bool resumeLocalVideo = false;
   bool remoteCamera = false;
   bool selfPreview = true;
   bool voiceOnly = false;
@@ -434,6 +435,18 @@ class VoiceCalls extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> toggleVideoMode() async {
+    final call = _active;
+    if (call == null || call.changingCamera) return;
+    if (!call.camera &&
+        call.remoteCamera &&
+        (!call.voiceOnly || !call.resumeLocalVideo || !call.canVideo)) {
+      toggleRemoteVideo();
+    } else {
+      await changeCamera();
+    }
+  }
+
   Future<void> changeCamera() async {
     final call = _active;
     if (call == null || !call.canVideo || call.changingCamera) return;
@@ -458,6 +471,7 @@ class VoiceCalls extends ChangeNotifier {
       if (_active == call) {
         if (changed == true) {
           call.voiceOnly = !enabled;
+          call.resumeLocalVideo = !enabled;
         } else {
           call.cameraError = enabled
               ? 'Couldn’t open the camera. The call can continue with audio.'
@@ -781,23 +795,22 @@ class VoicePanel extends StatelessWidget {
                                           : Icons.volume_down_outlined,
                                       selected: call.speaker,
                                     ),
-                                    if (call.canVideo)
+                                    if (call.canVideo ||
+                                        call.remoteCamera ||
+                                        call.camera)
                                       _VoiceButton(
-                                        tooltip: call.camera
-                                            ? 'Turn off camera'
-                                            : 'Turn on camera',
-                                        label: call.camera
-                                            ? 'Voice only'
-                                            : 'Video off',
+                                        tooltip: videoVisible
+                                            ? 'Switch to audio'
+                                            : 'Switch to video',
+                                        label: videoVisible ? 'Audio' : 'Video',
                                         onPressed: call.changingCamera
                                             ? null
-                                            : controller.changeCamera,
-                                        icon: call.camera
-                                            ? Icons.videocam
-                                            : Icons.videocam_off_outlined,
-                                        selected: call.camera,
+                                            : controller.toggleVideoMode,
+                                        icon: videoVisible
+                                            ? Icons.call_outlined
+                                            : Icons.videocam_outlined,
                                       ),
-                                    if (call.camera)
+                                    if (videoVisible && call.camera)
                                       _VoiceButton(
                                         tooltip: call.selfPreview
                                             ? 'Hide preview'
@@ -810,18 +823,14 @@ class VoicePanel extends StatelessWidget {
                                                   .picture_in_picture_alt_outlined,
                                         selected: call.selfPreview,
                                       )
-                                    else if (call.remoteCamera)
+                                    else if (remoteVisible && call.canVideo)
                                       _VoiceButton(
-                                        tooltip: call.voiceOnly
-                                            ? 'Watch their video'
-                                            : 'Switch to voice only',
-                                        label: call.voiceOnly
-                                            ? 'Watch'
-                                            : 'Voice only',
-                                        onPressed: controller.toggleRemoteVideo,
-                                        icon: call.voiceOnly
-                                            ? Icons.ondemand_video
-                                            : Icons.headset,
+                                        tooltip: 'Turn on camera',
+                                        label: 'Camera',
+                                        onPressed: call.changingCamera
+                                            ? null
+                                            : controller.changeCamera,
+                                        icon: Icons.videocam_outlined,
                                       ),
                                   ],
                                   if (incoming)
@@ -934,17 +943,17 @@ class _VoiceButton extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 24, color: color),
-                  const SizedBox(height: 3),
-                  SizedBox(
-                    height: 16,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        style: TextStyle(color: color, fontSize: 11),
-                      ),
+                  Icon(icon, size: 30, color: color),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
