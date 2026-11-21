@@ -338,6 +338,11 @@ class Chatmail {
             photo: chat['avatarPath'] as String?,
             archived: chat['isArchived'] == true,
             muted: chat['isMuted'] == true,
+            // Unlike message timestamps, Chatmail's chat list uses milliseconds.
+            lastMessageAt: switch (chat['lastUpdated']) {
+              int milliseconds => milliseconds ~/ 1000,
+              _ => 0,
+            },
           ),
     ];
   }
@@ -736,10 +741,11 @@ class FriendChat {
     this.photo,
     this.archived = false,
     this.muted = false,
+    this.lastMessageAt = 0,
   });
   final int id;
   final String name, preview;
-  final int unread;
+  final int unread, lastMessageAt;
   final String? photo;
   final bool archived, muted;
 }

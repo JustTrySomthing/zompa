@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:io';
 
@@ -102,7 +101,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Saved'),
-        actions: chatActions(context, saved: false),
+        actions: chatActions(context, selected: ChatDestination.saved),
       ),
       body: SafeArea(
         child: CustomScrollView(

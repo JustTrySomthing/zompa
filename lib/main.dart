@@ -1653,7 +1653,7 @@ class _PreferencesState extends State<Preferences> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        actions: chatActions(context, settings: false),
+        actions: chatActions(context, selected: ChatDestination.settings),
       ),
       body: SafeArea(
         top: false,

@@ -436,7 +436,39 @@ class _FriendsPaneState extends State<FriendsPane> {
               child: Card(
                 child: ListTile(
                   leading: ChatAvatar(chat.name, photo: chat.photo),
-                  title: Text(chat.name),
+                  title: LayoutBuilder(
+                    builder: (context, box) => Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            chat.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (chat.lastMessageAt > 0) ...[
+                          const SizedBox(width: 8),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: box.maxWidth * .45,
+                            ),
+                            child: Text(
+                              chatTime(
+                                context,
+                                chat.lastMessageAt,
+                                compact: true,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                   subtitle: chat.preview.isEmpty
                       ? null
                       : Text(

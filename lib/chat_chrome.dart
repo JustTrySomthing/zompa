@@ -118,21 +118,43 @@ class ChatChrome extends InheritedWidget {
       messageTextSize != oldWidget.messageTextSize;
 }
 
-List<Widget> chatActions(
-  BuildContext context, {
-  bool contacts = true,
-  bool saved = true,
-  bool settings = true,
-}) {
+enum ChatDestination { saved, contacts, settings }
+
+List<Widget> chatActions(BuildContext context, {ChatDestination? selected}) {
   final chrome = ChatChrome.of(context);
   if (chrome == null) return [];
+  final colors = Theme.of(context).colorScheme;
+
+  Widget shortcut(
+    ChatDestination destination,
+    String label,
+    IconData icon,
+    void Function(BuildContext) open,
+  ) {
+    if (selected == destination) {
+      return Semantics(
+        selected: true,
+        child: IconButton.filled(
+          tooltip: label,
+          style: IconButton.styleFrom(
+            disabledBackgroundColor: colors.secondaryContainer,
+            disabledForegroundColor: colors.onSecondaryContainer,
+          ),
+          onPressed: null,
+          icon: Icon(icon),
+        ),
+      );
+    }
+    return IconButton(
+      tooltip: label,
+      onPressed: () => open(context),
+      icon: Icon(icon),
+    );
+  }
+
   return [
     if (chrome.openSaved case final open?)
-      IconButton(
-        tooltip: 'Saved',
-        icon: const Icon(Icons.star_outline),
-        onPressed: saved ? () => open(context) : null,
-      ),
+      shortcut(ChatDestination.saved, 'Saved', Icons.star_outline, open),
     ListenableBuilder(
       listenable: chrome.notifications,
       builder: (context, _) {
@@ -158,16 +180,18 @@ List<Widget> chatActions(
       },
     ),
     if (chrome.openContacts case final open?)
-      IconButton(
-        tooltip: 'Contacts',
-        icon: const Icon(Icons.person_outline_rounded),
-        onPressed: contacts ? () => open(context) : null,
+      shortcut(
+        ChatDestination.contacts,
+        'Contacts',
+        Icons.person_outline_rounded,
+        open,
       ),
     if (chrome.openSettings case final open?)
-      IconButton(
-        tooltip: 'Settings',
-        icon: const Icon(Icons.settings_outlined),
-        onPressed: settings ? () => open(context) : null,
+      shortcut(
+        ChatDestination.settings,
+        'Settings',
+        Icons.settings_outlined,
+        open,
       ),
   ];
 }

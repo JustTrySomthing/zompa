@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -33,7 +32,7 @@ class _ContactsPageState extends State<ContactsPage> {
   List<ChatContact> _contacts = [];
   List<ChatContact> _blocked = [];
   String _query = '';
-  String? _error;
+  String? _loadError, _error;
   bool _loading = true;
   int _request = 0;
   StreamSubscription<void>? _changes;
@@ -62,11 +61,12 @@ class _ContactsPageState extends State<ContactsPage> {
   }
 
   Future<void> _load({bool quiet = false}) async {
-    if (!mounted) return;
+    if (!mounted || (quiet && _loading)) return;
     final request = ++_request;
     if (!quiet)
       setState(() {
         _loading = true;
+        _loadError = null;
         _error = null;
       });
     try {
@@ -76,13 +76,14 @@ class _ContactsPageState extends State<ContactsPage> {
       ]);
       if (!mounted || request != _request) return;
       setState(() {
+        _loadError = null;
         _error = null;
         _contacts = lists[0];
         _blocked = lists[1];
       });
     } catch (_) {
       if (mounted && request == _request && !quiet)
-        setState(() => _error = 'Couldn’t load contacts.');
+        setState(() => _loadError = 'Couldn’t load contacts.');
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
     }
@@ -149,7 +150,7 @@ class _ContactsPageState extends State<ContactsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Contacts'),
-        actions: chatActions(context, contacts: false),
+        actions: chatActions(context, selected: ChatDestination.contacts),
       ),
       body: SafeArea(
         child: ListView(
@@ -190,9 +191,19 @@ class _ContactsPageState extends State<ContactsPage> {
               onChanged: (value) => setState(() => _showBlocked = value),
             ),
             if (_loading) const LinearProgressIndicator(),
-            if (_error case final error?)
-              ListTile(title: Text(error), onTap: _load),
-            if (!_loading && _error == null && visible.isEmpty)
+            if (_loadError case final error?)
+              ListTile(
+                title: Text(error),
+                trailing: TextButton(
+                  onPressed: _loading ? null : () => _load(),
+                  child: const Text('Retry'),
+                ),
+              ),
+            if (_error case final error?) ListTile(title: Text(error)),
+            if (!_loading &&
+                _loadError == null &&
+                _error == null &&
+                visible.isEmpty)
               Text(
                 _query.isNotEmpty
                     ? 'No matching contacts.'
