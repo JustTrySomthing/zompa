@@ -23,20 +23,23 @@ String _failure(Object error) => switch (error) {
   ChatmailIssue.unavailable =>
     'The Chatmail connection stopped. Retry from Chats.',
   TimeoutException() => 'Chatmail took too long to respond. Try again.',
-  _ => 'Chatmail couldn’t complete this action. Check your connection and try again.',
+  _ =>
+    'Chatmail couldn’t complete this action. Check your connection and try again.',
 };
 
 class FriendsPane extends StatefulWidget {
   const FriendsPane({
     super.key,
     required this.chatmail,
-    required this.pickGameLink,
+    required this.installedGames,
+    required this.verifiedGameLink,
     required this.openGameLink,
     required this.prepareGame,
   });
 
   final Chatmail chatmail;
-  final Future<String?> Function() pickGameLink;
+  final List<GameRelease> Function() installedGames;
+  final Future<String?> Function(GameRelease) verifiedGameLink;
   final Future<void> Function(GameLink) openGameLink;
   final Future<GameRelease?> Function(GameLink) prepareGame;
 
@@ -147,7 +150,8 @@ class _FriendsPaneState extends State<FriendsPane> {
           chatmail: widget.chatmail,
           id: chat,
           initialName: name,
-          pickGameLink: widget.pickGameLink,
+          installedGames: widget.installedGames,
+          verifiedGameLink: widget.verifiedGameLink,
           openGameLink: widget.openGameLink,
           prepareGame: widget.prepareGame,
         ),
@@ -687,7 +691,8 @@ class FriendConversation extends StatefulWidget {
     required this.chatmail,
     required this.id,
     required this.initialName,
-    required this.pickGameLink,
+    required this.installedGames,
+    required this.verifiedGameLink,
     required this.openGameLink,
     required this.prepareGame,
   }) : onClose = null;
@@ -698,7 +703,8 @@ class FriendConversation extends StatefulWidget {
     required this.id,
     required VoidCallback this.onClose,
   }) : initialName = 'Match chat',
-       pickGameLink = null,
+       installedGames = null,
+       verifiedGameLink = null,
        openGameLink = null,
        prepareGame = null;
 
@@ -706,7 +712,8 @@ class FriendConversation extends StatefulWidget {
   final int id;
   final VoidCallback? onClose;
   final String initialName;
-  final Future<String?> Function()? pickGameLink;
+  final List<GameRelease> Function()? installedGames;
+  final Future<String?> Function(GameRelease)? verifiedGameLink;
   final Future<void> Function(GameLink)? openGameLink;
   final Future<GameRelease?> Function(GameLink)? prepareGame;
 
@@ -1102,43 +1109,25 @@ class _FriendConversationState extends State<FriendConversation>
 
   Future<void> _inviteMatch() async {
     if (_pickingGame || _sending || _thread?.canSend != true) return;
+    final friend = _thread!.name;
     setState(() => _pickingGame = true);
     try {
-      final link = await widget.pickGameLink!();
-      if (!mounted || link == null) return;
-      final game = GameLink.parse(link);
-      if (game == null) return;
-      final action = await showDialog<String>(
+      FocusScope.of(context).unfocus();
+      final selected = await showDialog<GameRelease>(
         context: context,
-        builder: (dialog) => AlertDialog(
-          title: const Text('Invite to Cats vs Dogs?'),
-          content: const Text(
-            'Your friend can accept the invite in this chat. You take the first turn.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialog, 'share'),
-              child: const Text('Share game link'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialog, 'invite'),
-              child: const Text('Send match invite'),
-            ),
-          ],
+        builder: (_) => _GameInviteDialog(
+          friend: friend,
+          games: widget.installedGames!(),
         ),
       );
-      if (!mounted || action == null) return;
-      if (action == 'share') {
-        await _send(gameLink: link);
-      } else {
-        final invite = MatchEvent.invite(game);
-        if (await _send(gameLink: invite.wire) && mounted) {
-          _openMatch(invite.id);
-        }
+      if (!mounted || selected == null) return;
+      final link = await widget.verifiedGameLink!(selected);
+      if (!mounted || link == null) return;
+      final game = GameLink.parse(link);
+      if (game == null || _thread?.canSend != true) return;
+      final invite = MatchEvent.invite(game);
+      if (await _send(gameLink: invite.wire) && mounted) {
+        _openMatch(invite.id);
       }
     } finally {
       if (mounted) setState(() => _pickingGame = false);
@@ -1198,7 +1187,7 @@ class _FriendConversationState extends State<FriendConversation>
             icon: const Icon(Icons.call_outlined),
             onPressed: voice.busy || thread?.canSend != true
                 ? null
-                : () => voice.dial(widget.id, thread!.name),
+                : () => voice.openDialer(context, widget.id, thread!.name),
           ),
         if (!docked) ...chatActions(context),
       ],
@@ -1429,7 +1418,7 @@ class _FriendConversationState extends State<FriendConversation>
                       heroTag: null,
                       tooltip: _awayFromLatest
                           ? 'Jump to latest message'
-                          : 'Invite to a Cats vs Dogs match',
+                          : 'Invite to play a game',
                       onPressed: _awayFromLatest
                           ? _latest
                           : _pickingGame || _sending
@@ -1511,6 +1500,127 @@ class _FriendConversationState extends State<FriendConversation>
           appBar,
           Expanded(child: body),
         ],
+      ),
+    );
+  }
+}
+
+class _GameInviteDialog extends StatefulWidget {
+  const _GameInviteDialog({required this.friend, required this.games});
+
+  final String friend;
+  final List<GameRelease> games;
+
+  @override
+  State<_GameInviteDialog> createState() => _GameInviteDialogState();
+}
+
+class _GameInviteDialogState extends State<_GameInviteDialog> {
+  GameRelease? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: SizedBox(
+        width: 380,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  primary: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Choose a game to play with ${widget.friend}',
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 14),
+                      if (widget.games.isEmpty)
+                        const Text(
+                          'Install a game from Get Games to invite a friend.',
+                        ),
+                      for (final game in widget.games)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _gameTile(game, colors),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xff1b663c),
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _selected == null
+                          ? null
+                          : () => Navigator.pop(context, _selected),
+                      child: const Text('Invite'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _gameTile(GameRelease game, ColorScheme colors) {
+    final eligible = MatchEvent.supportsGame(game);
+    final selected = _selected == game;
+    return Material(
+      color: selected ? colors.secondaryContainer : colors.surfaceContainerHigh,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: selected ? colors.primary : colors.outlineVariant,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        enabled: eligible,
+        selected: selected,
+        selectedColor: colors.onSecondaryContainer,
+        onTap: eligible ? () => setState(() => _selected = game) : null,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: game.id == 'drop-four' && game.build >= 6
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/games/cats-vs-dogs.webp',
+                  width: 46,
+                  height: 46,
+                  fit: BoxFit.cover,
+                ),
+              )
+            : const Icon(Icons.sports_esports_outlined),
+        title: Text(game.title),
+        subtitle: eligible ? null : const Text('Online matches unavailable'),
+        trailing: selected
+            ? Icon(Icons.check_circle, color: colors.onSecondaryContainer)
+            : null,
       ),
     );
   }

@@ -119,6 +119,7 @@ def main():
         delta_chat_with(delta, zompado.name)
         previous_cards = len(delta.call_cards())
         zompado.press("Voice call")
+        zompado.press("Call")
         delta.answer_incoming(previous_cards)
         zompado.see("Voice call with " + delta.name, 65)
         delta.see("Connected", 65)

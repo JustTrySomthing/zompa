@@ -285,7 +285,7 @@ const _topics = [
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'Install Cats vs Dogs and tap the gamepad in a friend chat. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and plays Cats on the first turn. In My Games → Online matches, tap Resume Game to return directly to the board.',
+        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. In My Games → Online matches, tap Resume Game to return directly to the board.',
       ),
       (
         'How do I change game sounds?',
@@ -340,7 +340,7 @@ const _topics = [
       ),
       (
         'How do I call a friend?',
-        'Open a friend’s conversation and tap the phone icon. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, turn on video, or end the call. Camera stays off until you turn it on. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
+        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, turn on video, or end the call. Camera stays off until you turn it on. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
       ),
       (
         'How do I send files or keep their original quality?',

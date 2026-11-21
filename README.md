@@ -10,7 +10,7 @@ or make your own.
 
 ## What you can do today
 
-- **Play Cats vs Dogs.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. Chat from the board and resume from **Online matches** or a turn alert.
+- **Play Cats vs Dogs.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. To invite a friend from chat, tap the gamepad, choose an installed online game, and tap **Invite**. Resume from **Online matches** or a turn alert.
 - **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation.
 - **Manage your game library.** A fresh install starts with an empty library. Add official `.zomp` games and remove them from **My Games**. Open the import button for compatible `.love` files on your device.
 
@@ -18,7 +18,7 @@ Downloaded games require Android 10 or later and a sandboxed WebView renderer. O
 
 After Android stops the process, Zompado checks for new activity on Android’s schedule. A call alert lets you answer if the call is still ringing. Reopen the app after using Android’s **Force stop**. **Settings → Setup** and **Help** cover alerts and permissions.
 
-Calls support mute, handset and speaker routing, and a camera toggle.
+In a chat, tap the phone icon to open the dialer, then tap **Call** to reach the contact shown. During a call, use **End call** to hang up. Calls also support mute, handset and speaker routing, and a camera toggle.
 
 ## Game Builder coming soon
 

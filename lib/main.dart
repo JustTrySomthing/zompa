@@ -399,7 +399,8 @@ class _HomeState extends State<Home> {
                   chatmail: chatmail,
                   id: alert.chat,
                   initialName: target.name,
-                  pickGameLink: _installedGameLink,
+                  installedGames: _installedGameChoices,
+                  verifiedGameLink: _installedGameLink,
                   openGameLink: _openGameLink,
                   prepareGame: _prepareOnlineGame,
                 )
@@ -524,11 +525,13 @@ class _HomeState extends State<Home> {
           .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<String?> _installedGameLink([GameRelease? game]) async {
-    final release = game ?? installedGames['drop-four'];
+  List<GameRelease> _installedGameChoices() => installedGames.values.toList()
+    ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+
+  Future<String?> _installedGameLink(GameRelease release) async {
     final distribution = widget.distribution;
-    if (release == null || distribution == null) {
-      _gameNotice('Install Cats vs Dogs from Get Games before sharing it.');
+    if (distribution == null) {
+      _gameNotice('Game storage is unavailable. Try reopening the app.');
       return null;
     }
     try {
@@ -856,7 +859,8 @@ class _HomeState extends State<Home> {
             chatmail: widget.chatmail!,
             id: id,
             initialName: name,
-            pickGameLink: _installedGameLink,
+            installedGames: _installedGameChoices,
+            verifiedGameLink: _installedGameLink,
             openGameLink: _openGameLink,
             prepareGame: _prepareOnlineGame,
           ),
@@ -989,7 +993,8 @@ class _HomeState extends State<Home> {
                   )
                 : FriendsPane(
                     chatmail: widget.chatmail!,
-                    pickGameLink: _installedGameLink,
+                    installedGames: _installedGameChoices,
+                    verifiedGameLink: _installedGameLink,
                     openGameLink: _openGameLink,
                     prepareGame: _prepareOnlineGame,
                   ),

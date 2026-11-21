@@ -102,146 +102,163 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
         actions: chatActions(context, saved: false),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Search saved messages',
-                  prefixIcon: Icon(Icons.search),
-                ),
-                onChanged: (value) =>
-                    setState(() => _query = value.trim().toLowerCase()),
-              ),
-            ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
                 children: [
-                  for (final name in [
-                    'All',
-                    'Messages',
-                    'Photos',
-                    'Videos',
-                    'Audio',
-                    'Files',
-                    'Links',
-                    'Games',
-                  ])
-                    ChoiceChip(
-                      label: Text(name),
-                      selected: _filter == name,
-                      onSelected: (_) => setState(() => _filter = name),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Search saved messages',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _query = value.trim().toLowerCase()),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (final name in [
+                          'All',
+                          'Messages',
+                          'Photos',
+                          'Videos',
+                          'Audio',
+                          'Files',
+                          'Links',
+                          'Games',
+                        ])
+                          ChoiceChip(
+                            materialTapTargetSize: MaterialTapTargetSize.padded,
+                            label: Text(name),
+                            selected: _filter == name,
+                            onSelected: (_) => setState(() => _filter = name),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_loading) const LinearProgressIndicator(),
+                  if (_failed)
+                    TextButton(
+                      onPressed: _load,
+                      child: const Text('Couldn’t load saved messages. Retry'),
                     ),
                 ],
               ),
             ),
-            if (_loading) const LinearProgressIndicator(),
-            if (_failed)
-              TextButton(
-                onPressed: _load,
-                child: const Text('Couldn’t load saved messages. Retry'),
-              ),
-            Expanded(
-              child: entries.isEmpty
-                  ? Center(
-                      child: Text(
-                        _loading || _failed
-                            ? ''
-                            : _query.isEmpty && _filter == 'All'
-                            ? 'Star a message to save it here.'
-                            : 'No matching saved messages.',
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 6, 12, 16),
-                      itemCount: entries.length,
-                      itemBuilder: (context, index) {
-                        final message = entries[index];
-                        final game = GameLink.parse(message.text);
-                        final name = message.sender?.name ?? 'Saved message';
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+            if (entries.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Text(
+                    _loading || _failed
+                        ? ''
+                        : _query.isEmpty && _filter == 'All'
+                        ? 'Star a message to save it here.'
+                        : 'No matching saved messages.',
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                sliver: SliverList.separated(
+                  itemCount: entries.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final message = entries[index];
+                    final game = GameLink.parse(message.text);
+                    final name = message.sender?.name ?? 'Saved message';
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                Row(
-                                  children: [
-                                    ChatAvatar(
-                                      name,
-                                      photo: message.sender?.photo,
-                                      radius: 14,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        name,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Text(chatTime(context, message.timestamp)),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.star,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                      ),
-                                      tooltip: 'Remove saved copy',
-                                      onPressed: () => showMessageActions(
-                                        context,
-                                        widget.chatmail,
-                                        message,
-                                        saved: true,
-                                      ),
-                                    ),
-                                  ],
+                                ChatAvatar(
+                                  name,
+                                  photo: message.sender?.photo,
+                                  radius: 14,
                                 ),
-                                if (message.file case final path?
-                                    when _category(message) == 'Photos')
-                                  Image.file(
-                                    File(path),
-                                    cacheWidth: 640,
-                                    width: double.infinity,
-                                    height: 138,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) =>
-                                        const SizedBox.shrink(),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                if (game != null)
-                                  TextButton.icon(
-                                    onPressed: () => widget.openGame(game),
-                                    icon: const Icon(
-                                      Icons.sports_esports_outlined,
-                                    ),
-                                    label: const Text('Open game'),
-                                  )
-                                else if (message.text.isNotEmpty)
-                                  Text(
-                                    MatchEvent.parse(message.text) != null
-                                        ? 'Cats vs Dogs match invitation'
-                                        : message.text,
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    chatTime(context, message.timestamp),
+                                    textAlign: TextAlign.end,
                                   ),
-                                if (message.file != null)
-                                  TextButton.icon(
-                                    onPressed: () =>
-                                        downloadChatFile(context, message),
-                                    icon: const Icon(Icons.download),
-                                    label: Text(
-                                      message.filename ?? 'Download attachment',
-                                    ),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.star,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
+                                  tooltip: 'Remove saved copy',
+                                  onPressed: () => showMessageActions(
+                                    context,
+                                    widget.chatmail,
+                                    message,
+                                    saved: true,
+                                  ),
+                                ),
                               ],
                             ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
+                            if (message.file case final path?
+                                when _category(message) == 'Photos')
+                              Image.file(
+                                File(path),
+                                cacheWidth: 640,
+                                width: double.infinity,
+                                height: 138,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            if (game != null)
+                              TextButton.icon(
+                                onPressed: () => widget.openGame(game),
+                                icon: const Icon(Icons.sports_esports_outlined),
+                                label: const Text('Open game'),
+                              )
+                            else if (message.text.isNotEmpty)
+                              Text(
+                                MatchEvent.parse(message.text) != null
+                                    ? 'Cats vs Dogs match invitation'
+                                    : message.text,
+                              ),
+                            if (message.file != null)
+                              TextButton.icon(
+                                onPressed: () =>
+                                    downloadChatFile(context, message),
+                                icon: const Icon(Icons.download),
+                                label: Text(
+                                  message.filename ?? 'Download attachment',
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
           ],
         ),
       ),

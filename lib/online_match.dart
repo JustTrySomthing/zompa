@@ -4,6 +4,7 @@ import 'dart:math';
 import 'board.dart';
 import 'chatmail.dart';
 import 'game_link.dart';
+import 'github_distribution.dart';
 
 const matchMarker = 'ZOMPADO_MATCH_V1 ';
 
@@ -32,6 +33,11 @@ class MatchEvent {
   final String? previous;
   final int? column, revision;
 
+  static bool supportsGame(GameRelease game) =>
+      _supportsGameId(game.id) && game.modes.contains('online');
+
+  static bool _supportsGameId(String id) => id == 'drop-four';
+
   MatchEvent accept() => MatchEvent._(id, 'accept');
   MatchEvent decline() => MatchEvent._(id, 'decline');
   MatchEvent preparing() => MatchEvent._(id, 'preparing');
@@ -55,7 +61,7 @@ class MatchEvent {
           case 'invite':
             if (data['game'] case final String link) {
               final game = GameLink.parse(link);
-              if (game != null && game.id == 'drop-four')
+              if (game != null && _supportsGameId(game.id))
                 return MatchEvent._(id, 'invite', game: game);
             }
           case 'accept':

@@ -147,6 +147,13 @@ class Phone:
 def check_voice(alice, bob):
     bob.press("<input>")
     alice.press("Voice call")
+    alice.see("Call")
+    alice.back()
+    alice.see("Voice call")
+    if bob.find("Incoming call from Alice"):
+        raise RuntimeError("Opening the dialer started a call before confirmation")
+    alice.press("Voice call")
+    alice.press("Call")
     bob.see("Incoming call from Alice", 75)
     alice.see("Calling Bob…", 20)
     bob.press("Answer")
@@ -199,8 +206,10 @@ def check_message_tools(alice, bob):
 
 
 def check_match(alice, bob):
-    alice.press("Invite to a Cats vs Dogs match")
-    alice.press("Send match invite")
+    alice.press("Invite to play a game")
+    alice.see("Choose a game to play with Bob")
+    alice.press("Cats vs Dogs")
+    alice.press("Invite")
     alice.see("Waiting for your friend to accept.", 100)
     alice.back()
     alice.back()

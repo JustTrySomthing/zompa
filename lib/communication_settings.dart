@@ -105,18 +105,20 @@ class _QuietHoursPageState extends State<QuietHoursPage> {
           padding: const EdgeInsets.all(16),
           children: [
             SwitchListTile(
+              contentPadding: EdgeInsets.zero,
               title: const Text('Enable schedule'),
+              subtitle: const Text(
+                'Calls and notifications arrive silently during Quiet Hours.',
+              ),
               value: _enabled,
               onChanged: _loading
                   ? null
                   : (value) => setState(() => _enabled = value),
             ),
-            const Text(
-              'Calls and notifications arrive silently during Quiet Hours.',
-            ),
             const SizedBox(height: 16),
             Wrap(
-              spacing: 8,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 OutlinedButton(
                   onPressed: _enabled ? () => _pick(true) : null,
@@ -130,11 +132,14 @@ class _QuietHoursPageState extends State<QuietHoursPage> {
             ),
             const SizedBox(height: 12),
             const Text('Repeat'),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 8,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 for (var d = 0; d < 7; d++)
                   FilterChip(
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
                     label: Text(labels[d]),
                     tooltip: const [
                       'Monday',
