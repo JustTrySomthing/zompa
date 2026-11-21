@@ -1,5 +1,5 @@
 {
-  "version": "0.5.28",
-  "build": 37,
-  "notes": "- Appearance now uses Relay Lab’s 18-color palette and three-row color picker.\n- All accents share a white background in Light mode and a charcoal gray background in Dark mode. Royal Blue remains the default accent."
+  "version": "0.5.29",
+  "build": 38,
+  "notes": "- Added search inside conversations and a Media gallery with All, Images, Video, Audio, and Other filters.\n- Added game screenshot previews in Get Games, starting with Cats vs Dogs.\n- Refined navigation, dialogs, chat attachments, and layouts on compact screens.\n- Chatmail now starts when Zompado opens. Known issue: incoming call alerts can still be missed while the recipient’s Android screen is off."
 }
