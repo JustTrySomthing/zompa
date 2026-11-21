@@ -143,6 +143,9 @@ public final class MainActivity extends FlutterActivity {
                             }
                         }, "zompado-love-check").start();
                         break;
+                    case "openChatAttachment":
+                        result.success(playback.openAttachment(call.argument("path"), call.argument("mime")));
+                        break;
                     case "chatVideoThumbnail":
                         playback.thumbnail((String) call.arguments, result);
                         break;

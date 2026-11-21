@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
 import 'chat_files.dart';
+import 'chat_gallery.dart';
 import 'chat_emoji.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
@@ -908,6 +909,7 @@ class _FriendConversationState extends State<FriendConversation>
   final _composer = TextEditingController();
   final _scroll = ScrollController();
   bool _awayFromLatest = false;
+  bool _showMedia = false;
   ChatFile? _attachment;
   FriendThread? _thread;
   StreamSubscription<void>? _events;
@@ -1451,6 +1453,7 @@ class _FriendConversationState extends State<FriendConversation>
                         ),
                       )
                     : ListView.builder(
+                        key: PageStorageKey('chat-feed-${widget.id}'),
                         controller: _scroll,
                         reverse: true,
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 60),
@@ -1782,9 +1785,46 @@ class _FriendConversationState extends State<FriendConversation>
         ],
       );
     }
+
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final body = SafeArea(
       top: false,
-      child: LayoutBuilder(builder: (_, box) => content(box.maxHeight)),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          if (docked) return content(box.maxHeight);
+          final showTabs = !keyboardVisible || box.maxHeight >= 160;
+          return Column(
+            children: [
+              if (showTabs)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('Feed')),
+                        ButtonSegment(value: true, label: Text('Media')),
+                      ],
+                      selected: {_showMedia},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (selected) {
+                        FocusScope.of(context).unfocus();
+                        setState(() => _showMedia = selected.single);
+                      },
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: _showMedia
+                    ? ChatGallery(chatmail: widget.chatmail, chat: widget.id)
+                    : LayoutBuilder(
+                        builder: (_, feed) => content(feed.maxHeight),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
     );
     if (!docked) return Scaffold(appBar: appBar, body: body);
     return Material(

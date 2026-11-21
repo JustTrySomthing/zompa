@@ -541,6 +541,35 @@ class Chatmail {
     );
   }
 
+  Future<({List<FriendMessage> messages, bool hasOlder})> chatMedia(
+    int chat, {
+    required int limit,
+  }) async {
+    final account = _accountId;
+    final groups = await Future.wait([
+      for (final (first, second, third) in const [
+        ('Image', 'Gif', 'Sticker'),
+        ('Video', 'Audio', 'Voice'),
+        ('File', 'Vcard', 'Webxdc'),
+      ])
+        _call('get_chat_media', [account, chat, first, second, third]),
+    ]);
+    final ids = {
+      for (final group in groups) ...(group as List).cast<int>(),
+    }.toList()..sort((a, b) => b.compareTo(a));
+    final messages = <FriendMessage>[];
+    final recent = ids.take(limit).toList();
+    for (var offset = 0; offset < recent.length; offset += 45) {
+      messages.addAll(
+        await _messages(account, recent.skip(offset).take(45).toList()),
+      );
+    }
+    return (
+      messages: messages.where((message) => message.file != null).toList(),
+      hasOlder: ids.length > recent.length,
+    );
+  }
+
   Future<List<FriendMessage>> matchHistory(int chat, String id) =>
       _search(chat, id);
 
@@ -774,6 +803,7 @@ class FriendMessage {
       text = (message['text'] as String?) ?? '',
       filename = message['fileName'] as String?,
       file = message['file'] as String?,
+      fileBytes = message['fileBytes'] as int?,
       mime = message['fileMime'] as String?,
       timestamp = message['timestamp'] as int? ?? 0,
       viewType = message['viewType'] as String? ?? 'Text',
@@ -797,7 +827,7 @@ class FriendMessage {
       encrypted = message['showPadlock'] == true;
 
   final int id, state, chat, timestamp;
-  final int? savedId;
+  final int? savedId, fileBytes;
   final ChatContact? sender;
   final List<({String emoji, int count, bool mine})> reactions;
   final String text, viewType;

@@ -347,6 +347,10 @@ const _topics = [
         'Use the paperclip to capture or attach media. Settings → Compression lets you choose Balanced or Data saver. Use Attach Original File to send the original bytes.',
       ),
       (
+        'Where are all the attachments in a chat?',
+        'Open a conversation and tap Media to browse its photos, videos, audio, and files. Tap an attachment to open its preview. Audio and video start playing when opened. Use the star to save or unsave an attachment, or tap Feed to return to the conversation.',
+      ),
+      (
         'Can I play media in chat?',
         'GIFs play in the conversation. Tap a photo to enlarge and zoom it, Play video to watch an attachment, or the audio play button to listen in chat. Tap a YouTube preview to play it. Website addresses like example.com open in Preview Browser, even without https://. Use the top-right button to open the page in your default browser.',
       ),

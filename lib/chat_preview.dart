@@ -13,6 +13,71 @@ import 'message_bubble.dart';
 
 const _host = MethodChannel('io.zompado.host');
 
+Future<void> openChatAttachment(
+  BuildContext context,
+  FriendMessage message, {
+  Widget? filePreview,
+}) async {
+  final path = message.file;
+  if (path == null) return;
+  final title =
+      message.filename ??
+      switch (message.media) {
+        ChatMedia.image => 'Photo',
+        ChatMedia.video => 'Video',
+        ChatMedia.audio => 'Audio',
+        null => 'Attachment',
+      };
+  await Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (context) => switch (message.media) {
+        ChatMedia.image => _ImagePreview(File(path), title),
+        _ => Scaffold(
+          appBar: chatPageBar(context, title, fitTitle: false),
+          body: SafeArea(
+            child: switch (message.media) {
+              ChatMedia.video => _PreviewSurface('io.zompado.chatVideo', path),
+              ChatMedia.audio => Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: _AudioAttachment(path: path, autoplay: true),
+                  ),
+                ),
+              ),
+              _ => filePreview ?? const SizedBox.shrink(),
+            },
+          ),
+        ),
+      },
+    ),
+  );
+}
+
+class ChatVideoThumbnail extends StatefulWidget {
+  const ChatVideoThumbnail(this.path, {super.key});
+  final String path;
+
+  @override
+  State<ChatVideoThumbnail> createState() => _ChatVideoThumbnailState();
+}
+
+class _ChatVideoThumbnailState extends State<ChatVideoThumbnail> {
+  late final _frame = _host.invokeMethod<Uint8List>(
+    'chatVideoThumbnail',
+    widget.path,
+  );
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
+    future: _frame,
+    builder: (context, frame) => frame.data == null
+        ? const Center(child: Icon(Icons.movie_outlined, size: 36))
+        : Image.memory(frame.data!, fit: BoxFit.cover),
+  );
+}
+
 class ChatAttachment extends StatelessWidget {
   const ChatAttachment(this.message, {super.key});
 
@@ -24,16 +89,12 @@ class ChatAttachment extends StatelessWidget {
     if (file == null) return const SizedBox.shrink();
     final path = File(file);
     final media = message.media;
-    final title =
-        message.filename ?? (media == ChatMedia.image ? 'Image' : 'Video');
     if (media == ChatMedia.image) {
       return Semantics(
         button: true,
         label: 'Open image preview',
         child: InkWell(
-          onTap: () => Navigator.of(context).push<void>(
-            MaterialPageRoute(builder: (_) => _ImagePreview(path, title)),
-          ),
+          onTap: () => openChatAttachment(context, message),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Image.file(
@@ -47,7 +108,23 @@ class ChatAttachment extends StatelessWidget {
       );
     }
     if (media == ChatMedia.video) {
-      return _VideoAttachment(key: ValueKey(file), path: file, title: title);
+      void open() => unawaited(openChatAttachment(context, message));
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: open,
+            child: _Thumbnail(
+              child: ChatVideoThumbnail(file, key: ValueKey(file)),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: open,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Play video'),
+          ),
+        ],
+      );
     }
     if (media == ChatMedia.audio) {
       return _AudioAttachment(key: ValueKey(file), path: file);
@@ -83,61 +160,15 @@ class _ImagePreview extends StatelessWidget {
   );
 }
 
-class _VideoAttachment extends StatefulWidget {
-  const _VideoAttachment({super.key, required this.path, required this.title});
-
-  final String path, title;
-
-  @override
-  State<_VideoAttachment> createState() => _VideoAttachmentState();
-}
-
-class _VideoAttachmentState extends State<_VideoAttachment> {
-  late final _thumbnail = _host.invokeMethod<Uint8List>(
-    'chatVideoThumbnail',
-    widget.path,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    void open() => Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: chatPageBar(context, widget.title, fitTitle: false),
-          body: SafeArea(
-            child: _PreviewSurface('io.zompado.chatVideo', widget.path),
-          ),
-        ),
-      ),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InkWell(
-          onTap: open,
-          child: _Thumbnail(
-            child: FutureBuilder<Uint8List?>(
-              future: _thumbnail,
-              builder: (context, frame) => frame.data == null
-                  ? const Center(child: Icon(Icons.movie_outlined, size: 42))
-                  : Image.memory(frame.data!, fit: BoxFit.cover),
-            ),
-          ),
-        ),
-        TextButton.icon(
-          onPressed: open,
-          icon: const Icon(Icons.play_arrow),
-          label: const Text('Play video'),
-        ),
-      ],
-    );
-  }
-}
-
 class _AudioAttachment extends StatefulWidget {
-  const _AudioAttachment({super.key, required this.path});
+  const _AudioAttachment({
+    super.key,
+    required this.path,
+    this.autoplay = false,
+  });
 
   final String path;
+  final bool autoplay;
 
   @override
   State<_AudioAttachment> createState() => _AudioAttachmentState();
@@ -154,6 +185,16 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
   int _duration = 0;
   int _position = 0;
   double? _seek;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoplay) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_toggle());
+      });
+    }
+  }
 
   Future<void> _update() async {
     if (_requesting || !mounted) return;

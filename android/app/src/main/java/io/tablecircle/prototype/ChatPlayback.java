@@ -1,6 +1,7 @@
 package io.tablecircle.prototype;
 
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -16,6 +17,7 @@ import android.widget.FrameLayout;
 import android.widget.MediaController;
 import android.widget.TextView;
 import android.widget.VideoView;
+import androidx.core.content.FileProvider;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.StandardMessageCodec;
 import io.flutter.plugin.platform.PlatformView;
@@ -50,6 +52,22 @@ final class ChatPlayback {
             throw new IOException("Invalid attachment");
         }
         return file;
+    }
+
+    boolean openAttachment(String path, String mime) {
+        try {
+            File file = attachment(path);
+            Uri uri = FileProvider.getUriForFile(activity,
+                activity.getPackageName() + ".chatfiles", file);
+            Intent intent = new Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, mime == null || mime.trim().isEmpty() ? "*/*" : mime)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.setClipData(ClipData.newRawUri("Chat attachment", uri));
+            activity.startActivity(Intent.createChooser(intent, null));
+            return true;
+        } catch (IOException | RuntimeException unavailable) {
+            return false;
+        }
     }
 
     void playAudio(String path, int token) {
