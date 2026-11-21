@@ -944,7 +944,9 @@ class _FriendConversationState extends State<FriendConversation>
                 ? Colors.white
                 : theme.colorScheme.primaryContainer,
             foregroundColor: message.outgoing
-                ? const Color(0xff00516a)
+                ? (theme.brightness == Brightness.dark
+                      ? theme.colorScheme.primaryContainer
+                      : theme.colorScheme.primary)
                 : theme.colorScheme.onPrimaryContainer,
           ),
           const SizedBox(width: 8),

@@ -78,6 +78,7 @@ class Zompado extends StatefulWidget {
 
 class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   ThemeMode mode = ThemeMode.dark;
+  double? _huePreview;
   final _home = GlobalKey<_HomeState>();
   final _notifications = ChatNotificationSettings(bridge);
   File? storage;
@@ -264,11 +265,15 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final hue = _huePreview ?? ZompadoBrand.hueFrom(data['themeHue']);
     return MaterialApp(
       title: 'Zompado',
       debugShowCheckedModeBanner: false,
-      theme: ZompadoBrand.theme(Brightness.light),
-      darkTheme: ZompadoBrand.theme(Brightness.dark),
+      theme: ZompadoBrand.theme(Brightness.light, hue: hue),
+      darkTheme: ZompadoBrand.theme(Brightness.dark, hue: hue),
+      themeAnimationDuration: _huePreview == null
+          ? kThemeAnimationDuration
+          : Duration.zero,
       builder: (context, child) {
         final launch = BrandLaunch(
           child: _voice == null
@@ -309,13 +314,18 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
               data: data,
               write: (key, value) {
                 write(key, value);
-                if (key == 'messageTextSize') setState(() {});
+                if (key == 'themeHue') {
+                  setState(() => _huePreview = null);
+                } else if (key == 'messageTextSize') {
+                  setState(() {});
+                }
               },
               distribution: distribution,
               updates: updates,
               chatmail: chatmail,
               openChats: _openChats,
               chatAlert: _chatAlertTarget,
+              onHuePreview: (hue) => setState(() => _huePreview = hue),
               onTheme: (value) {
                 write('theme', value.name);
                 setState(() => mode = value);
@@ -331,6 +341,7 @@ class Home extends StatefulWidget {
     required this.data,
     required this.write,
     required this.onTheme,
+    this.onHuePreview,
     required this.distribution,
     required this.updates,
     required this.chatmail,
@@ -345,6 +356,7 @@ class Home extends StatefulWidget {
   final Map<String, dynamic> data;
   final void Function(String, dynamic) write;
   final ValueChanged<ThemeMode> onTheme;
+  final ValueChanged<double>? onHuePreview;
   @override
   State<Home> createState() => _HomeState();
 }
@@ -942,6 +954,7 @@ class _HomeState extends State<Home> {
         data: widget.data,
         write: widget.write,
         onTheme: widget.onTheme,
+        onHuePreview: widget.onHuePreview,
         updates: widget.updates,
         chatmail: widget.chatmail,
       ),
@@ -1470,6 +1483,7 @@ class Preferences extends StatefulWidget {
     required this.data,
     required this.write,
     required this.onTheme,
+    this.onHuePreview,
     required this.updates,
     required this.chatmail,
   });
@@ -1478,6 +1492,7 @@ class Preferences extends StatefulWidget {
   final Map<String, dynamic> data;
   final void Function(String, dynamic) write;
   final ValueChanged<ThemeMode> onTheme;
+  final ValueChanged<double>? onHuePreview;
   @override
   State<Preferences> createState() => _PreferencesState();
 }
@@ -1504,6 +1519,7 @@ class _PreferencesState extends State<Preferences> {
             data: widget.data,
             write: widget.write,
             onTheme: widget.onTheme,
+            onHuePreview: widget.onHuePreview,
           ),
         ),
       ),
@@ -1776,11 +1792,13 @@ class _AppearancePage extends StatefulWidget {
     required this.data,
     required this.write,
     required this.onTheme,
+    this.onHuePreview,
   });
 
   final Map<String, dynamic> data;
   final void Function(String, dynamic) write;
   final ValueChanged<ThemeMode> onTheme;
+  final ValueChanged<double>? onHuePreview;
 
   @override
   State<_AppearancePage> createState() => _AppearancePageState();
@@ -1788,6 +1806,13 @@ class _AppearancePage extends StatefulWidget {
 
 class _AppearancePageState extends State<_AppearancePage> {
   late double _size = messageTextSizeFrom(widget.data['messageTextSize']);
+  late double _hue = ZompadoBrand.hueFrom(widget.data['themeHue']);
+  late bool _dark = widget.data['theme'] != 'light';
+
+  void _saveHue(double hue) {
+    setState(() => _hue = hue);
+    widget.write('themeHue', hue);
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -1800,16 +1825,74 @@ class _AppearancePageState extends State<_AppearancePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: SegmentedButton<bool>(
+              expandedInsets: EdgeInsets.zero,
+              showSelectedIcon: false,
+              selected: {_dark},
+              segments: const [
+                ButtonSegment(value: false, label: Text('Light mode')),
+                ButtonSegment(value: true, label: Text('Dark mode')),
+              ],
+              onSelectionChanged: (selection) {
+                final dark = selection.single;
+                setState(() => _dark = dark);
+                widget.onTheme(dark ? ThemeMode.dark : ThemeMode.light);
+              },
+            ),
+          ),
           _settingsCard(
             context,
-            SwitchListTile(
-              secondary: const Icon(Icons.dark_mode_outlined),
-              title: const Text('Dark theme'),
-              value: widget.data['theme'] != 'light',
-              onChanged: (dark) {
-                widget.onTheme(dark ? ThemeMode.dark : ThemeMode.light);
-                setState(() {});
-              },
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Theme color',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      gradient: LinearGradient(
+                        colors: [
+                          for (var angle = 0; angle <= 360; angle += 60)
+                            HSLColor.fromAHSL(
+                              1,
+                              angle.toDouble(),
+                              .8,
+                              .45,
+                            ).toColor(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Semantics(
+                    label: 'Theme hue',
+                    child: Slider(
+                      value: _hue,
+                      max: 360,
+                      semanticFormatterCallback: (value) =>
+                          '${value.round()} degrees',
+                      onChanged: (hue) {
+                        setState(() => _hue = hue);
+                        widget.onHuePreview?.call(hue);
+                      },
+                      onChangeEnd: _saveHue,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _hue == ZompadoBrand.defaultHue
+                        ? null
+                        : () => _saveHue(ZompadoBrand.defaultHue),
+                    child: const Text('Reset color'),
+                  ),
+                ],
+              ),
             ),
           ),
           _settingsCard(

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 abstract final class ZompadoBrand {
@@ -6,26 +8,81 @@ abstract final class ZompadoBrand {
   static const bubbleBlue = Color(0xff5ecffe);
   static const white = Color(0xfffefefe);
   static const darkPanel = Color(0xff122a35);
-  static const lightPanel = Color(0xffeff6f9);
+  static const lightPanel = Color(0xffd3e1e8);
+  static const defaultHue = 198.0;
   static const markAsset = 'docs/brand/bubble.png';
   static const wordmarkAsset = 'docs/brand/wordmark.png';
 
-  static ThemeData theme(Brightness brightness) {
+  static double hueFrom(Object? value) => value is num && value.isFinite
+      ? value.clamp(0, 360).toDouble()
+      : defaultHue;
+
+  static ThemeData theme(Brightness brightness, {double hue = defaultHue}) {
     final dark = brightness == Brightness.dark;
+    Color tint(Color color) {
+      if (hue == defaultHue) return color;
+      final hsl = HSLColor.fromColor(color);
+      return hsl.withHue((hsl.hue + hue - defaultHue) % 360).toColor();
+    }
+
+    final surface = tint(dark ? ink : const Color(0xffe5edf1));
+    final text = dark ? white : tint(ink);
+    final sentBubble = tint(
+      dark ? const Color(0xff154957) : const Color(0xffb8d6e6),
+    );
+    final high = tint(dark ? const Color(0xff263d46) : const Color(0xffc3d4de));
+    final mutedText = Color.alphaBlend(text.withValues(alpha: .8), surface);
+    final accentText = dark ? surface : white;
+    final backgrounds = [surface, sentBubble, high, accentText];
+    final luminances = backgrounds.map((color) => color.computeLuminance());
+    final against = luminances.reduce(dark ? math.max : math.min);
+
+    Color readableAccent(Color base) {
+      var hsl = HSLColor.fromColor(tint(base));
+      var accent = hsl.toColor();
+      bool readable() {
+        final luminance = accent.computeLuminance();
+        return dark
+            ? (luminance + .05) >= 4.5 * (against + .05)
+            : (against + .05) >= 4.5 * (luminance + .05);
+      }
+
+      while (!readable()) {
+        hsl = hsl.withLightness(
+          (hsl.lightness + (dark ? .025 : -.025)).clamp(0, 1),
+        );
+        accent = hsl.toColor();
+      }
+      return accent;
+    }
+
+    final accent = readableAccent(dark ? bubbleBlue : const Color(0xff00507a));
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: wordmarkBlue,
+          seedColor: tint(wordmarkBlue),
           brightness: brightness,
         ).copyWith(
-          primary: dark ? bubbleBlue : const Color(0xff075473),
-          onPrimary: dark ? ink : white,
-          secondary: dark ? wordmarkBlue : const Color(0xff124c64),
-          onSecondary: dark ? ink : white,
-          secondaryContainer: bubbleBlue,
-          onSecondaryContainer: ink,
-          surface: dark ? ink : white,
-          onSurface: dark ? white : ink,
-          surfaceContainer: dark ? darkPanel : lightPanel,
+          primary: accent,
+          onPrimary: accentText,
+          primaryContainer: sentBubble,
+          onPrimaryContainer: text,
+          secondary: readableAccent(
+            dark ? wordmarkBlue : const Color(0xff124c64),
+          ),
+          onSecondary: accentText,
+          secondaryContainer: accent,
+          onSecondaryContainer: accentText,
+          surface: surface,
+          onSurface: text,
+          onSurfaceVariant: mutedText,
+          surfaceContainerLow: tint(
+            dark ? const Color(0xff102329) : const Color(0xffdfe9ee),
+          ),
+          surfaceContainer: tint(dark ? darkPanel : lightPanel),
+          surfaceContainerHigh: tint(
+            dark ? const Color(0xff1c3541) : const Color(0xffcadbe4),
+          ),
+          surfaceContainerHighest: high,
         );
 
     return ThemeData(
@@ -45,8 +102,8 @@ abstract final class ZompadoBrand {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: bubbleBlue,
-          foregroundColor: ink,
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
         ),
       ),
     );

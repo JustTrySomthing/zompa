@@ -22,15 +22,12 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final dark = colors.brightness == Brightness.dark;
     final background = outgoing
-        ? (dark ? const Color(0xff154957) : const Color(0xffd7f1fb))
+        ? colors.primaryContainer
         : colors.surfaceContainerHighest;
-    final foreground = outgoing
-        ? (dark ? const Color(0xfff0fbff) : const Color(0xff092c3a))
-        : colors.onSurface;
+    final foreground = outgoing ? colors.onPrimaryContainer : colors.onSurface;
     final secondary = outgoing
-        ? (dark ? const Color(0xffb8dce5) : const Color(0xff315665))
+        ? Color.alphaBlend(foreground.withValues(alpha: 0.78), background)
         : colors.onSurfaceVariant;
 
     return DecoratedBox(

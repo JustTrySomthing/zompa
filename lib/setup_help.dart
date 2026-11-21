@@ -332,7 +332,7 @@ const _topics = [
       ),
       (
         'How do I make messages easier to read?',
-        'Open Settings → Appearance. Use Message text size to adjust the text inside chat bubbles and see the change in the preview. The screen also has a Dark theme switch.',
+        'Open Settings → Appearance to choose Light mode or Dark mode. Move the Theme color slider to change the app’s colors, or tap Reset color to return to the default blue. Use Message text size to adjust the text inside chat bubbles.',
       ),
       (
         'Where can I get a log if a call is slow or crashes?',
