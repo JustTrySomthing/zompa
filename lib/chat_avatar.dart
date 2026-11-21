@@ -3,11 +3,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 class ChatAvatar extends StatelessWidget {
-  const ChatAvatar(this.name, {super.key, this.photo, this.radius = 19});
+  const ChatAvatar(
+    this.name, {
+    super.key,
+    this.photo,
+    this.radius = 19,
+    this.backgroundColor,
+    this.foregroundColor,
+  });
 
   final String name;
   final String? photo;
   final double radius;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +27,8 @@ class ChatAvatar extends StatelessWidget {
     );
     return CircleAvatar(
       radius: radius,
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
       child: photo == null || photo!.isEmpty
           ? fallback
           : ClipOval(

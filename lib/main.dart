@@ -1513,9 +1513,6 @@ class _PreferencesState extends State<Preferences> {
                   ListTile(
                     leading: const Icon(Icons.tune_rounded),
                     title: const Text('Setup'),
-                    subtitle: const Text(
-                      'Review permissions and update options',
-                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -1529,9 +1526,6 @@ class _PreferencesState extends State<Preferences> {
                   ListTile(
                     leading: const Icon(Icons.help_outline_rounded),
                     title: const Text('Help'),
-                    subtitle: const Text(
-                      'Find answers about games, friends, and updates',
-                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(builder: (_) => const HelpPage()),
@@ -1540,7 +1534,6 @@ class _PreferencesState extends State<Preferences> {
                   ListTile(
                     leading: const Icon(Icons.palette_outlined),
                     title: const Text('Appearance'),
-                    subtitle: const Text('Theme and message text size'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push<void>(
                       MaterialPageRoute(

@@ -187,6 +187,10 @@ class _FriendsPaneState extends State<FriendsPane> {
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialog).colorScheme.error,
+              foregroundColor: Theme.of(dialog).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(dialog, true),
             child: const Text('Empty trash'),
           ),
@@ -347,23 +351,43 @@ class _FriendsPaneState extends State<FriendsPane> {
                 : (folders) => _selectFolder(folders.single),
           ),
           if (_folder == _ChatFolder.trash)
-            Wrap(
-              spacing: 10,
+            Row(
               children: [
-                TextButton(
-                  onPressed: _busy || _chats.isEmpty
-                      ? null
-                      : () async {
-                          await _perform(
-                            () => widget.chatmail.restoreTrash(null),
-                          );
-                          if (mounted) await _refresh();
-                        },
-                  child: const Text('Restore all'),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.brightness == Brightness.dark
+                            ? Colors.greenAccent.shade100
+                            : Colors.green.shade800,
+                      ),
+                      onPressed: _busy || _chats.isEmpty
+                          ? null
+                          : () async {
+                              await _perform(
+                                () => widget.chatmail.restoreTrash(null),
+                              );
+                              if (mounted) await _refresh();
+                            },
+                      child: const Text('Restore all'),
+                    ),
+                  ),
                 ),
-                TextButton(
-                  onPressed: _busy || _chats.isEmpty ? null : _emptyTrash,
-                  child: const Text('Empty trash'),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                      ),
+                      onPressed: _busy || _chats.isEmpty ? null : _emptyTrash,
+                      child: const Text(
+                        'Empty trash',
+                        textAlign: TextAlign.end,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -893,7 +917,13 @@ class _FriendConversationState extends State<FriendConversation>
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         children: [
-          ChatAvatar(author, photo: message.sender?.photo, radius: 14),
+          ChatAvatar(
+            author,
+            photo: message.sender?.photo,
+            radius: 14,
+            backgroundColor: message.outgoing ? Colors.white : null,
+            foregroundColor: message.outgoing ? const Color(0xff00516a) : null,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -948,31 +978,36 @@ class _FriendConversationState extends State<FriendConversation>
     );
   }
 
-  Widget _reactions(FriendMessage message, bool canSend) {
+  Widget _reactions(BuildContext context, FriendMessage message, bool canSend) {
     return Align(
       alignment: Alignment.centerRight,
       child: Wrap(
         spacing: 5,
         children: [
           for (final reaction in message.reactions)
-            ActionChip(
-              label: Text(
-                reaction.count == 1
-                    ? reaction.emoji
-                    : '${reaction.emoji} ${reaction.count}',
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  disabledForegroundColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurface,
+                  minimumSize: const Size(44, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                ),
+                onPressed: canSend && !reaction.mine
+                    ? () => _updateMessage(
+                        message,
+                        () => widget.chatmail.react(message.id, reaction.emoji),
+                      )
+                    : null,
+                child: Text(
+                  reaction.count == 1
+                      ? reaction.emoji
+                      : '${reaction.emoji} ${reaction.count}',
+                ),
               ),
-              backgroundColor: reaction.mine
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : null,
-              onPressed: canSend
-                  ? () => _updateMessage(
-                      message,
-                      () => widget.chatmail.react(
-                        message.id,
-                        reaction.mine ? null : reaction.emoji,
-                      ),
-                    )
-                  : null,
             ),
         ],
       ),
@@ -1390,7 +1425,11 @@ class _FriendConversationState extends State<FriendConversation>
                                             ),
                                         ],
                                         if (message.reactions.isNotEmpty)
-                                          _reactions(message, thread.canSend),
+                                          _reactions(
+                                            bubble,
+                                            message,
+                                            thread.canSend,
+                                          ),
                                         if (message.delivery
                                             case final delivery?)
                                           Text(
@@ -1469,6 +1508,7 @@ class _FriendConversationState extends State<FriendConversation>
                     onPressed: _sending ? null : _showEmoji,
                     icon: const Icon(Icons.emoji_emotions_outlined),
                   ),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: TextField(
                       controller: _composer,
