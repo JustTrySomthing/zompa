@@ -27,6 +27,7 @@ class ChatGallery extends StatefulWidget {
 class _ChatGalleryState extends State<ChatGallery> {
   static const _pageSize = 45;
   int _limit = _pageSize;
+  ChatMediaFilter _filter = ChatMediaFilter.all;
   List<FriendMessage> _items = [];
   bool _hasOlder = false;
   bool _loaded = false;
@@ -67,12 +68,13 @@ class _ChatGalleryState extends State<ChatGallery> {
 
   Future<void> _refresh() async {
     // A refresh after a save must run after any previous read has finished.
-    while (mounted && _loading != null) {
+    final filter = _filter;
+    while (mounted && _loading != null && filter == _filter) {
       await _loading;
     }
-    if (!mounted) return;
+    if (!mounted || filter != _filter) return;
     _needsRefresh = false;
-    final pending = _load();
+    final pending = _load(filter);
     setState(() {
       _loading = pending;
     });
@@ -80,13 +82,16 @@ class _ChatGalleryState extends State<ChatGallery> {
     if (mounted) setState(() => _loading = null);
   }
 
-  Future<void> _load() async {
+  Future<void> _load(ChatMediaFilter filter) async {
     try {
-      final result = await widget.chatmail.chatMedia(
-        widget.chat,
-        limit: _limit,
-      );
-      if (!mounted) return;
+      final result = await (filter == ChatMediaFilter.all
+          ? widget.chatmail.chatMedia(widget.chat, limit: _limit)
+          : widget.chatmail.filteredChatMedia(
+              widget.chat,
+              limit: _limit,
+              filter: filter,
+            ));
+      if (!mounted || _filter != filter) return;
       setState(() {
         _items = result.messages;
         _hasOlder = result.hasOlder;
@@ -94,8 +99,21 @@ class _ChatGalleryState extends State<ChatGallery> {
         _failed = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _failed = true);
+      if (mounted && _filter == filter) setState(() => _failed = true);
     }
+  }
+
+  void _selectFilter(ChatMediaFilter filter) {
+    if (filter == _filter) return;
+    setState(() {
+      _filter = filter;
+      _limit = _pageSize;
+      _items = [];
+      _hasOlder = false;
+      _loaded = false;
+      _failed = false;
+    });
+    unawaited(_refresh());
   }
 
   Future<void> _loadOlder() async {
@@ -129,12 +147,36 @@ class _ChatGalleryState extends State<ChatGallery> {
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
+  Widget build(BuildContext context) => Column(
+    children: [
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
+        child: Row(
+          children: [
+            for (final filter in ChatMediaFilter.values)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 6),
+                child: ChoiceChip(
+                  label: Text(filter.label),
+                  showCheckmark: false,
+                  selected: _filter == filter,
+                  onSelected: (_) => _selectFilter(filter),
+                ),
+              ),
+          ],
+        ),
+      ),
+      Expanded(child: _gallery()),
+    ],
+  );
+
+  Widget _gallery() => LayoutBuilder(
     builder: (context, bounds) {
       final artHeight = (bounds.maxWidth / 3).clamp(90.0, 180.0);
       final labelHeight = MediaQuery.textScalerOf(context).scale(12) * 3.6;
       return CustomScrollView(
-        key: PageStorageKey('chat-media-${widget.chat}'),
+        key: PageStorageKey(('chat-media', widget.chat, _filter)),
         primary: false,
         slivers: [
           if (_items.isNotEmpty)
@@ -177,7 +219,11 @@ class _ChatGalleryState extends State<ChatGallery> {
                           child: const Text('Load older attachments'),
                         )
                       : _loaded
-                      ? const Text('No attachments in this chat yet.')
+                      ? Text(
+                          _filter == ChatMediaFilter.all
+                              ? 'No attachments in this chat yet.'
+                              : 'No matching attachments in this chat.',
+                        )
                       : const SizedBox.shrink(),
                 ),
               ),

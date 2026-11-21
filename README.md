@@ -14,6 +14,8 @@ or make your own.
 - **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation. Tap website addresses or YouTube previews to open them in the app. In a conversation, switch to Media to browse, preview, or save shared attachments.
 - **Manage your game library.** A fresh install starts with an empty library. Add official `.zomp` games and remove them from **My Games**. Open the import button for compatible `.love` files on your device.
 
+[Submit a game or update its catalog artwork](https://github.com/JustTrySomthing/zompado-games#submit-a-game).
+
 Downloaded games require Android 10 or later and a sandboxed WebView renderer. Open **Settings → Game audio** to adjust volume, mute the game, or control whether its volume lowers during a call. SDK games also support separate music and effects controls.
 
 After Android stops the process, Zompado checks for new activity on Android’s schedule. A call alert lets you answer if the call is still ringing. Reopen the app after using Android’s **Force stop**. **Settings → Setup** and **Help** cover alerts and permissions.

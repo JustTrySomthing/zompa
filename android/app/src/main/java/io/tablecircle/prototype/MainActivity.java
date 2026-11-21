@@ -1,6 +1,7 @@
 package io.tablecircle.prototype;
 
 import android.Manifest;
+import android.app.KeyguardManager;
 import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -11,6 +12,7 @@ import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.os.Build;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
 import androidx.core.content.FileProvider;
@@ -253,6 +255,14 @@ public final class MainActivity extends FlutterActivity {
                         openNotificationSettings();
                         result.success(null);
                         break;
+                    case "openCallBatterySettings":
+                        try {
+                            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                            result.success(null);
+                        } catch (android.content.ActivityNotFoundException error) {
+                            result.error("CALL_SETTINGS", "Couldn’t open Android battery settings.", null);
+                        }
+                        break;
                     case "showChatNotification":
                         Integer chat = call.argument("chat");
                         Integer message = call.argument("message");
@@ -267,7 +277,9 @@ public final class MainActivity extends FlutterActivity {
                         Integer incomingChat = call.argument("chat");
                         Integer secondsLeft = call.argument("secondsLeft");
                         if (incoming != null && incomingChat != null && secondsLeft != null) {
-                            if (Boolean.TRUE.equals(call.argument("foreground"))) {
+                            if (Boolean.TRUE.equals(call.argument("foreground"))
+                                    && getSystemService(PowerManager.class).isInteractive()
+                                    && !getSystemService(KeyguardManager.class).isKeyguardLocked()) {
                                 ring(incomingChat, incoming, secondsLeft);
                             } else {
                                 ChatAlerts.incoming(MainActivity.this, incomingChat, incoming, secondsLeft);
@@ -339,6 +351,8 @@ public final class MainActivity extends FlutterActivity {
                     case "setupStatus":
                         HashMap<String, Boolean> statuses = new HashMap<>();
                         statuses.put("notifications", updateAlertsEnabled());
+                        statuses.put("batteryUnrestricted", getSystemService(PowerManager.class)
+                            .isIgnoringBatteryOptimizations(getPackageName()));
                         statuses.put("microphone", checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                             == PackageManager.PERMISSION_GRANTED);
                         statuses.put("cameraAvailable", cameraAvailable());

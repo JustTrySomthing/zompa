@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'chatmail.dart';
 import 'chat_files.dart';
 import 'chat_gallery.dart';
+import 'chat_search.dart';
 import 'tab_content.dart';
 import 'chat_emoji.dart';
 import 'chat_avatar.dart';
@@ -28,8 +29,7 @@ String _failure(Object error) => switch (error) {
   ChatmailIssue.unavailable =>
     'The Chatmail connection stopped. Retry from Chats.',
   TimeoutException() => 'Chatmail took too long to respond. Try again.',
-  _ =>
-    'Chatmail couldn’t complete this action. Check your connection and try again.',
+  _ => 'Chatmail couldn’t complete this action. Check your connection and try again.',
 };
 
 class FriendsPane extends StatefulWidget {
@@ -1204,9 +1204,9 @@ class _FriendConversationState extends State<FriendConversation>
               child: TextButton(
                 style: TextButton.styleFrom(
                   foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  disabledForegroundColor: Theme.of(
-                    context,
-                  ).colorScheme.onSurface,
+                  disabledForegroundColor: Theme.of(context)
+                      .colorScheme
+                      .onSurface,
                   minimumSize: const Size(44, 40),
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                 ),
@@ -1330,9 +1330,8 @@ class _FriendConversationState extends State<FriendConversation>
       if (event?.kind == 'invite') {
         final moved = await widget.chatmail.sendMatchOpening(widget.id, event!);
         if (mounted && moved != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
         }
       } else {
         await widget.chatmail.send(
@@ -1374,10 +1373,8 @@ class _FriendConversationState extends State<FriendConversation>
       FocusScope.of(context).unfocus();
       final selected = await showDialog<GameRelease>(
         context: context,
-        builder: (_) => _GameInviteDialog(
-          friend: friend,
-          games: widget.installedGames!(),
-        ),
+        builder: (_) =>
+            _GameInviteDialog(friend: friend, games: widget.installedGames!()),
       );
       if (!mounted || selected == null) return;
       final link = await widget.verifiedGameLink!(selected);
@@ -1436,11 +1433,27 @@ class _FriendConversationState extends State<FriendConversation>
     final docked = widget.onClose != null;
     final voice = VoiceScope.of(context);
     final name = thread?.name ?? widget.initialName;
+    final search = IconButton(
+      tooltip: 'Search conversation',
+      icon: const Icon(Icons.search_rounded),
+      onPressed: thread == null
+          ? null
+          : () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => ChatSearchPage(
+                  chatmail: widget.chatmail,
+                  chat: widget.id,
+                  name: name,
+                ),
+              ),
+            ),
+    );
     final appBar = docked
         ? AppBar(
             automaticallyImplyLeading: false,
             primary: false,
             title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            actions: [search],
           )
         : chatPageBar(
             context,
@@ -1460,6 +1473,7 @@ class _FriendConversationState extends State<FriendConversation>
                           photo: thread.photo,
                         ),
                 ),
+              search,
             ],
           );
     final composerFontSize =

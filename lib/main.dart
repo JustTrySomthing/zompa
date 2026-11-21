@@ -12,6 +12,7 @@ import 'brand.dart';
 import 'app_updates.dart';
 import 'app_log.dart';
 import 'github_distribution.dart';
+import 'game_screenshots.dart';
 import 'game_link.dart';
 import 'dialog_actions.dart';
 import 'chatmail.dart';
@@ -137,6 +138,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Could not load local preferences: $e');
     }
+    unawaited(_restoreChatConnection());
     await _openChatsIfRequested();
     if (!mounted) return;
     final file = storage;
@@ -151,6 +153,17 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       _gameAudio = GameAudio(data, write);
       loaded = true;
     });
+  }
+
+  Future<void> _restoreChatConnection() async {
+    final chat = chatmail;
+    if (chat == null) return;
+    try {
+      final accounts = File('${chat.accountsDirectory.path}/accounts.toml');
+      if (await accounts.exists() && mounted) await chat.restore();
+    } catch (_) {
+      recordAppEvent('Couldn’t reconnect Chatmail for incoming calls');
+    }
   }
 
   Future<void> _openChatsIfRequested() async {
@@ -234,7 +247,10 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) updates?.checkIfDue();
+    if (state == AppLifecycleState.resumed) {
+      updates?.checkIfDue();
+      unawaited(_restoreChatConnection());
+    }
   }
 
   @override
@@ -1239,10 +1255,21 @@ class _HomeState extends State<Home> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (game.id == 'drop-four')
+        if (game.id == 'drop-four' || (catalog && game.hasCover))
           SizedBox(
             height: 146,
-            child: game.build >= 6
+            child: catalog && game.hasCover && widget.distribution != null
+                ? CatalogGameImage(
+                    key: ValueKey(game.imageUrl('cover.webp')),
+                    distribution: widget.distribution!,
+                    game: game,
+                    file: 'cover.webp',
+                    fit: BoxFit.cover,
+                    fallback: game.id == 'drop-four'
+                        ? const CatsVsDogsCover()
+                        : const GameCover(),
+                  )
+                : game.build >= 6
                 ? const CatsVsDogsCover()
                 : const GameCover(),
           ),
@@ -1263,6 +1290,21 @@ class _HomeState extends State<Home> {
                     ),
                     const SizedBox(height: 4),
                     Text(description),
+                    if (catalog &&
+                        game.screenshots.isNotEmpty &&
+                        widget.distribution != null)
+                      IconButton(
+                        tooltip: 'View screenshots for $title',
+                        icon: const Icon(
+                          Icons.photo_library_outlined,
+                          size: 21,
+                        ),
+                        onPressed: () => showGameScreenshots(
+                          context,
+                          widget.distribution!,
+                          game,
+                        ),
+                      ),
                     if (installed)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
@@ -1631,9 +1673,9 @@ class _PreferencesState extends State<Preferences> {
   Widget build(BuildContext context) {
     final chatmail = widget.chatmail;
     final chrome = ChatChrome.of(context);
-    void open(Widget page) => Navigator.of(
-      context,
-    ).push<void>(MaterialPageRoute(builder: (_) => page));
+    void open(Widget page) =>
+        Navigator.of(context)
+            .push<void>(MaterialPageRoute(builder: (_) => page));
 
     final buttons = <Widget>[
       if (chatmail != null)
@@ -1874,9 +1916,8 @@ class _AboutPage extends StatelessWidget {
       // The Android host provides external browsing.
     }
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Couldn’t open GitHub.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Couldn’t open GitHub.')));
     }
   }
 

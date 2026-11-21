@@ -118,6 +118,16 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
             button: 'Open notification settings',
           ),
           _SetupCard(
+            icon: Icons.battery_charging_full_outlined,
+            title: 'Calls while your phone is locked',
+            text: 'Allow Zompado to run without battery restrictions so its connection can receive calls while your phone is idle.',
+            enabled: _status?['batteryUnrestricted'],
+            action: !_working && _status?['batteryUnrestricted'] == false
+                ? () => _open('openCallBatterySettings')
+                : null,
+            button: 'Open battery settings',
+          ),
+          _SetupCard(
             icon: Icons.mic_none_outlined,
             title: 'Microphone for voice calls',
             text: 'Let friends hear you during calls.',
@@ -340,7 +350,7 @@ const _topics = [
       ),
       (
         'How do I call a friend?',
-        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, switch between Video and Audio, or end the call. When your camera is on, Preview shows or hides your own picture. For the quickest incoming alerts, keep Zompado running. If Android’s scheduled check finds a call that’s still ringing, tap the alert to answer it in Zompado.',
+        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, switch between Video and Audio, or end the call. When your camera is on, Preview shows or hides your own picture. For calls while the phone is locked, open Settings → Setup → Calls while your phone is locked. In Android battery settings, find Zompado and allow it to run without battery restrictions. Also check that Incoming calls can appear on your lock screen. If Android has already closed Zompado, a scheduled check may arrive after the call ends.',
       ),
       (
         'How do I send files or keep their original quality?',

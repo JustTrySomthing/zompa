@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
@@ -44,6 +45,33 @@ class ReleaseAsset {
   final int size;
 }
 
+class GameScreenshot {
+  const GameScreenshot(this.file, this.label);
+
+  final String file, label;
+
+  static List<GameScreenshot> parse(Object? value) {
+    if (value is! List || value.length > 3) return const [];
+    final images = <GameScreenshot>[];
+    final seen = <String>{};
+    for (final entry in value) {
+      if (entry is! Map ||
+          entry['file'] is! String ||
+          entry['label'] is! String)
+        continue;
+      final file = entry['file'] as String;
+      final label = (entry['label'] as String).trim();
+      if (RegExp(r'^shot-[1-3]\.webp$').hasMatch(file) &&
+          label.isNotEmpty &&
+          label.length <= 100 &&
+          seen.add(file)) {
+        images.add(GameScreenshot(file, label));
+      }
+    }
+    return List.unmodifiable(images);
+  }
+}
+
 class GameRelease {
   GameRelease.fromJson(Map<String, dynamic> json)
     : id = json['id'] as String,
@@ -52,7 +80,9 @@ class GameRelease {
       build = json['build'] as int,
       modes =
           (json['modes'] as List?)?.cast<String>().toSet() ?? const {'solo'},
-      asset = ReleaseAsset.fromJson(json, gamesRepository, '.zomp') {
+      asset = ReleaseAsset.fromJson(json, gamesRepository, '.zomp'),
+      hasCover = json['cover'] == 'cover.webp',
+      screenshots = GameScreenshot.parse(json['screenshots']) {
     if (id.length > 64 ||
         !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
         json['format'] != 'zomp' ||
@@ -70,6 +100,13 @@ class GameRelease {
   final int build;
   final ReleaseAsset asset;
   final Set<String> modes;
+  final bool hasCover;
+  final List<GameScreenshot> screenshots;
+
+  Uri imageUrl(String file) => Uri.https(
+    'raw.githubusercontent.com',
+    '/$githubOwner/$gamesRepository/main/catalog-art/$id/$version/$file',
+  );
   Map<String, Object> get playerReference => {
     'id': id,
     'build': build,
@@ -86,6 +123,12 @@ class GameRelease {
     'url': asset.url.toString(),
     'sha256': asset.sha,
     'size': asset.size,
+    if (hasCover) 'cover': 'cover.webp',
+    if (screenshots.isNotEmpty)
+      'screenshots': [
+        for (final image in screenshots)
+          {'file': image.file, 'label': image.label},
+      ],
   };
 }
 
@@ -121,6 +164,32 @@ class GithubDistribution {
               GameRelease.fromJson(Map<String, dynamic>.from(entry as Map)),
         )
         .toList();
+  }
+
+  Future<Uint8List> gameImage(GameRelease game, String file) async {
+    if (!(game.hasCover && file == 'cover.webp') &&
+        !game.screenshots.any((image) => image.file == file)) {
+      throw const FormatException('Unknown game image.');
+    }
+    const maxBytes = 350 * 1024;
+    final uri = game.imageUrl(file);
+    final client = _client();
+    try {
+      final response = await _get(client, uri);
+      if (response.contentLength > maxBytes) {
+        throw const FormatException('Game image is too large.');
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in response.timeout(const Duration(seconds: 15))) {
+        if (bytes.length + chunk.length > maxBytes) {
+          throw const FormatException('Game image is too large.');
+        }
+        bytes.add(chunk);
+      }
+      return bytes.takeBytes();
+    } finally {
+      client.close(force: true);
+    }
   }
 
   Future<AppRelease> appRelease() async => AppRelease.fromJson(

@@ -544,6 +544,12 @@ class Chatmail {
   Future<({List<FriendMessage> messages, bool hasOlder})> chatMedia(
     int chat, {
     required int limit,
+  }) => filteredChatMedia(chat, limit: limit, filter: ChatMediaFilter.all);
+
+  Future<({List<FriendMessage> messages, bool hasOlder})> filteredChatMedia(
+    int chat, {
+    required int limit,
+    required ChatMediaFilter filter,
   }) async {
     final account = _accountId;
     final groups = await Future.wait([
@@ -558,16 +564,31 @@ class Chatmail {
       for (final group in groups) ...(group as List).cast<int>(),
     }.toList()..sort((a, b) => b.compareTo(a));
     final messages = <FriendMessage>[];
-    final recent = ids.take(limit).toList();
-    for (var offset = 0; offset < recent.length; offset += 45) {
-      messages.addAll(
-        await _messages(account, recent.skip(offset).take(45).toList()),
+    for (var offset = 0; offset < ids.length; offset += 45) {
+      final batch = await _messages(
+        account,
+        ids.skip(offset).take(45).toList(),
       );
+      messages.addAll(
+        batch.where(
+          (message) => message.file != null && filter.includes(message.media),
+        ),
+      );
+      if (messages.length > limit) break;
     }
     return (
-      messages: messages.where((message) => message.file != null).toList(),
-      hasOlder: ids.length > recent.length,
+      messages: messages.take(limit).toList(),
+      hasOlder: messages.length > limit,
     );
+  }
+
+  Future<List<FriendMessage>> searchConversation(int chat, String query) async {
+    final term = query.trim();
+    if (term.isEmpty) return [];
+    final account = _accountId;
+    final ids = (await _call('search_messages', [account, term, chat]) as List)
+        .cast<int>();
+    return _messages(account, ids.reversed.take(50).toList());
   }
 
   Future<List<FriendMessage>> matchHistory(int chat, String id) =>
@@ -794,6 +815,20 @@ class FriendThread {
 }
 
 enum ChatMedia { image, video, audio }
+
+enum ChatMediaFilter {
+  all('All'),
+  images('Images', ChatMedia.image),
+  video('Video', ChatMedia.video),
+  audio('Audio', ChatMedia.audio),
+  other('Other');
+
+  const ChatMediaFilter(this.label, [this.media]);
+  final String label;
+  final ChatMedia? media;
+
+  bool includes(ChatMedia? type) => this == all || media == type;
+}
 
 class FriendMessage {
   FriendMessage.fromJson(Json message)
