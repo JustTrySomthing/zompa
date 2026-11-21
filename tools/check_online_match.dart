@@ -73,6 +73,22 @@ void main() {
     'An older match with no start message replays its first move',
   );
   final quit = invite.control('quit', 2);
+  final unanswered = OnlineMatch.replay(invite.id, [
+    message(invite, outgoing: true),
+    message(quit, outgoing: true, state: 24),
+  ])!;
+  check(
+    unanswered.active && !unanswered.accepted && unanswered.pending?.state == 24,
+    'An unanswered invitation can retry a failed cancellation',
+  );
+  final canceled = OnlineMatch.replay(invite.id, [
+    message(invite, outgoing: false),
+    message(quit, outgoing: false),
+  ])!;
+  check(
+    canceled.quit && !canceled.active,
+    'A canceled invitation disappears for the recipient before acceptance',
+  );
   final queuedQuit = replay([
     message(start, outgoing: true),
     message(quit, outgoing: true, state: 20),

@@ -285,7 +285,7 @@ const _topics = [
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. In My Games → Online matches, tap Resume Game to return directly to the board.',
+        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to return to the board or End game to close a match for both players. You can start or accept games until you have 12 active online games.',
       ),
       (
         'How do I change game sounds?',

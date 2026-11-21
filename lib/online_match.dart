@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -7,6 +8,82 @@ import 'game_link.dart';
 import 'github_distribution.dart';
 
 const matchMarker = 'ZOMPADO_MATCH_V1 ';
+const activeMatchLimit = 12;
+
+class ActiveMatchLimit implements Exception {
+  const ActiveMatchLimit();
+
+  static const message =
+      'You can have $activeMatchLimit active online games. End one in My Games before starting another.';
+}
+
+typedef ActiveMatch = ({FriendChat chat, OnlineMatch match, int updated});
+
+final _openingMatch = Expando<Future<void>>();
+
+extension OnlineMatchHistory on Chatmail {
+  Future<List<ActiveMatch>> activeMatches() async {
+    if (!await restore()) return [];
+    final folders = await Future.wait([chats(), chats(archived: true)]);
+    final byChat = {
+      for (final chat in folders.expand((items) => items)) chat.id: chat,
+    };
+    if (byChat.isEmpty) return [];
+    final histories = <(int, String), List<FriendMessage>>{};
+    for (final message in await recentMatchMessages(matchMarker)) {
+      if (message.info ||
+          (!message.outgoing && !message.encrypted) ||
+          !byChat.containsKey(message.chat))
+        continue;
+      if (MatchEvent.parse(message.text) case final event?) {
+        (histories[(message.chat, event.id)] ??= []).add(message);
+      }
+    }
+    return [
+      for (final entry in histories.entries)
+        if (OnlineMatch.replay(entry.key.$2, entry.value) case final match?
+            when match.active)
+          (
+            chat: byChat[entry.key.$1]!,
+            match: match,
+            updated: entry.value
+                .map((message) => message.timestamp)
+                .reduce(max),
+          ),
+    ]..sort((a, b) {
+      if (a.match.myTurn != b.match.myTurn) return a.match.myTurn ? -1 : 1;
+      return b.updated.compareTo(a.updated);
+    });
+  }
+
+  Future<void> checkMatchCapacity(int chat, MatchEvent event) async {
+    final matches = await activeMatches();
+    final occupied = matches.where(
+      (entry) => entry.match.mine || entry.match.accepted,
+    );
+    if (occupied.length >= activeMatchLimit &&
+        !occupied.any(
+          (entry) => entry.chat.id == chat && entry.match.invite.id == event.id,
+        )) {
+      throw const ActiveMatchLimit();
+    }
+  }
+
+  Future<void> sendMatchOpening(int chat, MatchEvent event) async {
+    while (_openingMatch[this] != null) {
+      await _openingMatch[this]!;
+    }
+    final opening = Completer<void>();
+    _openingMatch[this] = opening.future;
+    try {
+      await checkMatchCapacity(chat, event);
+      await send(chat, event.wire);
+    } finally {
+      _openingMatch[this] = null;
+      opening.complete();
+    }
+  }
+}
 
 class MatchEvent {
   MatchEvent._(
@@ -137,11 +214,11 @@ class OnlineMatch {
       (board.turn == 1) == mine;
 
   String get status {
+    if (quit) return 'Match ended.';
     if (conflict) return 'Conflicting turns. Start a new match.';
     if (pending?.state == 20) return 'Sending match update…';
     if (pending?.state == 24) return 'Couldn’t send this match update.';
     if (declined) return 'Invitation declined.';
-    if (quit) return 'Match ended.';
     if (pausedByMe) return 'You paused the game.';
     if (pausedByFriend) return 'Your friend paused the game.';
     if (!accepted && preparing) return 'Getting the game ready…';
@@ -176,7 +253,7 @@ class OnlineMatch {
           r.message.outgoing != match.mine ||
           r.event.game.toString() != first.event.game.toString(),
     )) {
-      return match..conflict = true;
+      match.conflict = true;
     }
     FriendMessage? pendingFor(List<FriendMessage> messages) {
       if (messages.any((m) => !m.outgoing || m.delivery == null)) return null;
@@ -202,10 +279,9 @@ class OnlineMatch {
     match.declined =
         accepts.isEmpty &&
         replies.any((record) => record.event.kind == 'decline');
-    if (accepts.isEmpty) return match;
-    match.accepted = true;
-    match.pending = pendingFor(accepts);
-    while (!match.finished) {
+    match.accepted = accepts.isNotEmpty;
+    if (match.accepted) match.pending = pendingFor(accepts);
+    while (match.accepted && !match.finished && !match.conflict) {
       final ownTurn = (match.board.turn == 1) == match.mine;
       final candidates = events
           .where(
@@ -218,8 +294,10 @@ class OnlineMatch {
           .toList();
       if (candidates.isEmpty) break;
       final column = candidates.first.event.column!;
-      if (candidates.any((r) => r.event.column != column))
-        return match..conflict = true;
+      if (candidates.any((r) => r.event.column != column)) {
+        match.conflict = true;
+        break;
+      }
       match.board.drop(column);
       match.moves += '$column';
       match.pending = pendingFor(candidates.map((r) => r.message).toList());
@@ -227,7 +305,7 @@ class OnlineMatch {
     // An inviter can send a resume before the first move to start both boards.
     // Older clients also understand resume, and their first move starts the match.
     match.started = match.moves.isNotEmpty;
-    if (!match.started) {
+    if (match.accepted && !match.started) {
       final starts = [
         for (final record in events)
           if (record.event.kind == 'resume' &&
@@ -247,7 +325,8 @@ class OnlineMatch {
     for (final record in events) {
       final (:event, :message) = record;
       final revision = event.revision;
-      if (revision == null) continue;
+      if (revision == null || (!match.accepted && event.kind != 'quit'))
+        continue;
       final own = message.outgoing;
       if (own && event.kind != 'quit') {
         if (message.delivery == null) {

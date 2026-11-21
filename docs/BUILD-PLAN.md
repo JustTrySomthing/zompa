@@ -41,7 +41,7 @@ Install the signed preview on two ARM64 Android phones. Use a 16 KB Android phon
 
 Repeat on Wi-Fi and mobile data. Confirm that the sending state clears when the server accepts a message, that status changes do not duplicate messages, and that the profile remains usable offline and after reconnecting.
 
-- In an online Drop Four match, send a message from the chat dock, close it, and play a turn. On the other device, open **Games → My Games → Online matches** and confirm that it opens the same board.
+- In an online Drop Four match, send a message from the chat dock, close it, and play a turn. On the other device, open **Games → My Games → Active Games** and confirm that it opens the same board.
 - Tap notifications from two different conversations and check that each opens its own chat. Tap a turn alert while another game is open, then use Back to return to it. With the recipient's process stopped, repeat from a scheduled alert. Check that a match opens its installed board and offers installation for a missing version.
 - Allow notifications and microphone access in **Settings → Setup**. Place, answer, decline, and end calls from two phones. Verify two-way audio, mute, speaker, and that calls stay active while returning to a game or locking the phone. Try with each phone on a different network.
 - Background the receiving phone and send an encrypted message. Repeat after Android has stopped the receiving process. Use `adb shell am kill io.tablecircle.prototype` on a backgrounded preview for process-death testing. Inspect the Android job with `adb shell dumpsys jobscheduler`. The periodic check has a 15-minute nominal interval, requires a network, and may be deferred. A manual **Force stop** pauses delivery until the app is reopened.

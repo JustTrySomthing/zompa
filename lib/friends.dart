@@ -18,6 +18,7 @@ import 'saved_messages.dart';
 import 'voice_calls.dart';
 
 String _failure(Object error) => switch (error) {
+  ActiveMatchLimit() => ActiveMatchLimit.message,
   ChatmailIssue.invite => 'Use the invite link from a friend’s Invite screen.',
   ChatmailIssue.encrypted => 'Wait for your friend connection to finish.',
   ChatmailIssue.unavailable =>
@@ -1129,13 +1130,18 @@ class _FriendConversationState extends State<FriendConversation>
         return false;
       }
       final outgoing = prepared ?? attachment;
-      await widget.chatmail.send(
-        widget.id,
-        text,
-        file: outgoing?.path,
-        filename: outgoing?.name,
-        mediaType: outgoing?.mediaType,
-      );
+      final event = gameLink == null ? null : MatchEvent.parse(gameLink);
+      if (event?.kind == 'invite') {
+        await widget.chatmail.sendMatchOpening(widget.id, event!);
+      } else {
+        await widget.chatmail.send(
+          widget.id,
+          text,
+          file: outgoing?.path,
+          filename: outgoing?.name,
+          mediaType: outgoing?.mediaType,
+        );
+      }
       await attachment?.discard();
       if (!mounted) return false;
       if (attachment != null) setState(() => _attachment = null);

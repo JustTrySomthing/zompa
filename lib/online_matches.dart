@@ -9,31 +9,52 @@ import 'github_distribution.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
 
-class OnlineMatches extends StatefulWidget {
-  const OnlineMatches({
-    super.key,
+Future<void> showActiveGames(
+  BuildContext context, {
+  required Chatmail chatmail,
+  required Future<GameRelease?> Function(GameLink) prepareGame,
+  GameRelease? game,
+}) => showModalBottomSheet<void>(
+  context: context,
+  showDragHandle: true,
+  isScrollControlled: true,
+  useSafeArea: true,
+  builder: (_) => FractionallySizedBox(
+    heightFactor: .82,
+    child: _ActiveGamesSheet(
+      chatmail: chatmail,
+      prepareGame: prepareGame,
+      game: game,
+    ),
+  ),
+);
+
+class _ActiveGamesSheet extends StatefulWidget {
+  const _ActiveGamesSheet({
     required this.chatmail,
     required this.prepareGame,
-    this.onOpenChats,
+    this.game,
   });
 
   final Chatmail chatmail;
   final Future<GameRelease?> Function(GameLink) prepareGame;
-  final VoidCallback? onOpenChats;
+  final GameRelease? game;
 
   @override
-  State<OnlineMatches> createState() => _OnlineMatchesState();
+  State<_ActiveGamesSheet> createState() => _ActiveGamesSheetState();
 }
 
-class _OnlineMatchesState extends State<OnlineMatches>
+class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     with WidgetsBindingObserver {
   StreamSubscription<void>? _events;
   Timer? _timer;
   bool _loading = false;
   bool _reload = false;
-  List<({FriendChat chat, OnlineMatch match})> _matches = [];
+  List<ActiveMatch> _matches = [];
   bool _loaded = false;
   bool _failed = false;
+  String? _endError;
+  bool _ending = false;
 
   @override
   void initState() {
@@ -67,34 +88,16 @@ class _OnlineMatchesState extends State<OnlineMatches>
     }
     _loading = true;
     try {
-      final ready = await widget.chatmail.restore();
-      final chats = {
-        if (ready)
-          for (final chat in await widget.chatmail.chats()) chat.id: chat,
-      };
-      if (!mounted) return;
-      final records = chats.isEmpty
-          ? const <FriendMessage>[]
-          : await widget.chatmail.recentMatchMessages(matchMarker);
-      final histories = <(int, String), List<FriendMessage>>{};
-      for (final message in records) {
-        if (!chats.containsKey(message.chat)) continue;
-        if (MatchEvent.parse(message.text) case final event?) {
-          (histories[(message.chat, event.id)] ??= []).add(message);
-        }
-      }
-      final active = [
-        for (final entry in histories.entries)
-          if (OnlineMatch.replay(entry.key.$2, entry.value) case final match?
-              when match.active)
-            (chat: chats[entry.key.$1]!, match: match),
-      ];
+      final active = await widget.chatmail.activeMatches();
       if (mounted) {
         setState(() {
-          _matches = [
-            ...active.where((entry) => entry.match.myTurn),
-            ...active.where((entry) => !entry.match.myTurn),
-          ];
+          final game = widget.game;
+          _matches = game == null
+              ? active
+              : [
+                  for (final entry in active)
+                    if (entry.match.invite.game?.id == game.id) entry,
+                ];
           _loaded = true;
           _failed = false;
         });
@@ -131,61 +134,194 @@ class _OnlineMatchesState extends State<OnlineMatches>
     await _load();
   }
 
+  Future<void> _end(ActiveMatch entry) async {
+    if (_ending) return;
+    final (:chat, :match, updated: _) = entry;
+    setState(() {
+      _ending = true;
+      _endError = null;
+    });
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('End this game?'),
+          content: Text(
+            'This ends your online game with ${chat.name} for both players.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Keep game'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialog).colorScheme.error,
+                foregroundColor: Theme.of(dialog).colorScheme.onError,
+              ),
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('End game'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+      final current = OnlineMatch.replay(
+        match.invite.id,
+        await widget.chatmail.matchHistory(chat.id, match.invite.id),
+      );
+      if (!mounted || current == null || !current.active) return;
+      final pending = MatchEvent.parse(current.pending?.text ?? '');
+      if (pending?.kind == 'quit' && current.pending?.state == 20) return;
+      await widget.chatmail.send(
+        chat.id,
+        pending?.kind == 'quit'
+            ? pending!.wire
+            : current.invite.control('quit', current.nextRevision).wire,
+      );
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => _endError =
+              'Couldn’t end the game. Check your connection and try again.',
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _ending = false);
+        await _load();
+      }
+    }
+  }
+
+  Widget _matchCard(ActiveMatch entry) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final (:chat, :match, updated: _) = entry;
+    final pendingQuit =
+        MatchEvent.parse(match.pending?.text ?? '')?.kind == 'quit';
+    final ending = pendingQuit && match.pending?.state == 20;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.game?.title ?? 'Cats vs Dogs'} with ${chat.name}',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              ending
+                  ? 'Ending game…'
+                  : (pendingQuit ? 'Couldn’t end this game.' : match.status),
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                children: [
+                  if (!match.finished)
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: colors.error,
+                      ),
+                      onPressed: _ending || ending ? null : () => _end(entry),
+                      child: Text(pendingQuit ? 'Retry end' : 'End game'),
+                    ),
+                  FilledButton.tonal(
+                    onPressed: _ending ? null : () => _open(chat, match),
+                    child: Text(
+                      match.started && !match.conflict
+                          ? 'Resume Game'
+                          : 'Open game',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final standalone = widget.onOpenChats != null;
-    if (_matches.isEmpty && !standalone) return const SizedBox.shrink();
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return SafeArea(
+      top: false,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!standalone)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: Text(
-                'Online matches',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Active Games',
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close active games',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
             ),
-          if (_failed)
-            ListTile(
-              title: const Text('Couldn’t refresh your matches.'),
-              trailing: TextButton(
-                onPressed: _load,
-                child: const Text('Retry'),
-              ),
-            )
-          else if (!_loaded)
-            const LinearProgressIndicator()
-          else if (_matches.isEmpty)
-            ListTile(
-              title: const Text('No active matches'),
-              subtitle: const Text(
-                'Open a friend’s chat and tap the game controller to send a match invite.',
-              ),
-              trailing: TextButton(
-                onPressed: widget.onOpenChats,
-                child: const Text('Open Chats'),
-              ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              itemCount: _matches.length + 1,
+              itemBuilder: (context, index) {
+                if (index > 0) return _matchCard(_matches[index - 1]);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (widget.game case final game?)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                        child: Text(
+                          game.title,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                    if (_failed)
+                      ListTile(
+                        title: const Text('Couldn’t refresh active games.'),
+                        trailing: TextButton(
+                          onPressed: _load,
+                          child: const Text('Retry'),
+                        ),
+                      )
+                    else if (!_loaded)
+                      const LinearProgressIndicator()
+                    else if (_matches.isEmpty)
+                      const ListTile(
+                        title: Text('No active online games'),
+                        subtitle: Text(
+                          'Start one from Play or invite a friend from chat.',
+                        ),
+                      ),
+                    if (_endError case final error?)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          error,
+                          style: TextStyle(color: colors.error),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
-          for (final entry in _matches)
-            ListTile(
-              leading: Icon(
-                entry.match.myTurn
-                    ? Icons.sports_esports
-                    : Icons.sports_esports_outlined,
-              ),
-              title: Text('Cats vs Dogs with ${entry.chat.name}'),
-              subtitle: Text(entry.match.status),
-              trailing: entry.match.started && !entry.match.conflict
-                  ? FilledButton.tonal(
-                      onPressed: () => _open(entry.chat, entry.match),
-                      child: const Text('Resume Game'),
-                    )
-                  : const Icon(Icons.chevron_right),
-              onTap: () => _open(entry.chat, entry.match),
-            ),
+          ),
         ],
       ),
     );

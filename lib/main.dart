@@ -721,69 +721,74 @@ class _HomeState extends State<Home> {
   Future<void> selectMode(GameRelease game) async {
     var mode = 'solo';
     final chatmail = widget.chatmail;
-    final online = game.modes.contains('online') && chatmail != null;
+    final online = MatchEvent.supportsGame(game) && chatmail != null;
     if (game.modes.contains('local') || online) {
+      final hasActiveGame = online
+          ? chatmail.activeMatches().then(
+              (entries) => entries.any(
+                (entry) => entry.match.invite.game?.id == game.id,
+              ),
+              onError: (Object _, StackTrace _) => true,
+            )
+          : null;
       final choice = await showModalBottomSheet<String>(
         context: context,
         showDragHandle: true,
+        useSafeArea: true,
+        isScrollControlled: true,
         builder: (sheet) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: const Text('Single Player'),
-                onTap: () => Navigator.pop(sheet, 'solo'),
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FutureBuilder<bool>(
+              future: hasActiveGame,
+              builder: (context, snapshot) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (snapshot.data == true)
+                    ListTile(
+                      leading: const Icon(Icons.play_circle_outline),
+                      title: const Text('Resume an Active Game'),
+                      onTap: () => Navigator.pop(sheet, 'resume'),
+                    ),
+                  if (game.modes.contains('solo'))
+                    ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: const Text('Single Player'),
+                      onTap: () => Navigator.pop(sheet, 'solo'),
+                    ),
+                  if (online)
+                    ListTile(
+                      leading: const Icon(Icons.public),
+                      title: const Text('New Online Match'),
+                      subtitle: const Text('Invite a friend to play'),
+                      onTap: () => Navigator.pop(sheet, 'online'),
+                    ),
+                  if (game.modes.contains('local'))
+                    ListTile(
+                      leading: const Icon(Icons.people_outline),
+                      title: const Text('Pass & Play'),
+                      subtitle: const Text('Two players on one device'),
+                      onTap: () => Navigator.pop(sheet, 'local'),
+                    ),
+                ],
               ),
-              if (online)
-                ListTile(
-                  leading: const Icon(Icons.public),
-                  title: const Text('Online Match'),
-                  subtitle: const Text('Play against a friend online'),
-                  onTap: () => Navigator.pop(sheet, 'matches'),
-                ),
-              if (game.modes.contains('local'))
-                ListTile(
-                  leading: const Icon(Icons.people_outline),
-                  title: const Text('Pass & Play'),
-                  subtitle: const Text('Two Player share same device'),
-                  onTap: () => Navigator.pop(sheet, 'local'),
-                ),
-            ],
+            ),
           ),
         ),
       );
       if (choice == null || !mounted) return;
-      if (choice == 'matches' && chatmail != null) {
-        final openChats = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (page) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Online matches'),
-                actions: chatActions(page),
-              ),
-              body: SafeArea(
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () => Navigator.pop(page, false),
-                      icon: const Icon(Icons.person_add_outlined),
-                      label: const Text('Invite a friend'),
-                    ),
-                    OnlineMatches(
-                      chatmail: chatmail,
-                      prepareGame: _prepareOnlineGame,
-                      onOpenChats: () => Navigator.pop(page, true),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+      if (choice == 'resume' && chatmail != null) {
+        await showActiveGames(
+          context,
+          chatmail: chatmail,
+          prepareGame: _prepareOnlineGame,
+          game: game,
         );
-        if (mounted && openChats == true) setState(() => tab = 0);
-        if (mounted && openChats == false) await _inviteForGame(chatmail, game);
+        return;
+      }
+      if (choice == 'online' && chatmail != null) {
+        await _inviteForGame(chatmail, game);
         return;
       }
       mode = choice;
@@ -826,7 +831,7 @@ class _HomeState extends State<Home> {
       if (contact == null || !mounted) return;
       final chat = await chatmail.openContact(contact.id);
       final invite = MatchEvent.invite(GameLink.fromRelease(game));
-      await chatmail.send(chat, invite.wire);
+      await chatmail.sendMatchOpening(chat, invite);
       if (!mounted) return;
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
@@ -844,6 +849,8 @@ class _HomeState extends State<Home> {
           ),
         ),
       );
+    } on ActiveMatchLimit {
+      if (mounted) _gameNotice(ActiveMatchLimit.message);
     } catch (_) {
       if (mounted)
         _gameNotice(
@@ -1117,9 +1124,20 @@ class _HomeState extends State<Home> {
           ),
         ),
         const SizedBox(height: 12),
-        if (!catalog)
-          if (widget.chatmail case final Chatmail chatmail)
-            OnlineMatches(chatmail: chatmail, prepareGame: _prepareOnlineGame),
+        if (!catalog && widget.chatmail != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+              onPressed: () => showActiveGames(
+                context,
+                chatmail: widget.chatmail!,
+                prepareGame: _prepareOnlineGame,
+              ),
+              icon: const Icon(Icons.sports_esports_outlined),
+              label: const Text('Active Games'),
+            ),
+          ),
         Row(
           children: [
             Expanded(

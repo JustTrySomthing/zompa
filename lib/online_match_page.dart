@@ -292,7 +292,10 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _error = null;
     });
     try {
+      final response = match.invite.accept();
       if (_game == null) {
+        await widget.chatmail.checkMatchCapacity(widget.chat, response);
+        if (!mounted) return;
         if (!match.preparing) {
           await widget.chatmail.send(
             widget.chat,
@@ -303,8 +306,10 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         await _openBoard(match.invite.game!);
         if (_game == null || !mounted) return;
       }
-      await widget.chatmail.send(widget.chat, match.invite.accept().wire);
+      await widget.chatmail.sendMatchOpening(widget.chat, response);
       await _load();
+    } on ActiveMatchLimit {
+      if (mounted) setState(() => _error = ActiveMatchLimit.message);
     } catch (_) {
       if (mounted)
         setState(() => _error = 'Couldn’t accept this match. Try again.');
@@ -348,8 +353,15 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     });
     try {
       if (!mounted) return;
-      await widget.chatmail.send(widget.chat, message);
+      final event = MatchEvent.parse(message);
+      if (event?.kind == 'invite') {
+        await widget.chatmail.sendMatchOpening(widget.chat, event!);
+      } else {
+        await widget.chatmail.send(widget.chat, message);
+      }
       await _load();
+    } on ActiveMatchLimit {
+      if (mounted) setState(() => _error = ActiveMatchLimit.message);
     } catch (_) {
       if (mounted) {
         setState(() {
