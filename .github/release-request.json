@@ -1,5 +1,5 @@
 {
-  "version": "0.5.29",
-  "build": 38,
-  "notes": "- Added search inside conversations and a Media gallery with All, Images, Video, Audio, and Other filters.\n- Added game screenshot previews in Get Games, starting with Cats vs Dogs.\n- Refined navigation, dialogs, chat attachments, and layouts on compact screens.\n- Chatmail now starts when Zompado opens. Known issue: incoming call alerts can still be missed while the recipient’s Android screen is off."
+  "version": "0.5.30",
+  "build": 39,
+  "notes": "- Simplified game cards and made screenshot previews easier to open in My Games and Get Games.\n- Shortened dates in chat bubbles and moved the game invite picker into a bottom sheet.\n- YouTube previews request autoplay with sound when the player allows it.\n- Incoming calls can still be missed with the recipient’s screen off."
 }
