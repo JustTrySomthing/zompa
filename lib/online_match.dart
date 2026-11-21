@@ -120,8 +120,10 @@ class OnlineMatch {
   FriendMessage? pending;
 
   bool get finished => declined || quit || board.winner != 0 || board.full;
+  bool get active => !finished || (pending != null && !declined && !quit);
   bool get myTurn =>
       accepted &&
+      started &&
       !conflict &&
       !finished &&
       !paused &&
@@ -146,6 +148,9 @@ class OnlineMatch {
       return (board.winner == 1) == mine ? 'You won!' : 'Your friend won.';
     }
     if (board.full) return 'Draw.';
+    if (!started) {
+      return mine ? 'Ready to start.' : 'Waiting for your friend to start.';
+    }
     return myTurn ? 'Your turn' : 'Your friend’s turn';
   }
 
@@ -215,30 +220,63 @@ class OnlineMatch {
     }
     // An inviter can send a resume before the first move to start both boards.
     // Older clients also understand resume, and their first move starts the match.
-    match.started =
-        match.moves.isNotEmpty ||
-        events.any(
-          (record) =>
-              record.event.kind == 'resume' &&
-              record.message.outgoing == match.mine &&
-              record.message.state != 20 &&
-              record.message.state != 24,
-        );
+    match.started = match.moves.isNotEmpty;
+    if (!match.started) {
+      final starts = [
+        for (final record in events)
+          if (record.event.kind == 'resume' &&
+              record.message.outgoing == match.mine)
+            record.message,
+      ];
+      if (starts.isNotEmpty) {
+        match.pending = pendingFor(starts);
+        match.started = match.pending == null;
+      }
+    }
     // Each player has a separate control revision. Replay is independent of
     // the order in which two devices receive simultaneous pause updates.
+    FriendMessage? pendingControl;
+    var pendingControlRevision = 0;
+    var deliveredControlRevision = 0;
     for (final record in events) {
-      final event = record.event;
-      if (event.revision == null || record.message.state == 24) continue;
-      final own = record.message.outgoing;
+      final (:event, :message) = record;
+      final revision = event.revision;
+      if (revision == null) continue;
+      final own = message.outgoing;
+      if (own && event.kind != 'quit') {
+        if (message.delivery == null) {
+          deliveredControlRevision = max(deliveredControlRevision, revision);
+        } else if (revision > pendingControlRevision ||
+            (revision == pendingControlRevision && message.state == 20)) {
+          pendingControl = message;
+          pendingControlRevision = revision;
+        }
+      }
+      if (message.state == 24 ||
+          (own && event.kind == 'quit' && message.state == 20)) {
+        continue;
+      }
       final previous = own ? match.localControl : match.remoteControl;
       if (previous?.kind == 'quit' ||
-          (event.kind != 'quit' &&
-              (previous?.revision ?? 0) >= event.revision!))
+          (event.kind != 'quit' && (previous?.revision ?? 0) >= revision))
         continue;
       if (own) {
         match.localControl = event;
       } else {
         match.remoteControl = event;
+      }
+    }
+    if (match.quit) {
+      match.pending = null;
+    } else if (!match.finished) {
+      final pendingQuits = [
+        for (final record in events)
+          if (record.event.kind == 'quit' && record.message.outgoing)
+            record.message,
+      ];
+      if (pendingQuits.isNotEmpty) match.pending = pendingFor(pendingQuits);
+      if (match.started && pendingControlRevision > deliveredControlRevision) {
+        match.pending ??= pendingControl;
       }
     }
     return match;

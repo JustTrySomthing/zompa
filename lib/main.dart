@@ -1588,7 +1588,9 @@ class _PreferencesState extends State<Preferences> {
                                     ),
                                   if (updates.available case final release?)
                                     FilledButton.icon(
-                                      onPressed: updates.downloading
+                                      onPressed:
+                                          updates.checking ||
+                                              updates.downloading
                                           ? null
                                           : updates.install,
                                       icon: const Icon(Icons.download),

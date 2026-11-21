@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 
 import 'github_distribution.dart';
 
-const installedVersion = '0.5.21';
-const installedBuild = 30;
+const installedVersion = '0.5.22';
+const installedBuild = 31;
 
 class AppUpdates extends ChangeNotifier {
   AppUpdates(this.distribution, this.host, this.data, this.write);
@@ -18,6 +18,7 @@ class AppUpdates extends ChangeNotifier {
   bool checking = false;
   bool downloading = false;
   bool _showCheckResult = false;
+  bool _statusFromCheck = false;
   bool disposed = false;
   String? status;
   bool get automatic => data['autoUpdates'] != false;
@@ -57,9 +58,10 @@ class AppUpdates extends ChangeNotifier {
   }
 
   Future<void> check({bool manual = true}) async {
-    if (disposed) return;
+    if (disposed || downloading) return;
     if (manual) {
       _showCheckResult = true;
+      _statusFromCheck = true;
       status = 'Checking GitHub…';
     }
     if (checking) {
@@ -71,13 +73,17 @@ class AppUpdates extends ChangeNotifier {
     try {
       final release = await distribution.appRelease();
       if (disposed) return;
+      final previousBuild = available?.build;
       available = release.build > installedBuild ? release : null;
       write('lastAvailableBuild', available?.build ?? 0);
       write('lastUpdateCheck', DateTime.now().toUtc().toIso8601String());
-      if (_showCheckResult)
+      if (_statusFromCheck) {
         status = available == null
             ? 'You’re up to date ($installedVersion).'
             : 'Version ${release.version} is available.';
+      } else if (previousBuild != available?.build) {
+        status = null;
+      }
     } catch (_) {
       if (_showCheckResult) status = 'Couldn’t check for updates. Try again.';
     } finally {
@@ -89,8 +95,9 @@ class AppUpdates extends ChangeNotifier {
 
   Future<void> install() async {
     final release = available;
-    if (downloading || release == null || disposed) return;
+    if (checking || downloading || release == null || disposed) return;
     downloading = true;
+    _statusFromCheck = false;
     status = 'Downloading version ${release.version}…';
     notifyListeners();
     File? staged;
@@ -102,7 +109,7 @@ class AppUpdates extends ChangeNotifier {
         'build': release.build,
       });
       status = result == 'permission'
-          ? 'Allow installs from Zompado in Android settings, then tap Update again.'
+          ? 'Allow installs from Zompado in Android settings, then tap Install again.'
           : 'Follow the Android installer to complete the update.';
     } on PlatformException catch (error) {
       status = error.message ?? 'Android couldn’t open the update.';

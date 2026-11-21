@@ -247,7 +247,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               ? 'The match invitation is unavailable.'
               : null;
         });
-        if (match != null && !match.finished) {
+        if (match != null && match.active) {
           if (widget.acceptOnOpen &&
               !_acceptedFromChat &&
               !match.mine &&
@@ -333,7 +333,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     );
     if (!mounted || confirmed != true || _match?.finished != false) return;
     await _send(match.invite.control('quit', match.nextRevision).wire);
-    if (mounted && _match?.quit == true) Navigator.pop(context);
+    if (mounted &&
+        _match?.quit == true &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _send(String message) async {
@@ -404,7 +408,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     if (_preparing) return 'Getting Cats vs Dogs ready…';
     if (_gameUnavailable) return 'Couldn’t prepare the game.';
     if (match == null) return 'Opening match…';
-    if (match.finished) return match.status;
+    if (match.finished || match.conflict || match.pending != null) {
+      return match.status;
+    }
     if (match.accepted && _game != null) {
       return match.mine
           ? '$friend is ready to play.'
@@ -433,6 +439,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     final side = _displayTurn ?? match.board.turn;
     final yours = (side == 1) == match.mine;
     final name = yours ? _myName : widget.friendName ?? 'Your friend';
+    final piece = switch ((match.invite.game!.build >= 6, side)) {
+      (true, 1) => '🐱',
+      (true, _) => '🐶',
+      (false, 1) => '🟡',
+      (false, _) => '🟣',
+    };
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
       child: Semantics(
@@ -444,10 +456,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ExcludeSemantics(
-                  child: Text(
-                    side == 1 ? '🐱' : '🐶',
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  child: Text(piece, style: const TextStyle(fontSize: 24)),
                 ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -478,6 +487,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   @override
   Widget build(BuildContext context) {
     final match = _match;
+    final pendingAction = MatchEvent.parse(match?.pending?.text ?? '');
+    final pendingControl = pendingAction?.revision != null;
+    final pendingQuit = pendingAction?.kind == 'quit';
     return PopScope(
       canPop: !_chatOpen,
       onPopInvokedWithResult: (didPop, _) {
@@ -497,11 +509,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                 paused: match!.pausedByMe,
                 onPause:
                     _sending ||
+                        pendingControl ||
                         match.finished ||
                         (match.pausedByFriend && !match.pausedByMe)
                     ? null
                     : () => _togglePause(match),
-                onQuit: _sending
+                onQuit: _sending || pendingQuit
                     ? null
                     : match.finished
                     ? () => Navigator.of(context).pop()
@@ -583,6 +596,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                 ],
                               ),
                               if (match.paused ||
+                                  pendingControl ||
                                   _error != null ||
                                   (match.pending?.state == 24 && !_sending))
                                 Center(
@@ -594,7 +608,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                         children: [
                                           Text(
                                             _error ??
-                                                (match.pausedByMe
+                                                (pendingControl
+                                                    ? match.status
+                                                    : match.pausedByMe
                                                     ? 'You paused the game.'
                                                     : match.pausedByFriend
                                                     ? '${widget.friendName ?? 'Your friend'} paused the game.'
@@ -634,6 +650,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                       children: [
                                         if (_preparing ||
                                             _sending ||
+                                            match?.pending?.state == 20 ||
                                             (match == null && _error == null))
                                           const LinearProgressIndicator(),
                                         const SizedBox(height: 12),
@@ -645,11 +662,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               .titleLarge,
                                         ),
                                         if (match != null &&
-                                            !match.finished &&
+                                            match.active &&
                                             !match.conflict) ...[
                                           const SizedBox(height: 12),
                                           if (match.accepted &&
                                               match.mine &&
+                                              match.pending == null &&
                                               _game != null)
                                             FilledButton(
                                               onPressed: _sending
@@ -665,6 +683,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               child: const Text('Play Now'),
                                             )
                                           else if (!match.accepted &&
+                                              match.pending == null &&
                                               !match.mine)
                                             Wrap(
                                               alignment: WrapAlignment.center,

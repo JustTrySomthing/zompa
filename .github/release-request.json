@@ -1,5 +1,5 @@
 {
-  "version": "0.5.21",
-  "build": 30,
-  "notes": "- Keep the other person full-screen during video calls, with a private Preview tile, compact controls, and a clear voice-only option. Return to a game without ending the call.\n- Wait for the inviter to start Cats vs Dogs and see the current player and team above the board.\n- Set reply reminders from the chat list, find all update controls in one Settings card, and enjoy a smoother launch animation."
+  "version": "0.5.22",
+  "build": 31,
+  "notes": "- Show when online match starts, pauses, resumes, and quits are sending. Retry failed updates, including a final move, from the match.\n- Restore team colors for archived Drop Four boards and clarify match and update buttons.\n- Close outgoing calls after an early decline. Keep app update status accurate and prevent checks from interrupting downloads."
 }

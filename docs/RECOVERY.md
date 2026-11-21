@@ -29,7 +29,7 @@ The Android app ships the LÖVE 11.5 compatibility WebAssembly runtime inside th
 
 Cats vs Dogs retains the `drop-four` game ID for saves and older match links. Starting with game build 8, the catalog title and .zomp filename use Cats vs Dogs. The catalog card uses the original OnKlav faceoff illustration bundled in `assets/games/cats-vs-dogs.webp`.
 
-The match invitation opens a waiting screen for the sender. The recipient’s Accept action sends a preparation status, gets the required game from the catalog if needed, then signals readiness. Both players can select Play Now. Pause and resume are tracked per player. Quit ends the match for both. The online match list is available from My Games and the Play menu.
+The match invitation opens a waiting screen for the sender. The recipient’s Accept action sends a preparation status, gets the required game from the catalog if needed, then signals readiness. The inviter selects Play Now to open both boards. Pause and resume are tracked per player. Quit ends the match for both. The online match list is available from My Games and the Play menu.
 
 ## Previous builds
 
