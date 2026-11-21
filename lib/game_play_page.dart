@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'game_toolbar.dart';
 import 'github_distribution.dart';
@@ -10,6 +11,7 @@ class GamePlayPage extends StatefulWidget {
     required this.game,
     required this.title,
     required this.mode,
+    this.fresh = true,
   }) : importedId = null;
 
   const GamePlayPage.imported({
@@ -17,20 +19,54 @@ class GamePlayPage extends StatefulWidget {
     required this.importedId,
     required this.title,
   }) : game = null,
-       mode = 'solo';
+       mode = 'solo',
+       fresh = true;
 
   final GameRelease? game;
   final String? importedId;
   final String title, mode;
+  final bool fresh;
 
   @override
   State<GamePlayPage> createState() => _GamePlayPageState();
 }
 
 class _GamePlayPageState extends State<GamePlayPage> {
+  final _player = GlobalKey<LoveGameViewState>();
   bool _paused = false;
+  bool _leaving = false;
+
+  bool get _hasLocalSaves => widget.game?.supportsLocalSaves ?? false;
+
+  Future<void> _leave({required bool quit, required bool wasPaused}) async {
+    if (_leaving) return;
+    setState(() {
+      _leaving = true;
+      _paused = true;
+    });
+    try {
+      if (_hasLocalSaves) await _player.currentState?.leave(quit: quit);
+      if (mounted) Navigator.of(context).pop();
+    } on PlatformException {
+      if (!mounted) return;
+      setState(() {
+        _leaving = false;
+        _paused = wasPaused;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            quit
+                ? 'Couldn’t quit the game. Try again.'
+                : 'Couldn’t save the game. Try again.',
+          ),
+        ),
+      );
+    }
+  }
 
   Future<void> _quit() async {
+    if (_leaving) return;
     final wasPaused = _paused;
     setState(() => _paused = true);
     final quit = await showDialog<bool>(
@@ -38,6 +74,9 @@ class _GamePlayPageState extends State<GamePlayPage> {
       builder: (dialog) => AlertDialog(
         scrollable: true,
         title: const Text('Quit this game?'),
+        content: _hasLocalSaves
+            ? const Text('This will discard your progress in this game.')
+            : null,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialog),
@@ -52,62 +91,75 @@ class _GamePlayPageState extends State<GamePlayPage> {
     );
     if (!mounted) return;
     if (quit == true) {
-      Navigator.of(context).pop();
+      await _leave(quit: true, wasPaused: wasPaused);
     } else {
       setState(() => _paused = wasPaused);
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: GameToolbar(
-      title: widget.title,
-      paused: _paused,
-      onPause: () => setState(() => _paused = !_paused),
-    ),
-    body: SafeArea(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          IgnorePointer(
-            ignoring: _paused,
-            child: widget.game != null
-                ? LoveGameView.official(
-                    game: widget.game!,
-                    mode: widget.mode,
-                    paused: _paused,
-                  )
-                : LoveGameView.imported(
-                    id: widget.importedId!,
-                    paused: _paused,
-                  ),
-          ),
-          if (_paused) ...[
-            const ModalBarrier(dismissible: false, color: Colors.black54),
-            Center(
-              child: Card(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Game paused'),
-                      const SizedBox(height: 10),
-                      FilledButton(
-                        onPressed: () => setState(() => _paused = false),
-                        child: const Text('Resume'),
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_hasLocalSaves,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && _hasLocalSaves) _leave(quit: false, wasPaused: _paused);
+    },
+    child: AbsorbPointer(
+      absorbing: _leaving,
+      child: Scaffold(
+        appBar: GameToolbar(
+          title: widget.title,
+          paused: _paused,
+          onPause: _leaving ? null : () => setState(() => _paused = !_paused),
+        ),
+        body: SafeArea(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              IgnorePointer(
+                ignoring: _paused,
+                child: widget.game != null
+                    ? LoveGameView.official(
+                        key: _player,
+                        fresh: widget.fresh,
+                        game: widget.game!,
+                        mode: widget.mode,
+                        paused: _paused,
+                      )
+                    : LoveGameView.imported(
+                        id: widget.importedId!,
+                        paused: _paused,
                       ),
-                      TextButton(
-                        onPressed: _quit,
-                        child: const Text('Quit game'),
+              ),
+              if (_paused) ...[
+                const ModalBarrier(dismissible: false, color: Colors.black54),
+                Center(
+                  child: Card(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Game paused'),
+                          const SizedBox(height: 10),
+                          FilledButton(
+                            onPressed: _leaving
+                                ? null
+                                : () => setState(() => _paused = false),
+                            child: const Text('Resume'),
+                          ),
+                          TextButton(
+                            onPressed: _leaving ? null : _quit,
+                            child: const Text('Quit game'),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ],
-        ],
+              ],
+            ],
+          ),
+        ),
       ),
     ),
   );

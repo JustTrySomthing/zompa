@@ -1,5 +1,5 @@
--- Zompado game SDK v1. This module also runs in desktop LÖVE for development.
-local sdk = {version = 1}
+-- Zompado game SDK v2. This module also runs in desktop LÖVE for development.
+local sdk = {version = 2}
 local slots = "zompado-saves"
 
 local function savePath(slot)
@@ -22,6 +22,58 @@ function sdk.load(slot)
     local path = savePath(slot)
     if not love.filesystem.getInfo(path, "file") then return nil end
     return love.filesystem.read(path, 262144)
+end
+
+function sdk.mode()
+    local file = io.open("/zompado/mode", "r")
+    if not file then return "solo", false end
+    local mode = file:read(8)
+    file:close()
+    if mode == "local" or mode == "online" then return mode, true end
+    return "solo", true
+end
+
+local function sessionPath(mode)
+    return "/home/web_user/love/.zompado-session-" .. mode
+end
+
+function sdk.saveSession(data)
+    assert(type(data) == "string" and #data > 0 and #data <= 262144,
+        "Session data must be between 1 byte and 256 KiB.")
+    local mode, hosted = sdk.mode()
+    if mode == "online" then return false, "Online progress is managed by the host." end
+    if not hosted then return sdk.save("session-solo", data) end
+    local file, err = io.open(sessionPath(mode), "wb")
+    if not file then return false, err end
+    local written, writeError = file:write(data)
+    local closed, closeError = file:close()
+    if not written or not closed then return false, writeError or closeError end
+    return true
+end
+
+function sdk.loadSession()
+    local mode, hosted = sdk.mode()
+    if mode == "online" then return nil end
+    if not hosted then return sdk.load("session-solo") end
+    local file = io.open(sessionPath(mode), "rb")
+    if not file then return nil end
+    local data = file:read(262145)
+    file:close()
+    if data and #data > 0 and #data <= 262144 then return data end
+end
+
+function sdk.clearSession()
+    local mode, hosted = sdk.mode()
+    if mode == "online" then return true end
+    if not hosted then
+        local path = savePath("session-solo")
+        return not love.filesystem.getInfo(path) or love.filesystem.remove(path)
+    end
+    local path = sessionPath(mode)
+    local file = io.open(path, "rb")
+    if not file then return true end
+    file:close()
+    return os.remove(path)
 end
 
 function sdk.audio()

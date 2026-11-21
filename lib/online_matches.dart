@@ -6,15 +6,19 @@ import 'chatmail.dart';
 import 'dialog_actions.dart';
 import 'friends.dart';
 import 'game_link.dart';
+import 'game_play_page.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
 
+typedef LocalGameEntry = ({GameRelease game, String mode});
+
 Future<void> showActiveGames(
   BuildContext context, {
-  required Chatmail chatmail,
+  required Chatmail? chatmail,
   required Future<GameRelease?> Function(GameLink) prepareGame,
   GameRelease? game,
+  Future<List<LocalGameEntry>> Function()? localGames,
 }) => showModalBottomSheet<void>(
   context: context,
   showDragHandle: true,
@@ -26,6 +30,7 @@ Future<void> showActiveGames(
       chatmail: chatmail,
       prepareGame: prepareGame,
       game: game,
+      localGames: localGames,
     ),
   ),
 );
@@ -35,9 +40,11 @@ class _ActiveGamesSheet extends StatefulWidget {
     required this.chatmail,
     required this.prepareGame,
     this.game,
+    this.localGames,
   });
 
-  final Chatmail chatmail;
+  final Chatmail? chatmail;
+  final Future<List<LocalGameEntry>> Function()? localGames;
   final Future<GameRelease?> Function(GameLink) prepareGame;
   final GameRelease? game;
 
@@ -52,6 +59,9 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
   bool _loading = false;
   bool _reload = false;
   List<MatchEntry> _matches = [];
+  List<LocalGameEntry> _local = [];
+  bool _localFailed = false;
+  bool _refreshLocal = true;
   bool _loaded = false;
   bool _failed = false;
   String? _actionError;
@@ -61,7 +71,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _events = widget.chatmail.changes.listen((_) {
+    _events = widget.chatmail?.changes.listen((_) {
       _timer?.cancel();
       _timer = Timer(const Duration(milliseconds: 300), _load);
     });
@@ -70,7 +80,10 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_load());
+    if (state == AppLifecycleState.resumed) {
+      _refreshLocal = true;
+      unawaited(_load());
+    }
   }
 
   @override
@@ -89,7 +102,22 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     }
     _loading = true;
     try {
-      final active = await widget.chatmail.activeMatches();
+      final local = widget.localGames;
+      if (local != null && (_refreshLocal || _localFailed)) {
+        _refreshLocal = false;
+        try {
+          final entries = await local();
+          if (mounted)
+            setState(() {
+              _local = entries;
+              _localFailed = false;
+            });
+        } catch (_) {
+          if (mounted) setState(() => _localFailed = true);
+        }
+      }
+      final active =
+          await widget.chatmail?.activeMatches() ?? const <MatchEntry>[];
       if (mounted) {
         setState(() {
           final game = widget.game;
@@ -119,14 +147,14 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => OnlineMatchPage(
-          chatmail: widget.chatmail,
+          chatmail: widget.chatmail!,
           chat: chat.id,
           id: match.invite.id,
           playOnOpen: match.started && !match.conflict,
           prepareGame: widget.prepareGame,
           friendName: chat.name,
           buildChatDock: (close) => FriendConversation.docked(
-            chatmail: widget.chatmail,
+            chatmail: widget.chatmail!,
             id: chat.id,
             onClose: close,
           ),
@@ -168,12 +196,12 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
       if (!mounted || confirmed != true) return;
       final current = OnlineMatch.replay(
         match.invite.id,
-        await widget.chatmail.matchHistory(chat.id, match.invite.id),
+        await widget.chatmail!.matchHistory(chat.id, match.invite.id),
       );
       if (!mounted || current == null || !current.active) return;
       final pending = MatchEvent.parse(current.pending?.text ?? '');
       if (pending?.kind == 'quit' && current.pending?.state == 20) return;
-      await widget.chatmail.send(
+      await widget.chatmail!.send(
         chat.id,
         pending?.kind == 'quit'
             ? pending!.wire
@@ -191,6 +219,21 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
         await _load();
       }
     }
+  }
+
+  Future<void> _resumeLocal(LocalGameEntry entry) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => GamePlayPage.official(
+          game: entry.game,
+          title: entry.game.title,
+          mode: entry.mode,
+          fresh: false,
+        ),
+      ),
+    );
+    _refreshLocal = true;
+    await _load();
   }
 
   Widget _matchCard(MatchEntry entry) {
@@ -291,6 +334,29 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
                           style: theme.textTheme.titleMedium,
                         ),
                       ),
+                    for (final entry in _local)
+                      Card(
+                        child: ListTile(
+                          title: Text(entry.game.title),
+                          subtitle: Text(
+                            entry.mode == 'local'
+                                ? 'Pass & Play'
+                                : 'Single Player',
+                          ),
+                          trailing: const Icon(Icons.play_circle_outline),
+                          onTap: () => _resumeLocal(entry),
+                        ),
+                      ),
+                    if (_localFailed)
+                      ListTile(
+                        title: const Text(
+                          'Couldn’t check games on this device.',
+                        ),
+                        trailing: TextButton(
+                          onPressed: _load,
+                          child: const Text('Retry'),
+                        ),
+                      ),
                     if (_failed)
                       ListTile(
                         title: const Text('Couldn’t refresh active games.'),
@@ -301,9 +367,11 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
                       )
                     else if (!_loaded)
                       const LinearProgressIndicator()
-                    else if (_matches.isEmpty)
+                    else if (_matches.isEmpty &&
+                        _local.isEmpty &&
+                        !_localFailed)
                       const ListTile(
-                        title: Text('No active online games'),
+                        title: Text('No active games'),
                         subtitle: Text(
                           'Start one from Play or invite a friend from chat.',
                         ),

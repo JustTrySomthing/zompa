@@ -130,6 +130,13 @@ public final class MainActivity extends FlutterActivity {
                     case "chatmailExecutable":
                         openChatmail(result);
                         break;
+                    case "readLocalGameSaves":
+                        if (call.arguments instanceof Map) {
+                            LovePlayer.readLocalSaves(MainActivity.this, (Map<?, ?>) call.arguments, result);
+                        } else {
+                            result.error("LOVE_SAVE", "Invalid game reference.", null);
+                        }
+                        break;
                     case "checkLoveGame":
                         if (!(call.arguments instanceof Map)) {
                             result.error("LOVE_IMPORT", "Invalid game reference.", null);

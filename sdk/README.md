@@ -1,6 +1,6 @@
 # Zompado game SDK
 
-This first SDK slice targets LÖVE 11.5. Put [zompado.lua](zompado.lua) in the game root and load it with `require("zompado")`. [Tap Counter](template) is a small example with a save slot and touch or keyboard input. Set a unique identity in `conf.lua` when developing locally with LÖVE.
+The Zompado Lua SDK targets LÖVE 11.5. Put [zompado.lua](zompado.lua) in the game root and load it with `require("zompado")`. [Tap Counter](template) is a small example with a save slot and touch or keyboard input. Set a unique identity in `conf.lua` when developing locally with LÖVE.
 
 Run the sample during development with LÖVE 11.5.
 
@@ -16,9 +16,23 @@ Official packages use a ZIP archive with a root `zompado.json` and `main.lua`. U
 |---|---|
 | `zompado.save(slot, bytes)` | Write an opaque string of up to 256 KiB. Returns success and, on failure, an error. |
 | `zompado.load(slot)` | Read the save string from the game's LÖVE save directory. Keep formats versioned and tolerate a missing save. |
+| `zompado.mode()` | Return the current game mode (`solo`, `local`, or `online`) and whether Zompado is hosting the game. Desktop LÖVE defaults to `solo`. |
+| `zompado.saveSession(bytes)` | Save the unfinished round for the current mode. Store between 1 byte and 256 KiB. Returns success and, on failure, an error. |
+| `zompado.loadSession()` | Read the current mode’s unfinished round, or return `nil` to start with an empty board. |
+| `zompado.clearSession()` | Remove the unfinished round when the game finishes. |
 | `zompado.audio()` | Create a mixer for one game. Register sources on the `music` or `effects` bus, then call `mixer:update(dt)` from `love.update(dt)` to apply Zompado settings. `setGain` and `setMuted` apply game-level controls on top of the host settings. |
 
-Zompado provides Pause, Resume, and Quit in the game toolbar. Omit these controls from official game screens. Save progress through the SDK where the game supports continuing later. In an online game, the host also provides messaging and voice calls.
+## What Zompado provides during play
+
+- The game toolbar has a **Back** arrow and the game title on the left, plus **Game audio** and **Pause/Resume** on the right. **Quit game** appears in the pause panel. Online games also get chat and call controls. Zompado reserves the standard 56 logical-pixel toolbar and Android’s system insets. Put game-specific controls inside the play area and size them to the canvas LÖVE receives.
+- The Game audio sheet has a circled speaker button that mutes all game sound. The crossed-out speaker shows when mute is on. Zompado remembers master volume, music and effects settings, and whether to lower game audio during a call.
+
+## Starting, resuming, and ending games
+
+- **Play → Single Player** and **Play → Pass & Play** start a fresh round and replace the previous unfinished round for that mode. **New Online Match** and a new invitation from chat create a separate online match with an empty board. Existing online matches keep their own match IDs.
+- **Back** leaves an unfinished round available under **My Games → Active Games**. Selecting a game there loads the saved round. **Pause** keeps the current round open. **Quit game** clears that local round or ends the online match for both players.
+- For official games with resumable local rounds, declare `"localSaves": true` in the catalog entry and use the session API for round progress. One round can be saved per local mode. Save after state changes so Back, app suspension, or process death can recover the latest saved board. Use ordinary `save` and `load` slots for durable preferences, achievements, and unlocks. Keep the round format versioned and handle an unrecognized save by starting clean.
+- In online mode the host supplies the match state. The session API returns no local round and rejects writes in this mode. Older imports can keep using their own save files. Their resume and reset behavior depends on the game.
 
 Host music and effect gains multiply each source’s volume and any game-level adjustments. The host master volume applies to game audio after mixing, including games with no SDK integration. The game can run with desktop LÖVE and defaults to its own mix there.
 

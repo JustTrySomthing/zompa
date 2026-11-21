@@ -14,28 +14,34 @@ class LoveGameView extends StatefulWidget {
     super.key,
     required GameRelease game,
     this.mode = 'solo',
+    this.fresh = false,
     this.match,
     this.onMove,
     this.paused = false,
-  }) : reference = game.playerReference;
+  }) : reference = {
+         ...game.playerReference,
+         'localSaves': game.supportsLocalSaves,
+       };
 
   LoveGameView.imported({super.key, required String id, this.paused = false})
     : reference = {'id': id},
       mode = 'solo',
+      fresh = false,
       match = null,
       onMove = null;
 
   final Map<String, Object> reference;
   final String mode;
+  final bool fresh;
   final String? match;
   final ValueChanged<int>? onMove;
   final bool paused;
 
   @override
-  State<LoveGameView> createState() => _LoveGameViewState();
+  State<LoveGameView> createState() => LoveGameViewState();
 }
 
-class _LoveGameViewState extends State<LoveGameView>
+class LoveGameViewState extends State<LoveGameView>
     with WidgetsBindingObserver {
   MethodChannel? _channel;
   String _audio = '100:100:100';
@@ -77,6 +83,10 @@ class _LoveGameViewState extends State<LoveGameView>
     _send('pause', widget.paused || state != AppLifecycleState.resumed);
   }
 
+  Future<void> leave({required bool quit}) async {
+    await _channel?.invokeMethod<void>('leave', quit);
+  }
+
   void _syncMatch() {
     if (widget.match case final match?) _send('match', match);
   }
@@ -111,6 +121,7 @@ class _LoveGameViewState extends State<LoveGameView>
       creationParams: {
         ...widget.reference,
         'mode': widget.mode,
+        'fresh': widget.fresh,
         'audio': _audio,
       },
       creationParamsCodec: const StandardMessageCodec(),

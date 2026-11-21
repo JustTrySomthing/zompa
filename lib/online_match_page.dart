@@ -530,9 +530,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       child: Scaffold(
         appBar: _boardOpen
             ? GameToolbar(
-                title: widget.friendName == null
-                    ? 'Cats vs Dogs'
-                    : 'Match with ${widget.friendName}',
+                title: _game!.title,
                 chat: widget.chat,
                 friendName: widget.friendName,
                 onMessage: _toggleChat,

@@ -98,7 +98,9 @@ class GameAudioButton extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
     tooltip: 'Game audio',
     onPressed: () => show(context),
+    isSelected: GameAudioScope.of(context)?.muted(0) ?? false,
     icon: const Icon(Icons.volume_up_outlined),
+    selectedIcon: const Icon(Icons.volume_off_outlined),
   );
 }
 
@@ -116,7 +118,26 @@ class _GameAudioControls extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Game audio', style: Theme.of(context).textTheme.titleLarge),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Game audio',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              IconButton.outlined(
+                tooltip: audio.muted(0)
+                    ? 'Unmute game volume'
+                    : 'Mute game volume',
+                style: IconButton.styleFrom(shape: const CircleBorder()),
+                isSelected: audio.muted(0),
+                icon: const Icon(Icons.volume_up_outlined),
+                selectedIcon: const Icon(Icons.volume_off_outlined),
+                onPressed: () => audio.toggleMute(0),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           for (var index = 0; index < labels.length; index++) ...[
             Text('${labels[index]} · ${(audio.level(index) * 100).round()}%'),
@@ -131,14 +152,15 @@ class _GameAudioControls extends StatelessWidget {
                     onChanged: (level) => audio.setLevel(index, level),
                   ),
                 ),
-                IconButton(
-                  tooltip:
-                      '${audio.muted(index) ? 'Unmute' : 'Mute'} ${labels[index].toLowerCase()}',
-                  isSelected: audio.muted(index),
-                  icon: const Icon(Icons.volume_up_outlined),
-                  selectedIcon: const Icon(Icons.volume_off_outlined),
-                  onPressed: () => audio.toggleMute(index),
-                ),
+                if (index > 0)
+                  IconButton(
+                    tooltip:
+                        '${audio.muted(index) ? 'Unmute' : 'Mute'} ${labels[index].toLowerCase()}',
+                    isSelected: audio.muted(index),
+                    icon: const Icon(Icons.volume_up_outlined),
+                    selectedIcon: const Icon(Icons.volume_off_outlined),
+                    onPressed: () => audio.toggleMute(index),
+                  ),
               ],
             ),
           ],

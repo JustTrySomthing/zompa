@@ -10,13 +10,13 @@ or make your own.
 
 ## What you can do today
 
-- **Play Cats vs Dogs.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. To invite a friend from chat, tap the gamepad, choose an installed online game, and tap **Invite**. Resume from **Active Games** or a turn alert.
+- **Play Cats vs Dogs.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. To invite a friend from chat, tap the gamepad, choose an installed online game, and tap **Invite**. Play starts a new round. Use **Active Games** to resume local rounds or existing online matches. Back leaves your game resumable and Quit ends it.
 - **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation. Tap website addresses or YouTube previews to open them in the app. In a conversation, switch to Media to browse, preview, or save shared attachments.
 - **Manage your game library.** A fresh install starts with an empty library. Add official `.zomp` games and remove them from **My Games**. Open the import button for compatible `.love` files on your device.
 
 [Submit a game or update its catalog artwork](https://github.com/JustTrySomthing/zompado-games#submit-a-game).
 
-Downloaded games require Android 10 or later and a sandboxed WebView renderer. Open **Settings → Game audio** to adjust volume, mute the game, or control whether its volume lowers during a call. SDK games also support separate music and effects controls.
+Downloaded games require Android 10 or later and a sandboxed WebView renderer. Open **Settings → Game audio** to adjust volume, mute the game, or control whether its volume lowers during a call. The circled speaker mutes all game sound. SDK games also support separate music and effects controls. [Game SDK and toolbar behavior](sdk/README.md).
 
 After Android stops the process, Zompado checks for new activity on Android’s schedule. A call alert lets you answer if the call is still ringing. Reopen the app after using Android’s **Force stop**. **Settings → Setup** and **Help** cover alerts and permissions.
 

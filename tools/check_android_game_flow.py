@@ -94,13 +94,17 @@ def has_center_token():
 def main():
     adb("shell", "am", "start", "-n", ACTIVITY)
     wait("Setup", lambda: find("Setup"))
-    if find("Allow camera") is None:
+    for _ in range(4):
+        if find("Allow camera"):
+            break
         adb("shell", "input", "swipe", 350, 1000, 350, 500, 350)
     press("Allow camera")
     press("While using the app")
     wait("camera permission to be granted", lambda: b"android.permission.CAMERA: granted=true"
          in adb("shell", "dumpsys", "package", APP))
-    if find("Finish setup") is None:
+    for _ in range(4):
+        if find("Finish setup"):
+            break
         adb("shell", "input", "swipe", 350, 1100, 350, 400, 350)
     press("Finish setup")
     wait("an empty game library", lambda: find("Your library is empty"))
@@ -118,16 +122,30 @@ def main():
     time.sleep(3)
     adb("shell", "am", "force-stop", APP)
     adb("shell", "am", "start", "-n", ACTIVITY)
-    press("Play")
+    press("Active Games")
     press("Pass & Play")
     wait("the restored token", has_center_token, seconds=50)
     screenshot().save(DIAGNOSTICS / "restored-board.png")
+    adb("shell", "input", "keyevent", 4)
+    press("Close active games")
+    press("Play")
+    press("Pass & Play")
+    wait("a fresh board", lambda: board() and not has_center_token())
+    press("Pause")
+    press("Quit game")
+    press("Quit game")
+    press("Active Games")
+    wait("the cleared active games list", lambda: find("No active games"))
+    press("Close active games")
+    press("Play")
+    press("Pass & Play")
+    wait("a fresh board after quitting", lambda: board() and not has_center_token())
     adb("shell", "input", "keyevent", 4)
     press("Game options")
     press("Remove")
     press("Remove")
     wait("the empty library after removal", lambda: find("Your library is empty"))
-    print("PASS: fresh empty library, catalog download, native LÖVE view, touch input, save restore after restart, and removal.")
+    print("PASS: fresh empty library, catalog download, native LÖVE view, touch input, explicit save restore after restart, fresh rounds, quit cleanup, and removal.")
 
 
 try:

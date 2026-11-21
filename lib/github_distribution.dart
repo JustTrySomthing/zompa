@@ -82,6 +82,7 @@ class GameRelease {
           (json['modes'] as List?)?.cast<String>().toSet() ?? const {'solo'},
       asset = ReleaseAsset.fromJson(json, gamesRepository, '.zomp'),
       hasCover = json['cover'] == 'cover.webp',
+      localSaves = json['localSaves'] == true,
       screenshots = GameScreenshot.parse(json['screenshots']) {
     if (id.length > 64 ||
         !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
@@ -101,6 +102,9 @@ class GameRelease {
   final ReleaseAsset asset;
   final Set<String> modes;
   final bool hasCover;
+  final bool localSaves;
+  bool get supportsLocalSaves =>
+      localSaves || (id == 'drop-four' && build >= 3);
   final List<GameScreenshot> screenshots;
 
   Uri imageUrl(String file) => Uri.https(
@@ -124,6 +128,7 @@ class GameRelease {
     'sha256': asset.sha,
     'size': asset.size,
     if (hasCover) 'cover': 'cover.webp',
+    if (localSaves) 'localSaves': true,
     if (screenshots.isNotEmpty)
       'screenshots': [
         for (final image in screenshots)

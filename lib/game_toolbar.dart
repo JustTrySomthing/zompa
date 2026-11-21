@@ -62,6 +62,7 @@ class _GameToolbarState extends State<GameToolbar> {
       title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       titleSpacing: 0,
       leadingWidth: 44,
+      leading: const BackButton(),
       actions: [
         if (widget.onMessage != null)
           IconButton(

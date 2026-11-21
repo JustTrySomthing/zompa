@@ -757,19 +757,49 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<List<LocalGameEntry>> _localGameEntries([GameRelease? game]) async {
+    final games = game == null ? installedGames.values : [game];
+    final groups = await Future.wait([
+      for (final release in games.where((item) => item.supportsLocalSaves))
+        _localModes(release).then(
+          (modes) => [for (final mode in modes) (game: release, mode: mode)],
+        ),
+    ]);
+    return groups.expand((entries) => entries).toList();
+  }
+
+  Future<List<String>> _localModes(GameRelease game) async {
+    try {
+      final modes = await bridge.invokeListMethod<String>(
+        'readLocalGameSaves',
+        {...game.playerReference, 'passAndPlay': game.modes.contains('local')},
+      );
+      return (modes ?? const <String>[])
+          .where((mode) => mode != 'online' && game.modes.contains(mode))
+          .toList();
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
   Future<void> selectMode(GameRelease game) async {
     var mode = 'solo';
     final chatmail = widget.chatmail;
     final online = MatchEvent.supportsGame(game) && chatmail != null;
-    if (game.modes.contains('local') || online) {
-      final hasActiveGame = online
-          ? chatmail.activeMatches().then(
-              (entries) => entries.any(
-                (entry) => entry.match.invite.game?.id == game.id,
-              ),
-              onError: (Object _, StackTrace _) => true,
-            )
-          : null;
+    if (game.modes.contains('local') || online || game.supportsLocalSaves) {
+      final hasActiveGame = Future.wait([
+        if (game.supportsLocalSaves)
+          _localGameEntries(game).then(
+            (entries) => entries.isNotEmpty,
+            onError: (Object _, StackTrace _) => false,
+          ),
+        if (online)
+          chatmail.activeMatches().then(
+            (entries) =>
+                entries.any((entry) => entry.match.invite.game?.id == game.id),
+            onError: (Object _, StackTrace _) => false,
+          ),
+      ]).then((available) => available.contains(true));
       final choice = await showModalBottomSheet<String>(
         context: context,
         showDragHandle: true,
@@ -817,12 +847,13 @@ class _HomeState extends State<Home> {
         ),
       );
       if (choice == null || !mounted) return;
-      if (choice == 'resume' && chatmail != null) {
+      if (choice == 'resume') {
         await showActiveGames(
           context,
           chatmail: chatmail,
           prepareGame: _prepareOnlineGame,
           game: game,
+          localGames: () => _localGameEntries(game),
         );
         return;
       }
@@ -1148,7 +1179,9 @@ class _HomeState extends State<Home> {
           ),
         ),
         const SizedBox(height: 12),
-        if (!catalog && widget.chatmail != null)
+        if (!catalog &&
+            (widget.chatmail != null ||
+                installedGames.values.any((game) => game.supportsLocalSaves)))
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: FilledButton.tonalIcon(
@@ -1159,8 +1192,9 @@ class _HomeState extends State<Home> {
               ),
               onPressed: () => showActiveGames(
                 context,
-                chatmail: widget.chatmail!,
+                chatmail: widget.chatmail,
                 prepareGame: _prepareOnlineGame,
+                localGames: _localGameEntries,
               ),
               icon: const Icon(Icons.sports_esports_outlined),
               label: const Text('Active Games'),
@@ -1200,7 +1234,7 @@ class _HomeState extends State<Home> {
             gameCard(
               game,
               button: (installedGames[game.id]?.build ?? 0) >= game.build
-                  ? null
+                  ? 'Installed'
                   : installedGames.containsKey(game.id)
                   ? 'Update'
                   : 'Install',
@@ -1286,19 +1320,19 @@ class _HomeState extends State<Home> {
           if (game.id == 'drop-four' || (catalog && game.hasCover))
             SizedBox(
               height: 146,
-              child: catalog && game.hasCover && distribution != null
+              child: game.id == 'drop-four'
+                  ? game.build >= 6
+                        ? const CatsVsDogsCover()
+                        : const GameCover()
+                  : catalog && game.hasCover && distribution != null
                   ? CatalogGameImage(
                       key: ValueKey(game.imageUrl('cover.webp')),
                       distribution: distribution,
                       game: game,
                       file: 'cover.webp',
                       fit: BoxFit.cover,
-                      fallback: game.id == 'drop-four'
-                          ? const CatsVsDogsCover()
-                          : const GameCover(),
+                      fallback: const GameCover(),
                     )
-                  : game.build >= 6
-                  ? const CatsVsDogsCover()
                   : const GameCover(),
             ),
           Padding(
@@ -1369,10 +1403,21 @@ class _HomeState extends State<Home> {
                         Expanded(
                           child: Align(
                             alignment: AlignmentDirectional.centerEnd,
-                            child: FilledButton(
-                              onPressed: action,
-                              child: Text(button, textAlign: TextAlign.center),
-                            ),
+                            child: button == 'Installed'
+                                ? Text(
+                                    'Installed',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge,
+                                    textAlign: TextAlign.end,
+                                  )
+                                : FilledButton(
+                                    onPressed: action,
+                                    child: Text(
+                                      button,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
                           ),
                         ),
                     ],
