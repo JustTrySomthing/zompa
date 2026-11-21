@@ -28,11 +28,14 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 final class LovePlayer implements PlatformView {
@@ -49,6 +52,7 @@ final class LovePlayer implements PlatformView {
     private boolean disposed;
     private boolean paused;
     private boolean online;
+    private MethodChannel.Result leaving;
     private String match;
     private String audio = "100:100:100";
     private final Runnable moves = new Runnable() {
@@ -85,6 +89,9 @@ final class LovePlayer implements PlatformView {
         String mode = "online".equals(args.get("mode")) ? "online"
             : "local".equals(args.get("mode")) ? "local" : "solo";
         online = mode.equals("online");
+        int build = args.get("build") instanceof Integer ? (Integer) args.get("build") : 0;
+        String save = build >= 3 && "drop-four".equals(args.get("id")) && !online
+            ? (Boolean.TRUE.equals(args.get("fresh")) ? "new" : "resume") : "";
         if (args.get("audio") instanceof String) setAudio((String) args.get("audio"));
         channel.setMethodCallHandler((call, result) -> {
             switch (call.method) {
@@ -110,6 +117,10 @@ final class LovePlayer implements PlatformView {
                     updatePolling();
                     result.success(null);
                     break;
+                case "leave":
+                    if (save.isEmpty()) result.success(null);
+                    else leave(Boolean.TRUE.equals(call.arguments), result);
+                    break;
                 default:
                     result.notImplemented();
             }
@@ -125,18 +136,89 @@ final class LovePlayer implements PlatformView {
                 File verified = verify(context, args);
                 String identity = args.get("build") == null ? "import/" + args.get("id")
                     : "official/" + args.get("id");
-                String host = "g-" + LoveImport.hex(LoveImport.sha256().digest(
-                    identity.getBytes(StandardCharsets.UTF_8))).substring(0, 40) + ".games.zompado.invalid";
+                String host = gameHost(identity);
                 main.post(() -> {
                     if (disposed) return;
                     archive = verified;
                     originHost = host;
-                    start(context, mode);
+                    start(context, mode, save, build);
                 });
             } catch (Exception ignored) {
                 main.post(() -> showMessage("Couldn’t open this game. Reinstall it and try again."));
             }
         }, "zompado-love-verify").start();
+    }
+
+    private static String gameHost(String identity) {
+        return "g-" + LoveImport.hex(LoveImport.sha256().digest(
+            identity.getBytes(StandardCharsets.UTF_8))).substring(0, 40) + ".games.zompado.invalid";
+    }
+
+    static void readLocalSaves(Context context, int build, MethodChannel.Result result) {
+        if (Build.VERSION.SDK_INT < 29) {
+            result.success(Collections.emptyList());
+            return;
+        }
+        final String script;
+        final WebView probe;
+        try (var input = context.getAssets().open("love/drop-four-saves.js")) {
+            var bytes = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            for (int count; (count = input.read(buffer)) != -1;) bytes.write(buffer, 0, count);
+            script = new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+            probe = new WebView(context);
+        } catch (IOException | RuntimeException error) {
+            result.error("LOVE_SAVE", "Couldn’t check the saved games.", null);
+            return;
+        }
+        var handler = new Handler(Looper.getMainLooper());
+        class Probe {
+            boolean done;
+
+            void finish(ArrayList<String> modes) {
+                if (done) return;
+                done = true;
+                handler.post(probe::destroy);
+                if (modes == null) result.error("LOVE_SAVE", "Couldn’t check the saved games.", null);
+                else result.success(modes);
+            }
+        }
+        var request = new Probe();
+        var settings = probe.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setBlockNetworkLoads(true);
+        probe.setWebViewClient(new WebViewClient() {
+            @Override public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                request.finish(null);
+                return true;
+            }
+        });
+        probe.setWebChromeClient(new WebChromeClient() {
+            @Override public void onReceivedTitle(WebView view, String title) {
+                if (title == null || !title.startsWith("zompado-saves:")) return;
+                try {
+                    var entries = new JSONArray(title.substring("zompado-saves:".length()));
+                    var modes = new ArrayList<String>();
+                    for (int i = 0; i < entries.length(); i++) {
+                        String mode = entries.getString(i);
+                        if (mode.equals("solo") || mode.equals("local")) modes.add(mode);
+                    }
+                    request.finish(modes);
+                } catch (JSONException error) {
+                    request.finish(null);
+                }
+            }
+        });
+        handler.postDelayed(() -> request.finish(null), 8000);
+        probe.loadDataWithBaseURL("https://" + gameHost("official/drop-four") + "/",
+            "<!doctype html><meta charset=utf-8><script>" + script
+            + "\nreadDropFourSaves(" + build + ").then(modes => {"
+            + "document.title = 'zompado-saves:' + JSON.stringify(modes);"
+            + "}, () => {document.title = 'zompado-saves:error';});</script>",
+            "text/html", "UTF-8", null);
     }
 
     static File verify(Context context, Map<?, ?> args) throws Exception {
@@ -192,7 +274,7 @@ final class LovePlayer implements PlatformView {
     }
 
     @SuppressWarnings("deprecation")
-    private void start(Context context, String mode) {
+    private void start(Context context, String mode, String save, int build) {
         WebView view;
         try {
             view = new WebView(context);
@@ -217,6 +299,12 @@ final class LovePlayer implements PlatformView {
             @Override public void onPermissionRequest(PermissionRequest request) {
                 request.deny();
             }
+
+            @Override public void onReceivedTitle(WebView view, String title) {
+                if (web != view || leaving == null) return;
+                if ("zompado-save:ok".equals(title)) finishLeave(true);
+                else if ("zompado-save:error".equals(title)) finishLeave(false);
+            }
         });
         view.setDownloadListener((url, agent, disposition, mime, length) -> {});
         view.setWebViewClient(new WebViewClient() {
@@ -235,6 +323,7 @@ final class LovePlayer implements PlatformView {
                     switch (path) {
                         case "/": return asset(context, "index.html", "text/html");
                         case "/player.js": return asset(context, "player.js", "application/javascript");
+                        case "/drop-four-saves.js": return asset(context, "drop-four-saves.js", "application/javascript");
                         case "/player.css": return asset(context, "player.css", "text/css");
                         case "/love.js": return asset(context, "love.js", "application/javascript");
                         case "/love.wasm": return asset(context, "love.wasm", "application/wasm");
@@ -272,6 +361,7 @@ final class LovePlayer implements PlatformView {
             @Override public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
                 if (web == view) {
                     web = null;
+                    if (leaving != null) finishLeave(false);
                     main.removeCallbacks(moves);
                     showMessage("The game stopped. Go back to the library and reopen it.");
                 }
@@ -282,8 +372,36 @@ final class LovePlayer implements PlatformView {
         });
         container.removeAllViews();
         container.addView(view, new FrameLayout.LayoutParams(-1, -1));
-        view.loadUrl("https://" + originHost + "/?mode=" + mode);
+        view.loadUrl("https://" + originHost + "/?mode=" + mode
+            + (save.isEmpty() ? "" : "&save=" + save + "&build=" + build));
         if (paused) view.onPause();
+    }
+
+    private void leave(boolean quit, MethodChannel.Result result) {
+        if (web == null) {
+            result.success(null);
+            return;
+        }
+        if (leaving != null) {
+            result.error("LOVE_SAVE", "A save operation is already running.", null);
+            return;
+        }
+        leaving = result;
+        web.onResume();
+        web.evaluateJavascript("Boolean(window.zompadoGame && (window.zompadoGame.leave("
+            + quit + "), true))", accepted -> {
+                if (leaving == result && !"true".equals(accepted)) finishLeave(!quit);
+            });
+        main.postDelayed(() -> {
+            if (leaving == result) finishLeave(false);
+        }, 8000);
+    }
+
+    private void finishLeave(boolean saved) {
+        var result = leaving;
+        leaving = null;
+        if (saved) result.success(null);
+        else result.error("LOVE_SAVE", "Couldn’t finish saving this game.", null);
     }
 
     private static WebResourceResponse asset(Context context, String filename, String mime) throws IOException {
@@ -348,6 +466,7 @@ final class LovePlayer implements PlatformView {
 
     @Override public void dispose() {
         disposed = true;
+        if (leaving != null) finishLeave(false);
         channel.setMethodCallHandler(null);
         main.removeCallbacks(moves);
         var view = web;

@@ -721,88 +721,172 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<List<String>?> _localGameSaves(GameRelease game) async {
+    if (!game.supportsLocalSaves) return const [];
+    try {
+      final modes = await bridge.invokeListMethod<String>(
+        'readLocalGameSaves',
+        game.build,
+      );
+      return modes?.where(game.modes.contains).toList() ?? const [];
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
   Future<void> selectMode(GameRelease game) async {
-    var mode = 'solo';
     final chatmail = widget.chatmail;
     final online = MatchEvent.supportsGame(game) && chatmail != null;
-    if (game.modes.contains('local') || online) {
-      final hasActiveGame = online
-          ? chatmail.activeMatches().then(
-              (entries) => entries.any(
-                (entry) => entry.match.invite.game?.id == game.id,
+    if (!game.supportsLocalSaves && !game.modes.contains('local') && !online) {
+      await _playLocalGame(game, 'solo', fresh: true);
+      return;
+    }
+    final localSaves = _localGameSaves(game);
+    final onlineCount = online
+        ? resumableMatches(chatmail, game).then(
+            (matches) => matches.length,
+            onError: (Object _, StackTrace _) => 0,
+          )
+        : Future.value(0);
+    final activeCount = (
+      localSaves,
+      onlineCount,
+    ).wait.then((active) => (active.$1?.length ?? 0) + active.$2);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(
+                  'Start a new game',
+                  style: Theme.of(sheet).textTheme.titleLarge,
+                ),
               ),
-              onError: (Object _, StackTrace _) => true,
-            )
-          : null;
-      final choice = await showModalBottomSheet<String>(
-        context: context,
-        showDragHandle: true,
-        useSafeArea: true,
-        isScrollControlled: true,
-        builder: (sheet) => SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: FutureBuilder<bool>(
-              future: hasActiveGame,
-              builder: (context, snapshot) => Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (snapshot.data == true)
-                    ListTile(
-                      leading: const Icon(Icons.play_circle_outline),
-                      title: const Text('Resume an Active Game'),
-                      onTap: () => Navigator.pop(sheet, 'resume'),
-                    ),
-                  if (game.modes.contains('solo'))
-                    ListTile(
-                      leading: const Icon(Icons.person_outline),
-                      title: const Text('Single Player'),
-                      onTap: () => Navigator.pop(sheet, 'solo'),
-                    ),
-                  if (online)
-                    ListTile(
-                      leading: const Icon(Icons.public),
-                      title: const Text('New Online Match'),
-                      subtitle: const Text('Invite a friend to play'),
-                      onTap: () => Navigator.pop(sheet, 'online'),
-                    ),
-                  if (game.modes.contains('local'))
-                    ListTile(
-                      leading: const Icon(Icons.people_outline),
-                      title: const Text('Pass & Play'),
-                      subtitle: const Text('Two players on one device'),
-                      onTap: () => Navigator.pop(sheet, 'local'),
-                    ),
-                ],
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Single Player'),
+                subtitle: const Text('Play against the computer'),
+                onTap: () => Navigator.pop(sheet, 'solo'),
               ),
-            ),
+              if (online)
+                ListTile(
+                  leading: const Icon(Icons.public),
+                  title: const Text('Online 2 Player'),
+                  subtitle: const Text('Invite a friend to a new match'),
+                  onTap: () => Navigator.pop(sheet, 'online'),
+                ),
+              if (game.modes.contains('local'))
+                ListTile(
+                  leading: const Icon(Icons.people_outline),
+                  title: const Text('Pass & Play'),
+                  subtitle: const Text('Two players on one device'),
+                  onTap: () => Navigator.pop(sheet, 'local'),
+                ),
+              FutureBuilder<int>(
+                future: activeCount,
+                builder: (context, snapshot) {
+                  final count = snapshot.data;
+                  if (count == null) return const LinearProgressIndicator();
+                  if (count == 0) return const SizedBox.shrink();
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Divider(),
+                      ListTile(
+                        leading: const Icon(Icons.play_circle_outline),
+                        title: Text(
+                          count == 1
+                              ? 'Resume Active Game'
+                              : 'Resume Active Games',
+                        ),
+                        subtitle: Text(
+                          count == 1
+                              ? '1 unfinished game'
+                              : '$count unfinished games',
+                        ),
+                        onTap: () => Navigator.pop(sheet, 'resume'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
         ),
-      );
-      if (choice == null || !mounted) return;
-      if (choice == 'resume' && chatmail != null) {
-        await showActiveGames(
-          context,
-          chatmail: chatmail,
-          prepareGame: _prepareOnlineGame,
-          game: game,
-        );
-        return;
-      }
-      if (choice == 'online' && chatmail != null) {
-        await _inviteForGame(chatmail, game);
-        return;
-      }
-      mode = choice;
-    }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) =>
-            GamePlayPage.official(game: game, title: game.title, mode: mode),
       ),
     );
+    if (choice == null || !mounted) return;
+    if (choice == 'online' && chatmail != null) {
+      await _inviteForGame(chatmail, game);
+      return;
+    }
+    final savedModes = await localSaves;
+    if (!mounted) return;
+    if (choice == 'resume') {
+      final mode = await showActiveGames(
+        context,
+        chatmail: online ? chatmail : null,
+        prepareGame: _prepareOnlineGame,
+        game: game,
+        localModes: savedModes ?? const [],
+        resumeOnly: true,
+      );
+      if (mounted && mode != null)
+        await _playLocalGame(game, mode, fresh: false);
+      return;
+    }
+    if (savedModes == null || savedModes.contains(choice)) {
+      final mode = localGameModeLabel(choice);
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text('Start a new $mode game?'),
+          content: Text(
+            savedModes == null
+                ? 'Zompado couldn’t check for a save. Starting over will replace any saved game in this mode.'
+                : 'Starting over will replace your unfinished game in this mode.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Start New Game'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || replace != true) return;
+    }
+    await _playLocalGame(game, choice, fresh: true);
   }
+
+  Future<void> _playLocalGame(
+    GameRelease game,
+    String mode, {
+    required bool fresh,
+  }) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => GamePlayPage.official(
+        game: game,
+        title: game.title,
+        mode: mode,
+        fresh: fresh,
+      ),
+    ),
+  );
 
   Future<void> _inviteForGame(Chatmail chatmail, GameRelease game) async {
     try {

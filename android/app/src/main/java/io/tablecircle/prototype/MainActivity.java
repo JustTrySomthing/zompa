@@ -128,6 +128,14 @@ public final class MainActivity extends FlutterActivity {
                     case "chatmailExecutable":
                         openChatmail(result);
                         break;
+                    case "readLocalGameSaves":
+                        Integer gameBuild = call.arguments();
+                        if (gameBuild == null || gameBuild < 1) {
+                            result.error("LOVE_SAVE", "Invalid game build.", null);
+                        } else {
+                            LovePlayer.readLocalSaves(MainActivity.this, gameBuild, result);
+                        }
+                        break;
                     case "checkLoveGame":
                         if (!(call.arguments instanceof Map)) {
                             result.error("LOVE_IMPORT", "Invalid game reference.", null);

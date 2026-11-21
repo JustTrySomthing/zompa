@@ -301,11 +301,11 @@ const _topics = [
       ),
       (
         'Can I play with someone next to me?',
-        'Choose Pass & Play to take turns on one device. Choose Single Player to play against the computer.',
+        'Choose Pass & Play to take turns on one device. Choose Single Player to play against the computer or Online 2 Player to invite a friend. Each choice starts a new game.',
       ),
       (
-        'How do I pause or leave a game?',
-        'Tap Pause in the game toolbar to take a break or choose Quit game. In an online match, a pause applies to both players, and the player who paused can resume. Quitting ends the match for both players.',
+        'How do I pause or resume a game?',
+        'Tap Pause in the game toolbar to take a break. From the library, tap Play → Resume Active Game to continue an unfinished game. Zompado keeps one save per local mode and asks before replacing it. Quit game discards local progress or ends an online match for both players.',
       ),
       (
         'Can I talk to my friend while playing?',
