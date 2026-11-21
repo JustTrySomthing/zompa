@@ -47,7 +47,12 @@ class ChatAvatar extends StatelessWidget {
   }
 }
 
-String chatTime(BuildContext context, int seconds, {bool compact = false}) {
+String chatTime(
+  BuildContext context,
+  int seconds, {
+  bool compact = false,
+  bool showYear = true,
+}) {
   if (seconds <= 0) return '';
   final date = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
   final locale = MaterialLocalizations.of(context);
@@ -58,7 +63,7 @@ String chatTime(BuildContext context, int seconds, {bool compact = false}) {
   final today = DateTime.now();
   if (DateUtils.isSameDay(date, today)) return time;
   if (compact) {
-    return date.year == today.year
+    return !showYear || date.year == today.year
         ? locale.formatShortMonthDay(date)
         : locale.formatShortDate(date);
   }

@@ -188,7 +188,8 @@ final class ChatPlayback {
 
     boolean openExternal(Integer id, String original) {
         var page = id == null ? null : pages.get(id);
-        Uri destination = webUri(page == null || page.failed ? original : page.view.getUrl());
+        Uri destination = webUri(page == null || page.failed || page.youtube
+            ? original : page.view.getUrl());
         if (destination == null) destination = webUri(original);
         if (destination == null) return false;
         try {
@@ -208,11 +209,25 @@ final class ChatPlayback {
     void pause() {
         releaseAudio();
         for (var video : videos.values()) video.pause();
-        for (var page : pages.values()) if (!page.failed) page.view.onPause();
+        for (var page : pages.values()) {
+            if (page.failed) continue;
+            if (page.youtube) {
+                page.view.evaluateJavascript(
+                    "window.zompadoYouTubeActive = false; window.zompadoYouTubePlayer?.pauseVideo?.();",
+                    null);
+            }
+            page.view.onPause();
+        }
     }
 
     void resume() {
-        for (var page : pages.values()) if (!page.failed) page.view.onResume();
+        for (var page : pages.values()) {
+            if (page.failed) continue;
+            page.view.onResume();
+            if (page.youtube) {
+                page.view.evaluateJavascript("window.zompadoYouTubeActive = true;", null);
+            }
+        }
     }
 
     private static Uri webUri(String value) {
@@ -224,29 +239,58 @@ final class ChatPlayback {
                 && uri.getUserInfo() == null ? uri : null;
     }
 
-    private static void enableYouTubeSound(WebView page, String videoId) {
-        if (videoId == null || !videoId.matches("[A-Za-z0-9_-]{11}")) return;
-        // A YouTube page can start with its own mute preference even when
-        // the WebView permits autoplay. Enable sound once, on initial play.
-        page.evaluateJavascript("""
-            ((id) => {
-              if (!['m.youtube.com', 'www.youtube.com', 'youtube.com'].includes(location.hostname)
-                  || location.pathname !== '/watch'
-                  || new URLSearchParams(location.search).get('v') !== id
-                  || window.zompadoSoundStarted === id) return;
-              window.zompadoSoundStarted = id;
-              function enableSound(event) {
-                const video = event.target;
-                if (!(video instanceof HTMLVideoElement) || video.paused) return;
-                document.removeEventListener('playing', enableSound, true);
-                video.muted = false;
-                if (video.volume === 0) video.volume = 1;
+    private void loadYouTube(WebView view, String videoId) {
+        // YouTube uses the enclosing page's origin as the Android client's referrer.
+        String origin = "https://" + activity.getPackageName();
+        String embed = Uri.parse("https://www.youtube.com/embed/" + videoId).buildUpon()
+            .appendQueryParameter("enablejsapi", "1")
+            .appendQueryParameter("origin", origin)
+            .appendQueryParameter("playsinline", "1")
+            .appendQueryParameter("fs", "0")
+            .build().toString().replace("&", "&amp;");
+        String html = """
+            <!doctype html>
+            <html lang="en">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="referrer" content="strict-origin-when-cross-origin">
+            <style>
+              html, body { margin: 0; width: 100%; height: 100%; background: #000; }
+              body { display: flex; flex-direction: column; color: #fff; font: 16px sans-serif; }
+              iframe { border: 0; flex: 1; width: 100%; min-height: 0; }
+              p { margin: 0; padding: 12px 16px; }
+            </style>
+            <iframe id="player" src="EMBED_URL" title="YouTube video"
+                    allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+            <p id="status" role="status" hidden></p>
+            <script>
+              window.zompadoYouTubeActive = true;
+              const statusLabel = document.getElementById('status');
+              function message(text) {
+                statusLabel.textContent = text;
+                statusLabel.hidden = !text;
               }
-              document.addEventListener('playing', enableSound, true);
-              const playing = Array.from(document.querySelectorAll('video'))
-                  .find(video => !video.paused && video.readyState >= 2);
-              if (playing) enableSound({target: playing});
-            })('""" + videoId + "');", null);
+              function onYouTubeIframeAPIReady() {
+                window.zompadoYouTubePlayer = new YT.Player('player', {
+                  events: {
+                    onReady: ({target}) => {
+                      if (!window.zompadoYouTubeActive || document.hidden) return;
+                      target.unMute();
+                      if (target.getVolume() === 0) target.setVolume(100);
+                      target.playVideo();
+                    },
+                    onAutoplayBlocked: () => message('Tap Play to start the video with sound.'),
+                    onStateChange: ({data}) => {
+                      if (data === YT.PlayerState.PLAYING) message('');
+                    },
+                    onError: () => message('Open this video in YouTube to continue.')
+                  }
+                });
+              }
+            </script>
+            <script src="https://www.youtube.com/iframe_api"></script>
+            </html>
+            """.replace("EMBED_URL", embed);
+        view.loadDataWithBaseURL(origin, html, "text/html", "UTF-8", null);
     }
 
     private final class VideoPreview implements PlatformView {
@@ -307,6 +351,7 @@ final class ChatPlayback {
         private final int id;
         private final FrameLayout frame;
         private final WebView view;
+        private final boolean youtube;
         private boolean failed;
 
         WebPreview(int id, String initial) {
@@ -322,15 +367,13 @@ final class ChatPlayback {
             settings.setJavaScriptEnabled(true);
             settings.setDomStorageEnabled(true);
             Uri uri = webUri(initial);
-            boolean youtubePlayback = uri != null && "m.youtube.com".equals(uri.getHost())
-                && "/watch".equals(uri.getPath()) && "1".equals(uri.getQueryParameter("autoplay"));
-            settings.setMediaPlaybackRequiresUserGesture(!youtubePlayback);
+            String videoId = uri == null ? null : uri.getQueryParameter("v");
+            youtube = uri != null && "https".equals(uri.getScheme()) && "m.youtube.com".equals(uri.getHost())
+                && "/watch".equals(uri.getPath()) && "1".equals(uri.getQueryParameter("autoplay"))
+                && videoId != null && videoId.matches("[A-Za-z0-9_-]{11}");
+            settings.setMediaPlaybackRequiresUserGesture(!youtube);
             android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(view, false);
             view.setWebViewClient(new WebViewClient() {
-                @Override public void onPageFinished(WebView page, String url) {
-                    if (youtubePlayback) enableYouTubeSound(page, uri.getQueryParameter("v"));
-                }
-
                 @Override public boolean shouldOverrideUrlLoading(WebView page, WebResourceRequest request) {
                     return webUri(request.getUrl().toString()) == null;
                 }
@@ -346,7 +389,8 @@ final class ChatPlayback {
                     return true;
                 }
             });
-            if (uri != null) view.loadUrl(uri.toString());
+            if (youtube) loadYouTube(view, videoId);
+            else if (uri != null) view.loadUrl(uri.toString());
         }
 
         @Override public View getView() { return frame; }

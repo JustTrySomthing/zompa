@@ -385,6 +385,9 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     _routeChatAlert();
+    if (installedGames.values.any((game) => game.screenshots.isEmpty)) {
+      unawaited(_loadLibraryArtwork());
+    }
   }
 
   @override
@@ -459,6 +462,17 @@ class _HomeState extends State<Home> {
   bool openingGameLink = false;
   String? catalogError;
   List<GameRelease> releases = [];
+  List<GameRelease> _libraryArtwork = const [];
+
+  Future<void> _loadLibraryArtwork() async {
+    try {
+      final games = await widget.distribution?.catalog(includeArchive: true);
+      if (mounted && games != null) setState(() => _libraryArtwork = games);
+    } catch (_) {
+      // Playback stays available when the preview catalog is offline.
+    }
+  }
+
   Map<String, GameRelease> _readLibrary() {
     final stored = widget.data['installedGames'];
     final legacy = widget.data['dropFourRelease'];
@@ -1169,13 +1183,6 @@ class _HomeState extends State<Home> {
               ),
           ],
         ),
-        if (catalog) ...[
-          const SizedBox(height: 6),
-          Text(
-            'Games released independently from the app.',
-            style: TextStyle(color: colors.onSurfaceVariant),
-          ),
-        ],
         const SizedBox(height: 16),
         if (catalog) ...[
           if (loadingCatalog || downloadingGame)
@@ -1191,16 +1198,13 @@ class _HomeState extends State<Home> {
           ],
           for (final game in releases) ...[
             gameCard(
-              game.title,
-              'Version ${game.version} · .zomp · ${game.asset.size < 1024 ? '${game.asset.size} B' : '${(game.asset.size / 1024).toStringAsFixed(1)} KB'}',
-              (installedGames[game.id]?.build ?? 0) >= game.build
+              game,
+              button: (installedGames[game.id]?.build ?? 0) >= game.build
                   ? null
                   : installedGames.containsKey(game.id)
                   ? 'Update'
                   : 'Install',
-              downloadingGame ? null : () => installGame(game),
-              installed: installedGames.containsKey(game.id),
-              game: game,
+              action: downloadingGame ? null : () => installGame(game),
             ),
             const SizedBox(height: 12),
           ],
@@ -1209,11 +1213,9 @@ class _HomeState extends State<Home> {
         ] else if (installedGames.isNotEmpty)
           for (final game in installedGames.values) ...[
             gameCard(
-              game.title,
-              'Version ${game.version} · .zomp',
-              'Play',
-              downloadingGame ? null : () => selectMode(game),
-              game: game,
+              game,
+              button: 'Play',
+              action: downloadingGame ? null : () => selectMode(game),
               share: () => _shareInstalledGame(game),
               remove: downloadingGame ? null : () => _removeGame(game),
             ),
@@ -1249,113 +1251,140 @@ class _HomeState extends State<Home> {
   }
 
   Widget gameCard(
-    String title,
-    String description,
-    String? button,
-    VoidCallback? action, {
-    required GameRelease game,
-    bool installed = false,
+    GameRelease game, {
+    required String? button,
+    required VoidCallback? action,
     VoidCallback? share,
     VoidCallback? remove,
-  }) => Card(
-    clipBehavior: Clip.antiAlias,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (game.id == 'drop-four' || (catalog && game.hasCover))
-          SizedBox(
-            height: 146,
-            child: catalog && game.hasCover && widget.distribution != null
-                ? CatalogGameImage(
-                    key: ValueKey(game.imageUrl('cover.webp')),
-                    distribution: widget.distribution!,
-                    game: game,
-                    file: 'cover.webp',
-                    fit: BoxFit.cover,
-                    fallback: game.id == 'drop-four'
-                        ? const CatsVsDogsCover()
-                        : const GameCover(),
-                  )
-                : game.build >= 6
-                ? const CatsVsDogsCover()
-                : const GameCover(),
-          ),
-        Padding(
-          padding: const EdgeInsets.all(17),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+  }) {
+    final distribution = widget.distribution;
+    final preview = game.screenshots.isNotEmpty
+        ? game
+        : [...releases, ..._libraryArtwork]
+              .where(
+                (candidate) =>
+                    candidate.id == game.id &&
+                    candidate.version == game.version &&
+                    candidate.build == game.build &&
+                    candidate.asset.sha == game.asset.sha &&
+                    candidate.screenshots.isNotEmpty,
+              )
+              .firstOrNull;
+    final bytes = game.asset.size;
+    final size = bytes < 1024
+        ? '$bytes B'
+        : bytes < 1024 * 1024
+        ? '${(bytes / 1024).toStringAsFixed(1)} KB'
+        : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    final hasOptions = share != null || remove != null;
+    final hasScreenshots = preview != null && distribution != null;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (game.id == 'drop-four' || (catalog && game.hasCover))
+            SizedBox(
+              height: 146,
+              child: catalog && game.hasCover && distribution != null
+                  ? CatalogGameImage(
+                      key: ValueKey(game.imageUrl('cover.webp')),
+                      distribution: distribution,
+                      game: game,
+                      file: 'cover.webp',
+                      fit: BoxFit.cover,
+                      fallback: game.id == 'drop-four'
+                          ? const CatsVsDogsCover()
+                          : const GameCover(),
+                    )
+                  : game.build >= 6
+                  ? const CatsVsDogsCover()
+                  : const GameCover(),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(17, 14, 17, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
+                    Expanded(
+                      child: Text(
+                        game.title,
+                        style: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(description),
-                    if (catalog &&
-                        game.screenshots.isNotEmpty &&
-                        widget.distribution != null)
-                      IconButton(
-                        tooltip: 'View screenshots for $title',
-                        icon: const Icon(
-                          Icons.photo_library_outlined,
-                          size: 21,
-                        ),
-                        onPressed: () => showGameScreenshots(
-                          context,
-                          widget.distribution!,
-                          game,
-                        ),
-                      ),
-                    if (installed)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.check_circle_outline, size: 16),
-                            const SizedBox(width: 5),
-                            Flexible(
-                              child: Text(
-                                'Installed',
-                                style: Theme.of(context).textTheme.labelLarge,
-                              ),
+                    if (hasOptions)
+                      PopupMenuButton<String>(
+                        tooltip: 'Game options',
+                        onSelected: (choice) =>
+                            (choice == 'remove' ? remove : share)?.call(),
+                        itemBuilder: (_) => [
+                          if (share != null)
+                            const PopupMenuItem(
+                              value: 'share',
+                              child: Text('Share'),
                             ),
-                          ],
+                          if (remove != null)
+                            const PopupMenuItem(
+                              value: 'remove',
+                              child: Text('Remove'),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: Text('Version ${game.version}')),
+                    if (catalog) ...[
+                      const SizedBox(width: 8),
+                      Flexible(child: Text(size, textAlign: TextAlign.end)),
+                    ],
+                  ],
+                ),
+                if (hasScreenshots || button != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (hasScreenshots)
+                        IconButton.filledTonal(
+                          tooltip: 'View screenshots for ${game.title}',
+                          icon: const Icon(
+                            Icons.photo_library_outlined,
+                            size: 26,
+                          ),
+                          onPressed: () => showGameScreenshots(
+                            context,
+                            distribution,
+                            preview,
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-              if (share != null || remove != null)
-                PopupMenuButton<String>(
-                  tooltip: 'Game options',
-                  onSelected: (choice) =>
-                      (choice == 'remove' ? remove : share)?.call(),
-                  itemBuilder: (_) => [
-                    if (share != null)
-                      const PopupMenuItem(value: 'share', child: Text('Share')),
-                    if (remove != null)
-                      const PopupMenuItem(
-                        value: 'remove',
-                        child: Text('Remove'),
-                      ),
-                  ],
-                ),
-              if ((share != null || remove != null) && button != null)
-                const SizedBox(width: 8),
-              if (button != null)
-                FilledButton(onPressed: action, child: Text(button)),
-            ],
+                      if (button != null)
+                        Expanded(
+                          child: Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: FilledButton(
+                              onPressed: action,
+                              child: Text(button, textAlign: TextAlign.center),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _HomeBottomBar extends StatelessWidget {

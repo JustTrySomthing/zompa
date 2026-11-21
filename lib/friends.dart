@@ -1126,7 +1126,12 @@ class _FriendConversationState extends State<FriendConversation>
         ? (message.outgoing ? 'You' : peer)
         : name;
     final theme = Theme.of(context);
-    final time = chatTime(context, message.timestamp);
+    final time = chatTime(
+      context,
+      message.timestamp,
+      compact: true,
+      showYear: false,
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(
@@ -1371,10 +1376,16 @@ class _FriendConversationState extends State<FriendConversation>
     setState(() => _pickingGame = true);
     try {
       FocusScope.of(context).unfocus();
-      final selected = await showDialog<GameRelease>(
+      final selected = await showModalBottomSheet<GameRelease>(
         context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        useSafeArea: true,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .9,
+        ),
         builder: (_) =>
-            _GameInviteDialog(friend: friend, games: widget.installedGames!()),
+            _GameInviteSheet(friend: friend, games: widget.installedGames!()),
       );
       if (!mounted || selected == null) return;
       final link = await widget.verifiedGameLink!(selected);
@@ -1930,83 +1941,80 @@ class _FriendConversationState extends State<FriendConversation>
   }
 }
 
-class _GameInviteDialog extends StatefulWidget {
-  const _GameInviteDialog({required this.friend, required this.games});
+class _GameInviteSheet extends StatefulWidget {
+  const _GameInviteSheet({required this.friend, required this.games});
 
   final String friend;
   final List<GameRelease> games;
 
   @override
-  State<_GameInviteDialog> createState() => _GameInviteDialogState();
+  State<_GameInviteSheet> createState() => _GameInviteSheetState();
 }
 
-class _GameInviteDialogState extends State<_GameInviteDialog> {
+class _GameInviteSheetState extends State<_GameInviteSheet> {
   GameRelease? _selected;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: SizedBox(
-        width: 380,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Flexible(
-                child: SingleChildScrollView(
-                  primary: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Choose a game to play with ${widget.friend}',
-                        style: theme.textTheme.titleLarge,
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                primary: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Choose a game to play with ${widget.friend}',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 14),
+                    if (widget.games.isEmpty)
+                      const Text(
+                        'Install a game from Get Games to invite a friend.',
                       ),
-                      const SizedBox(height: 14),
-                      if (widget.games.isEmpty)
-                        const Text(
-                          'Install a game from Get Games to invite a friend.',
-                        ),
-                      for (final game in widget.games)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _gameTile(game, colors),
-                        ),
-                    ],
-                  ),
+                    for (final game in widget.games)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _gameTile(game, colors),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xff1b663c),
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _selected == null
-                          ? null
-                          : () => Navigator.pop(context, _selected),
-                      child: const Text('Invite'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xff1b663c),
+                      foregroundColor: Colors.white,
                     ),
+                    onPressed: _selected == null
+                        ? null
+                        : () => Navigator.pop(context, _selected),
+                    child: const Text('Invite'),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -2044,7 +2052,7 @@ class _GameInviteDialogState extends State<_GameInviteDialog> {
         title: Text(game.title),
         subtitle: eligible ? null : const Text('Online matches unavailable'),
         trailing: selected
-            ? Icon(Icons.check_circle, color: colors.onSecondaryContainer)
+            ? Icon(Icons.check_circle, color: colors.primary)
             : null,
       ),
     );

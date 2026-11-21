@@ -513,11 +513,7 @@ void _openBrowser(BuildContext context, Uri url) {
   final id = youtubeVideoId(url);
   final target = id == null
       ? url
-      : Uri.https('m.youtube.com', '/watch', {
-          'v': id,
-          'autoplay': '1',
-          'mute': '0',
-        });
+      : Uri.https('m.youtube.com', '/watch', {'v': id, 'autoplay': '1'});
   Navigator.of(context)
       .push<void>(MaterialPageRoute(builder: (_) => _BrowserPreview(target)));
 }
