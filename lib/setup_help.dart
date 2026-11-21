@@ -305,7 +305,7 @@ const _topics = [
       ),
       (
         'How do I pause or leave a game?',
-        'The right side of the game toolbar has Pause or Resume and an X to quit. In an online match, a pause applies to both players, and the player who paused can resume. Quit ends the match for both players.',
+        'Tap Pause in the game toolbar to take a break or choose Quit game. In an online match, a pause applies to both players, and the player who paused can resume. Quitting ends the match for both players.',
       ),
       (
         'Can I talk to my friend while playing?',

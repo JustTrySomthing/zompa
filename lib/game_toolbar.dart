@@ -14,14 +14,13 @@ class GameToolbar extends StatefulWidget implements PreferredSizeWidget {
     this.unread = false,
     this.paused = false,
     this.onPause,
-    this.onQuit,
   });
 
   final String title;
   final int? chat;
   final String? friendName;
   final bool chatOpen, unread, paused;
-  final VoidCallback? onMessage, onPause, onQuit;
+  final VoidCallback? onMessage, onPause;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -90,11 +89,6 @@ class _GameToolbarState extends State<GameToolbar> {
           tooltip: widget.paused ? 'Resume' : 'Pause',
           onPressed: widget.onPause,
           icon: Icon(widget.paused ? Icons.play_arrow : Icons.pause),
-        ),
-        IconButton(
-          tooltip: 'Quit',
-          onPressed: widget.onQuit,
-          icon: const Icon(Icons.close),
         ),
       ],
     );

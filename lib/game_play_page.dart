@@ -63,7 +63,6 @@ class _GamePlayPageState extends State<GamePlayPage> {
       title: widget.title,
       paused: _paused,
       onPause: () => setState(() => _paused = !_paused),
-      onQuit: _quit,
     ),
     body: SafeArea(
       child: Stack(

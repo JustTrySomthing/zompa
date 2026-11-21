@@ -542,11 +542,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                         (match.pausedByFriend && !match.pausedByMe)
                     ? null
                     : () => _togglePause(match),
-                onQuit: _sending || pendingQuit
-                    ? null
-                    : match.finished
-                    ? () => Navigator.of(context).pop()
-                    : () => _quit(match),
               )
             : AppBar(
                 title: Text(
@@ -655,6 +650,16 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               onPressed: () =>
                                                   _send(pending.text),
                                               child: const Text('Retry send'),
+                                            ),
+                                          if ((match.paused ||
+                                                  pendingAction?.kind == 'pause') &&
+                                              !match.finished &&
+                                              !pendingQuit)
+                                            TextButton(
+                                              onPressed: _sending
+                                                  ? null
+                                                  : () => _quit(match),
+                                              child: const Text('Quit game'),
                                             ),
                                         ],
                                       ),
