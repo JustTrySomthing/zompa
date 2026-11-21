@@ -1,5 +1,5 @@
 {
-  "version": "0.5.25",
-  "build": 34,
-  "notes": "- Open About in Settings for the installed version and Zompado\u2019s GitHub page.\n- Adjust or mute game volume, music, and effects separately. Game volume defaults to 20% until you set a level.\n- Switch calls between Video and Audio with larger controls.\n- Switch between Chats and Games with one control. Active Games opens directly to Active. Quit a game from Pause."
+  "version": "0.5.26",
+  "build": 35,
+  "notes": "- Light mode uses a softer background, stronger contrast, and a deeper default blue.\n- Choose Light mode or Dark mode in Settings \u2192 Appearance, then drag Theme color to preview and save a hue for the app.\n- Tap Reset color to return to the default blue."
 }
