@@ -75,6 +75,7 @@ class _FriendsPaneState extends State<FriendsPane> {
   void initState() {
     super.initState();
     _events = widget.chatmail.changes.listen((_) {
+      if (!widget.active) return;
       _refreshTimer?.cancel();
       _refreshTimer = Timer(const Duration(milliseconds: 220), () {
         if (!_ready && !_busy && mounted) {
@@ -90,6 +91,7 @@ class _FriendsPaneState extends State<FriendsPane> {
   @override
   void didUpdateWidget(FriendsPane oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!widget.active) _refreshTimer?.cancel();
     if (!oldWidget.active && widget.active) {
       if (_ready) {
         unawaited(_refresh());
@@ -1011,7 +1013,8 @@ class _FriendConversationState extends State<FriendConversation>
         _thread = thread;
         _loadError = null;
       });
-      if (ModalRoute.of(context)?.isCurrent == true &&
+      if (!_showMedia &&
+          ModalRoute.of(context)?.isCurrent == true &&
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
         await widget.chatmail.markSeen([
           for (final message in thread.messages)
@@ -1856,10 +1859,13 @@ class _FriendConversationState extends State<FriendConversation>
                       showSelectedIcon: false,
                       onSelectionChanged: (selected) {
                         FocusScope.of(context).unfocus();
+                        final showMedia = selected.single;
+                        if (showMedia == _showMedia) return;
                         setState(() {
-                          _showMedia = selected.single;
+                          _showMedia = showMedia;
                           _openedMedia = _openedMedia || _showMedia;
                         });
+                        if (!showMedia) unawaited(_load());
                       },
                     ),
                   ),
@@ -1877,6 +1883,7 @@ class _FriendConversationState extends State<FriendConversation>
                           child: ChatGallery(
                             chatmail: widget.chatmail,
                             chat: widget.id,
+                            active: _showMedia,
                           ),
                         ),
                       if (!_showMedia)

@@ -9,10 +9,16 @@ import 'chatmail.dart';
 import 'saved_messages.dart';
 
 class ChatGallery extends StatefulWidget {
-  const ChatGallery({super.key, required this.chatmail, required this.chat});
+  const ChatGallery({
+    super.key,
+    required this.chatmail,
+    required this.chat,
+    this.active = true,
+  });
 
   final Chatmail chatmail;
   final int chat;
+  final bool active;
 
   @override
   State<ChatGallery> createState() => _ChatGalleryState();
@@ -25,6 +31,7 @@ class _ChatGalleryState extends State<ChatGallery> {
   bool _hasOlder = false;
   bool _loaded = false;
   bool _failed = false;
+  bool _needsRefresh = false;
   Future<void>? _loading;
   Timer? _debounce;
   late final StreamSubscription<void> _updates;
@@ -34,10 +41,21 @@ class _ChatGalleryState extends State<ChatGallery> {
   void initState() {
     super.initState();
     _updates = widget.chatmail.changes.listen((_) {
+      _needsRefresh = true;
+      if (!widget.active) return;
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 220), _refresh);
     });
     unawaited(_refresh());
+  }
+
+  @override
+  void didUpdateWidget(ChatGallery oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.active) _debounce?.cancel();
+    if (!oldWidget.active && widget.active && _needsRefresh) {
+      unawaited(_refresh());
+    }
   }
 
   @override
@@ -53,6 +71,7 @@ class _ChatGalleryState extends State<ChatGallery> {
       await _loading;
     }
     if (!mounted) return;
+    _needsRefresh = false;
     final pending = _load();
     setState(() {
       _loading = pending;

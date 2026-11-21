@@ -80,11 +80,11 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
         MatchEvent.parse(message.text) != null)
       return 'Games';
     if (message.file != null) {
-      return switch (message.mime?.split('/').first) {
-        'image' => 'Photos',
-        'video' => 'Videos',
-        'audio' => 'Audio',
-        _ => 'Files',
+      return switch (message.media) {
+        ChatMedia.image => 'Photos',
+        ChatMedia.video => 'Videos',
+        ChatMedia.audio => 'Audio',
+        null => 'Files',
       };
     }
     return chatLinks(message.text).isNotEmpty ? 'Links' : 'Messages';
