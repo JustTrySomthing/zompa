@@ -1118,6 +1118,7 @@ class _HomeState extends State<Home> {
         ),
         Align(
           child: TextButton(
+            style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
             onPressed: _openGameOptions,
             child: const Text('Import or Open Game Link'),
           ),
@@ -1303,6 +1304,8 @@ class _HomeState extends State<Home> {
                       ),
                   ],
                 ),
+              if ((share != null || remove != null) && button != null)
+                const SizedBox(width: 8),
               if (button != null)
                 FilledButton(onPressed: action, child: Text(button)),
             ],
