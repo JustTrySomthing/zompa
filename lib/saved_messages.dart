@@ -99,10 +99,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
           .contains(_query);
     }).toList();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Saved'),
-        actions: chatActions(context, selected: ChatDestination.saved),
-      ),
+      appBar: chatPageBar(context, 'Saved', selected: ChatDestination.saved),
       body: SafeArea(
         child: CustomScrollView(
           slivers: [

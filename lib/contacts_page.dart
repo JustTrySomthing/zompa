@@ -148,9 +148,10 @@ class _ContactsPageState extends State<ContactsPage> {
       ),
     ];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Contacts'),
-        actions: chatActions(context, selected: ChatDestination.contacts),
+      appBar: chatPageBar(
+        context,
+        'Contacts',
+        selected: ChatDestination.contacts,
       ),
       body: SafeArea(
         child: ListView(

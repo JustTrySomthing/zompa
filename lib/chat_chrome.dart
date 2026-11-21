@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'brand.dart';
+
 class ChatNotificationSettings extends ChangeNotifier {
   ChatNotificationSettings(this.host);
 
@@ -119,6 +121,44 @@ class ChatChrome extends InheritedWidget {
 }
 
 enum ChatDestination { saved, contacts, settings }
+
+AppBar chatPageBar(
+  BuildContext context,
+  String label, {
+  ChatDestination? selected,
+  bool showBrand = false,
+}) {
+  final compact = MediaQuery.sizeOf(context).width < 380;
+  final title = FittedBox(
+    alignment: AlignmentDirectional.centerStart,
+    fit: BoxFit.scaleDown,
+    child: Text(
+      label,
+      maxLines: 1,
+      softWrap: false,
+      style: showBrand ? const TextStyle(fontWeight: FontWeight.w700) : null,
+    ),
+  );
+  return AppBar(
+    titleSpacing: compact ? 4 : null,
+    leadingWidth: compact ? 48 : null,
+    title: showBrand
+        ? Row(
+            children: [
+              Image.asset(
+                ZompadoBrand.markAsset,
+                width: 25,
+                height: 25,
+                excludeFromSemantics: true,
+              ),
+              SizedBox(width: compact ? 6 : 10),
+              Flexible(child: title),
+            ],
+          )
+        : title,
+    actions: chatActions(context, selected: selected),
+  );
+}
 
 List<Widget> chatActions(BuildContext context, {ChatDestination? selected}) {
   final chrome = ChatChrome.of(context);

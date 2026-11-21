@@ -936,43 +936,28 @@ class _HomeState extends State<Home> {
     );
   }
 
-  void openSettings(BuildContext context) => Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
-      builder: (_) => Preferences(
-        data: widget.data,
-        write: widget.write,
-        onTheme: widget.onTheme,
-        updates: widget.updates,
-        chatmail: widget.chatmail,
-      ),
-    ),
-  );
+  void openSettings(BuildContext context, {bool showUpdates = false}) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => Preferences(
+            data: widget.data,
+            write: widget.write,
+            onTheme: widget.onTheme,
+            updates: widget.updates,
+            chatmail: widget.chatmail,
+            showUpdates: showUpdates,
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
     final isGames = tab == 1;
-    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset(
-              ZompadoBrand.markAsset,
-              width: 25,
-              height: 25,
-              excludeFromSemantics: true,
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                isGames ? 'Games' : 'Chats',
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-        actions: chatActions(context),
+      appBar: chatPageBar(
+        context,
+        isGames ? 'Games' : 'Chats',
+        showBrand: true,
       ),
       body: Column(
         children: [
@@ -981,7 +966,7 @@ class _HomeState extends State<Home> {
               content: Text('Zompado ${update.version} is available.'),
               actions: [
                 TextButton(
-                  onPressed: () => openSettings(context),
+                  onPressed: () => openSettings(context, showUpdates: true),
                   child: const Text('View update'),
                 ),
               ],
@@ -1244,9 +1229,11 @@ class _HomeState extends State<Home> {
                           children: [
                             const Icon(Icons.check_circle_outline, size: 16),
                             const SizedBox(width: 5),
-                            Text(
-                              'Installed',
-                              style: Theme.of(context).textTheme.labelLarge,
+                            Flexible(
+                              child: Text(
+                                'Installed',
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
                             ),
                           ],
                         ),
@@ -1572,9 +1559,11 @@ class Preferences extends StatefulWidget {
     required this.onTheme,
     required this.updates,
     required this.chatmail,
+    this.showUpdates = false,
   });
   final AppUpdates? updates;
   final Chatmail? chatmail;
+  final bool showUpdates;
   final Map<String, dynamic> data;
   final void Function(String, dynamic) write;
   final ValueChanged<ThemeMode> onTheme;
@@ -1583,6 +1572,20 @@ class Preferences extends StatefulWidget {
 }
 
 class _PreferencesState extends State<Preferences> {
+  final _updatesAnchor = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.showUpdates) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_updatesAnchor.currentContext case final context? when mounted) {
+          unawaited(Scrollable.ensureVisible(context));
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatmail = widget.chatmail;
@@ -1651,129 +1654,136 @@ class _PreferencesState extends State<Preferences> {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        actions: chatActions(context, selected: ChatDestination.settings),
+      appBar: chatPageBar(
+        context,
+        'Settings',
+        selected: ChatDestination.settings,
       ),
       body: SafeArea(
         top: false,
-        child: ListView(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
-          children: [
-            LayoutBuilder(
-              builder: (context, box) {
-                final scaledLabel = MediaQuery.textScalerOf(context).scale(16);
-                final columns =
-                    box.maxWidth >= 240 &&
-                        (box.maxWidth - 14) / 2 >= scaledLabel * 5
-                    ? 2
-                    : 1;
-                final items = [
-                  ...buttons,
-                  if (columns == 2 && buttons.length.isEven) const SizedBox(),
-                  _SettingsButton(
-                    'About',
-                    onPressed: () => open(const _AboutPage()),
-                  ),
-                ];
-                return Column(
-                  children: [
-                    for (var i = 0; i < items.length; i += columns)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(child: items[i]),
-                              if (columns == 2) ...[
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: i + 1 < items.length
-                                      ? items[i + 1]
-                                      : const SizedBox(),
-                                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LayoutBuilder(
+                builder: (context, box) {
+                  final scaledLabel = MediaQuery.textScalerOf(context)
+                      .scale(16);
+                  final columns =
+                      box.maxWidth >= 240 &&
+                          (box.maxWidth - 14) / 2 >= scaledLabel * 5
+                      ? 2
+                      : 1;
+                  final items = [
+                    ...buttons,
+                    if (columns == 2 && buttons.length.isEven) const SizedBox(),
+                    _SettingsButton(
+                      'About',
+                      onPressed: () => open(const _AboutPage()),
+                    ),
+                  ];
+                  return Column(
+                    children: [
+                      for (var i = 0; i < items.length; i += columns)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(child: items[i]),
+                                if (columns == 2) ...[
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: i + 1 < items.length
+                                        ? items[i + 1]
+                                        : const SizedBox(),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                );
-              },
-            ),
-            if (widget.updates case final updates?)
-              ListenableBuilder(
-                listenable: updates,
-                builder: (context, _) => _settingsCard(
-                  context,
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.system_update_alt),
-                        title: const Text('App updates'),
-                        subtitle: Text('Installed version $installedVersion'),
-                      ),
-                      SwitchListTile(
-                        title: const Text('Check automatically'),
-                        value: updates.automatic,
-                        onChanged: updates.setAutomatic,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (updates.status case final status?)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Semantics(
-                                  liveRegion: true,
-                                  child: Text(status),
+                    ],
+                  );
+                },
+              ),
+              if (widget.updates case final updates?)
+                ListenableBuilder(
+                  key: _updatesAnchor,
+                  listenable: updates,
+                  builder: (context, _) => _settingsCard(
+                    context,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.system_update_alt),
+                          title: const Text('App updates'),
+                          subtitle: Text('Installed version $installedVersion'),
+                        ),
+                        SwitchListTile(
+                          title: const Text('Check automatically'),
+                          value: updates.automatic,
+                          onChanged: updates.setAutomatic,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (updates.status case final status?)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Semantics(
+                                    liveRegion: true,
+                                    child: Text(status),
+                                  ),
                                 ),
-                              ),
-                            if (updates.available case final release?)
-                              FilledButton.icon(
+                              if (updates.available case final release?)
+                                FilledButton.icon(
+                                  onPressed:
+                                      updates.checking || updates.downloading
+                                      ? null
+                                      : updates.install,
+                                  icon: const Icon(Icons.download),
+                                  label: Text(
+                                    updates.downloading
+                                        ? 'Downloading…'
+                                        : 'Install ${release.version}',
+                                  ),
+                                ),
+                              OutlinedButton.icon(
                                 onPressed:
                                     updates.checking || updates.downloading
                                     ? null
-                                    : updates.install,
-                                icon: const Icon(Icons.download),
+                                    : updates.check,
+                                icon: const Icon(Icons.refresh),
                                 label: Text(
-                                  updates.downloading
-                                      ? 'Downloading…'
-                                      : 'Install ${release.version}',
+                                  updates.checking
+                                      ? 'Checking…'
+                                      : 'Check for updates',
                                 ),
                               ),
-                            OutlinedButton.icon(
-                              onPressed: updates.checking || updates.downloading
-                                  ? null
-                                  : updates.check,
-                              icon: const Icon(Icons.refresh),
-                              label: Text(
-                                updates.checking
-                                    ? 'Checking…'
-                                    : 'Check for updates',
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                )
+              else
+                _settingsCard(
+                  context,
+                  ListTile(
+                    leading: const Icon(Icons.system_update_alt),
+                    title: const Text('App updates'),
+                    subtitle: Text('Installed version $installedVersion'),
                   ),
                 ),
-              )
-            else
-              _settingsCard(
-                context,
-                ListTile(
-                  leading: const Icon(Icons.system_update_alt),
-                  title: const Text('App updates'),
-                  subtitle: Text('Installed version $installedVersion'),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
