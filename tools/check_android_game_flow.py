@@ -59,16 +59,62 @@ def screenshot():
     return Image.open(io.BytesIO(adb("exec-out", "screencap", "-p"))).convert("RGB")
 
 
+def is_landscape():
+    image = screenshot()
+    return image.width > image.height
+
+
+def set_orientation(rotation):
+    adb("shell", "settings", "put", "system", "accelerometer_rotation", 0)
+    adb("shell", "settings", "put", "system", "user_rotation", rotation)
+    wait("landscape" if rotation else "portrait",
+         lambda: is_landscape() == bool(rotation))
+
+
+def check_keyboard_rotation():
+    adb("shell", "wm", "size", "480x900")
+    adb("shell", "settings", "put", "system", "font_scale", "2.0")
+    adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", 1)
+    press("Import or open link")
+    press("Open Game Link")
+    press("Zompado game link")
+    ime_shown = lambda: b"mInputShown=true" in adb("shell", "dumpsys", "input_method")
+    wait("the Android keyboard", ime_shown)
+    adb("shell", "input", "text", "layout-resize-test")
+    set_orientation(1)
+    wait("the draft after rotation", lambda: find("layout-resize-test"))
+    if not ime_shown():
+        press("layout-resize-test")
+        wait("the keyboard in landscape", ime_shown)
+    screenshot().save(DIAGNOSTICS / "landscape-keyboard.png")
+    for _ in range(3):
+        if find("Open") is not None:
+            break
+        image = screenshot()
+        x = image.width // 2
+        adb("shell", "input", "swipe", x, image.height * 3 // 8,
+            x, image.height // 7, 400)
+    press("Open")
+    if ime_shown():
+        adb("shell", "input", "keyevent", 4)
+    wait("game link validation", lambda: find("Use a game link shared from Zompado."))
+    press("Cancel")
+    set_orientation(0)
+    adb("shell", "settings", "put", "system", "font_scale", "1.0")
+    adb("shell", "wm", "size", "720x1280")
+    print("PASS: the game link dialog kept its draft and validation across rotation with the Android keyboard.", flush=True)
+
+
 def board():
     image = screenshot()
     # Center-line crossings locate the solid blue board around the center column.
     x = image.width // 2
     blue = (38, 69, 125)
     ys = [
-        y for y in range(image.height * 2 // 9, image.height * 8 // 9)
+        y for y in range(image.height // 5, image.height * 19 // 20)
         if all(abs(a - b) <= 3 for a, b in zip(image.getpixel((x, y)), blue))
     ]
-    if len(ys) < 30 or ys[-1] - ys[0] < image.width // 2:
+    if len(ys) < 30 or ys[-1] - ys[0] < min(image.width, image.height) // 3:
         return None
     top, bottom = ys[0], ys[-1]
     return image, x, (top + bottom) // 2, bottom - round((bottom - top) / 12)
@@ -81,7 +127,7 @@ def has_center_token():
     image, x, _, bottom_piece = result
     # Sample the center of the cell. Cats vs Dogs uses a portrait, while
     # archived Drop Four builds draw a flat gold token.
-    radius = max(4, image.width // 70)
+    radius = max(4, min(image.width, image.height) // 70)
     patch = image.crop((x - radius, bottom_piece - radius, x + radius, bottom_piece + radius))
     warm_pixels = sum(
         (r > 110 and r > g * 1.2 and r > b * 1.35)
@@ -104,17 +150,23 @@ def main():
         adb("shell", "input", "swipe", 350, 1100, 350, 400, 350)
     press("Finish setup")
     wait("an empty game library", lambda: find("Your library is empty"))
+    check_keyboard_rotation()
     press("Get Games")
     press("Install")
     wait("the downloaded game", lambda: find("Cats vs Dogs"), seconds=50)
     # Enter the game's own LÖVE scene and place a center token.
     press("Play")
     press("Pass & Play")
-    _, x, y, _ = wait("a rendered LÖVE board", board, seconds=50)
+    wait("a rendered LÖVE board", board, seconds=50)
+    set_orientation(1)
+    _, x, y, _ = wait("a rendered board in landscape", board)
     tap(x, y)
     time.sleep(0.45)
     tap(x, y)
-    wait("the placed token", has_center_token)
+    wait("the token placed in landscape", has_center_token)
+    screenshot().save(DIAGNOSTICS / "landscape-board.png")
+    set_orientation(0)
+    wait("the same token after rotating back to portrait", has_center_token)
     time.sleep(3)
     adb("shell", "am", "force-stop", APP)
     adb("shell", "am", "start", "-n", ACTIVITY)
