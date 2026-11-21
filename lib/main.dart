@@ -1011,46 +1011,9 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-        child: SegmentedButton<int>(
-          showSelectedIcon: false,
-          expandedInsets: EdgeInsets.zero,
-          segments: [
-            ButtonSegment(
-              value: 0,
-              label: const Text('Chats'),
-              icon: Icon(isGames ? Icons.chat_outlined : Icons.chat, size: 26),
-            ),
-            ButtonSegment(
-              value: 1,
-              label: const Text('Games'),
-              icon: Icon(
-                isGames ? Icons.sports_esports : Icons.sports_esports_outlined,
-                size: 26,
-              ),
-            ),
-          ],
-          style: ButtonStyle(
-            minimumSize: const WidgetStatePropertyAll(Size(0, 52)),
-            textStyle: WidgetStatePropertyAll(
-              Theme.of(context).textTheme.titleMedium,
-            ),
-            backgroundColor: WidgetStateProperty.resolveWith(
-              (states) => states.contains(WidgetState.selected)
-                  ? colors.secondaryContainer
-                  : colors.surface,
-            ),
-            foregroundColor: WidgetStateProperty.resolveWith(
-              (states) => states.contains(WidgetState.selected)
-                  ? colors.onSecondaryContainer
-                  : colors.onSurfaceVariant,
-            ),
-          ),
-          selected: {tab},
-          onSelectionChanged: (value) => setState(() => tab = value.single),
-        ),
+      bottomNavigationBar: _HomeBottomBar(
+        selected: tab,
+        onSelected: (value) => setState(() => tab = value),
       ),
     );
   }
@@ -1313,6 +1276,109 @@ class _HomeState extends State<Home> {
           ),
         ),
       ],
+    ),
+  );
+}
+
+class _HomeBottomBar extends StatelessWidget {
+  const _HomeBottomBar({required this.selected, required this.onSelected});
+
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final background = colors.surfaceContainerLow;
+    final tintedAccent = Color.lerp(colors.primary, colors.onSurface, .45)!;
+    final activeColor = ZompadoBrand.readableAccent(
+      colors.primary,
+      background,
+      ZompadoBrand.readableAccent(tintedAccent, background, colors.onSurface),
+    );
+
+    return Material(
+      color: background,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, thickness: 1, color: colors.outlineVariant),
+          SafeArea(
+            top: false,
+            child: Row(
+              children: [
+                for (final (index, (icon, label)) in const [
+                  (Icons.chat_outlined, 'Chats'),
+                  (Icons.sports_esports_outlined, 'Games'),
+                ].indexed)
+                  Expanded(
+                    child: _destination(
+                      index: index,
+                      icon: icon,
+                      label: label,
+                      style: theme.textTheme.labelLarge,
+                      color: index == selected
+                          ? activeColor
+                          : colors.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _destination({
+    required int index,
+    required IconData icon,
+    required String label,
+    required TextStyle? style,
+    required Color color,
+  }) => Semantics(
+    selected: index == selected,
+    button: true,
+    child: InkWell(
+      onTap: () => onSelected(index),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 22, color: color),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: style?.copyWith(color: color),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 28,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: index == selected ? color : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 }
