@@ -1,6 +1,141 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
+
+enum ThemeColor {
+  blue(
+    'Blue',
+    Color(0xff1978bd),
+    light: (
+      accent: Color(0xff00507a),
+      surface: Color(0xffe5edf1),
+      panel: Color(0xffd3e1e8),
+      bubble: Color(0xffb8d6e6),
+      raised: Color(0xffc3d4de),
+    ),
+    dark: (
+      accent: Color(0xff5ecffe),
+      surface: Color(0xff091a20),
+      panel: Color(0xff122a35),
+      bubble: Color(0xff154957),
+      raised: Color(0xff263d46),
+    ),
+  ),
+  purple(
+    'Purple',
+    Color(0xff8c58cf),
+    light: (
+      accent: Color(0xff55328b),
+      surface: Color(0xffeae6f0),
+      panel: Color(0xffded6e9),
+      bubble: Color(0xffd7c8ed),
+      raised: Color(0xffd2c8e0),
+    ),
+    dark: (
+      accent: Color(0xffcdb3ff),
+      surface: Color(0xff191525),
+      panel: Color(0xff241d34),
+      bubble: Color(0xff40305e),
+      raised: Color(0xff342b46),
+    ),
+  ),
+  red(
+    'Red',
+    Color(0xffdb4b62),
+    light: (
+      accent: Color(0xff972839),
+      surface: Color(0xfff4e7e7),
+      panel: Color(0xffedd9db),
+      bubble: Color(0xfff0c7cd),
+      raised: Color(0xffe3cbd0),
+    ),
+    dark: (
+      accent: Color(0xffff9fab),
+      surface: Color(0xff211518),
+      panel: Color(0xff301d23),
+      bubble: Color(0xff502932),
+      raised: Color(0xff412a31),
+    ),
+  ),
+  orange(
+    'Orange',
+    Color(0xffe57830),
+    light: (
+      accent: Color(0xff8d3a08),
+      surface: Color(0xfff1e9e1),
+      panel: Color(0xffebdad0),
+      bubble: Color(0xfff2d0b6),
+      raised: Color(0xffe2d1c6),
+    ),
+    dark: (
+      accent: Color(0xffffb181),
+      surface: Color(0xff221911),
+      panel: Color(0xff30231a),
+      bubble: Color(0xff542f1c),
+      raised: Color(0xff453023),
+    ),
+  ),
+  yellow(
+    'Yellow',
+    Color(0xffe8bd3c),
+    light: (
+      accent: Color(0xff685007),
+      surface: Color(0xfff2eddf),
+      panel: Color(0xffe9dfc3),
+      bubble: Color(0xffeedba3),
+      raised: Color(0xffe0d6b9),
+    ),
+    dark: (
+      accent: Color(0xfff3d477),
+      surface: Color(0xff211c11),
+      panel: Color(0xff302817),
+      bubble: Color(0xff483b1e),
+      raised: Color(0xff40351f),
+    ),
+  ),
+  green(
+    'Green',
+    Color(0xff3ba66c),
+    light: (
+      accent: Color(0xff175c3b),
+      surface: Color(0xffe7eee8),
+      panel: Color(0xffd6e4d9),
+      bubble: Color(0xffc5e0cc),
+      raised: Color(0xffc7dbce),
+    ),
+    dark: (
+      accent: Color(0xff91e2b1),
+      surface: Color(0xff111e18),
+      panel: Color(0xff1a2c23),
+      bubble: Color(0xff234c36),
+      raised: Color(0xff2b3e33),
+    ),
+  );
+
+  const ThemeColor(
+    this.label,
+    this.swatch, {
+    required _ThemePalette light,
+    required _ThemePalette dark,
+  }) : _light = light,
+       _dark = dark;
+
+  final String label;
+  final Color swatch;
+  final _ThemePalette _light, _dark;
+
+  static ThemeColor fromPreference(Object? value) =>
+      values.where((color) => color.name == value).firstOrNull ?? blue;
+
+  _ThemePalette _palette(Brightness brightness) =>
+      brightness == Brightness.dark ? _dark : _light;
+}
+
+typedef _ThemePalette = ({
+  Color accent,
+  Color surface,
+  Color panel,
+  Color bubble,
+  Color raised,
+});
 
 abstract final class ZompadoBrand {
   static const ink = Color(0xff091a20);
@@ -8,81 +143,40 @@ abstract final class ZompadoBrand {
   static const bubbleBlue = Color(0xff5ecffe);
   static const white = Color(0xfffefefe);
   static const darkPanel = Color(0xff122a35);
-  static const lightPanel = Color(0xffd3e1e8);
-  static const defaultHue = 198.0;
   static const markAsset = 'docs/brand/bubble.png';
   static const wordmarkAsset = 'docs/brand/wordmark.png';
 
-  static double hueFrom(Object? value) => value is num && value.isFinite
-      ? value.clamp(0, 360).toDouble()
-      : defaultHue;
-
-  static ThemeData theme(Brightness brightness, {double hue = defaultHue}) {
+  static ThemeData theme(
+    Brightness brightness, {
+    ThemeColor color = ThemeColor.blue,
+  }) {
     final dark = brightness == Brightness.dark;
-    Color tint(Color color) {
-      if (hue == defaultHue) return color;
-      final hsl = HSLColor.fromColor(color);
-      return hsl.withHue((hsl.hue + hue - defaultHue) % 360).toColor();
-    }
-
-    final surface = tint(dark ? ink : const Color(0xffe5edf1));
-    final text = dark ? white : tint(ink);
-    final sentBubble = tint(
-      dark ? const Color(0xff154957) : const Color(0xffb8d6e6),
-    );
-    final high = tint(dark ? const Color(0xff263d46) : const Color(0xffc3d4de));
-    final mutedText = Color.alphaBlend(text.withValues(alpha: .8), surface);
-    final accentText = dark ? surface : white;
-    final backgrounds = [surface, sentBubble, high, accentText];
-    final luminances = backgrounds.map((color) => color.computeLuminance());
-    final against = luminances.reduce(dark ? math.max : math.min);
-
-    Color readableAccent(Color base) {
-      var hsl = HSLColor.fromColor(tint(base));
-      var accent = hsl.toColor();
-      bool readable() {
-        final luminance = accent.computeLuminance();
-        return dark
-            ? (luminance + .05) >= 4.5 * (against + .05)
-            : (against + .05) >= 4.5 * (luminance + .05);
-      }
-
-      while (!readable()) {
-        hsl = hsl.withLightness(
-          (hsl.lightness + (dark ? .025 : -.025)).clamp(0, 1),
-        );
-        accent = hsl.toColor();
-      }
-      return accent;
-    }
-
-    final accent = readableAccent(dark ? bubbleBlue : const Color(0xff00507a));
+    final palette = color._palette(brightness);
+    final text = dark ? white : ink;
+    final accentText = dark ? palette.surface : white;
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: tint(wordmarkBlue),
+          seedColor: palette.accent,
           brightness: brightness,
         ).copyWith(
-          primary: accent,
+          primary: palette.accent,
           onPrimary: accentText,
-          primaryContainer: sentBubble,
+          primaryContainer: palette.bubble,
           onPrimaryContainer: text,
-          secondary: readableAccent(
-            dark ? wordmarkBlue : const Color(0xff124c64),
-          ),
+          secondary: palette.accent,
           onSecondary: accentText,
-          secondaryContainer: accent,
+          secondaryContainer: palette.accent,
           onSecondaryContainer: accentText,
-          surface: surface,
+          surface: palette.surface,
           onSurface: text,
-          onSurfaceVariant: mutedText,
-          surfaceContainerLow: tint(
-            dark ? const Color(0xff102329) : const Color(0xffdfe9ee),
+          onSurfaceVariant: Color.alphaBlend(
+            text.withValues(alpha: .8),
+            palette.surface,
           ),
-          surfaceContainer: tint(dark ? darkPanel : lightPanel),
-          surfaceContainerHigh: tint(
-            dark ? const Color(0xff1c3541) : const Color(0xffcadbe4),
-          ),
-          surfaceContainerHighest: high,
+          surfaceContainerLow: Color.lerp(palette.surface, palette.panel, .55),
+          surfaceContainer: palette.panel,
+          surfaceContainerHigh: Color.lerp(palette.panel, palette.raised, .53),
+          surfaceContainerHighest: palette.raised,
         );
 
     return ThemeData(
