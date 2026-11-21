@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'brand.dart';
 import 'chatmail.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
@@ -502,7 +503,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: yours
-                    ? theme.colorScheme.primary
+                    ? ZompadoBrand.actionInk(theme.colorScheme)
                     : theme.colorScheme.onSurfaceVariant,
               ),
             ),

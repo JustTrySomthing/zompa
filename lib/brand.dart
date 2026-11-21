@@ -1,141 +1,40 @@
 import 'package:flutter/material.dart';
 
+// Swatch names, values, and order follow Relay Lab’s Appearance settings.
 enum ThemeColor {
-  blue(
-    'Blue',
-    Color(0xff1978bd),
-    light: (
-      accent: Color(0xff00507a),
-      surface: Color(0xffe5edf1),
-      panel: Color(0xffd3e1e8),
-      bubble: Color(0xffb8d6e6),
-      raised: Color(0xffc3d4de),
-    ),
-    dark: (
-      accent: Color(0xff5ecffe),
-      surface: Color(0xff091a20),
-      panel: Color(0xff122a35),
-      bubble: Color(0xff154957),
-      raised: Color(0xff263d46),
-    ),
-  ),
-  purple(
-    'Purple',
-    Color(0xff8c58cf),
-    light: (
-      accent: Color(0xff55328b),
-      surface: Color(0xffeae6f0),
-      panel: Color(0xffded6e9),
-      bubble: Color(0xffd7c8ed),
-      raised: Color(0xffd2c8e0),
-    ),
-    dark: (
-      accent: Color(0xffcdb3ff),
-      surface: Color(0xff191525),
-      panel: Color(0xff241d34),
-      bubble: Color(0xff40305e),
-      raised: Color(0xff342b46),
-    ),
-  ),
-  red(
-    'Red',
-    Color(0xffdb4b62),
-    light: (
-      accent: Color(0xff972839),
-      surface: Color(0xfff4e7e7),
-      panel: Color(0xffedd9db),
-      bubble: Color(0xfff0c7cd),
-      raised: Color(0xffe3cbd0),
-    ),
-    dark: (
-      accent: Color(0xffff9fab),
-      surface: Color(0xff211518),
-      panel: Color(0xff301d23),
-      bubble: Color(0xff502932),
-      raised: Color(0xff412a31),
-    ),
-  ),
-  orange(
-    'Orange',
-    Color(0xffe57830),
-    light: (
-      accent: Color(0xff8d3a08),
-      surface: Color(0xfff1e9e1),
-      panel: Color(0xffebdad0),
-      bubble: Color(0xfff2d0b6),
-      raised: Color(0xffe2d1c6),
-    ),
-    dark: (
-      accent: Color(0xffffb181),
-      surface: Color(0xff221911),
-      panel: Color(0xff30231a),
-      bubble: Color(0xff542f1c),
-      raised: Color(0xff453023),
-    ),
-  ),
-  yellow(
-    'Yellow',
-    Color(0xffe8bd3c),
-    light: (
-      accent: Color(0xff685007),
-      surface: Color(0xfff2eddf),
-      panel: Color(0xffe9dfc3),
-      bubble: Color(0xffeedba3),
-      raised: Color(0xffe0d6b9),
-    ),
-    dark: (
-      accent: Color(0xfff3d477),
-      surface: Color(0xff211c11),
-      panel: Color(0xff302817),
-      bubble: Color(0xff483b1e),
-      raised: Color(0xff40351f),
-    ),
-  ),
-  green(
-    'Green',
-    Color(0xff3ba66c),
-    light: (
-      accent: Color(0xff175c3b),
-      surface: Color(0xffe7eee8),
-      panel: Color(0xffd6e4d9),
-      bubble: Color(0xffc5e0cc),
-      raised: Color(0xffc7dbce),
-    ),
-    dark: (
-      accent: Color(0xff91e2b1),
-      surface: Color(0xff111e18),
-      panel: Color(0xff1a2c23),
-      bubble: Color(0xff234c36),
-      raised: Color(0xff2b3e33),
-    ),
-  );
+  crimson('Crimson', Color(0xffc83146)),
+  tangerine('Tangerine', Color(0xffd57d21)),
+  gold('Gold', Color(0xffd8b828)),
+  emerald('Emerald', Color(0xff187950)),
+  royalBlue('Royal Blue', Color(0xff245aa4)),
+  classicViolet('Violet', Color(0xff5c3895)),
+  hotPink('Hot Pink', Color(0xffff4194)),
+  neonOrange('Neon Orange', Color(0xffff793d)),
+  electricYellow('Electric Yellow', Color(0xfffff13b)),
+  neonGreen('Neon Green', Color(0xff23df3a)),
+  electricCyan('Electric Cyan', Color(0xff26d8e9)),
+  electricPurple('Electric Purple', Color(0xffaa71ff)),
+  rose('Rose', Color(0xffd3749d)),
+  apricot('Apricot', Color(0xffd99569)),
+  softGold('Soft Gold', Color(0xffcaa95c)),
+  seaGreen('Sea Green', Color(0xff64a58d)),
+  steelBlue('Steel Blue', Color(0xff709ebd)),
+  lavender('Lavender', Color(0xff9d86c6));
 
-  const ThemeColor(
-    this.label,
-    this.swatch, {
-    required _ThemePalette light,
-    required _ThemePalette dark,
-  }) : _light = light,
-       _dark = dark;
-
+  const ThemeColor(this.label, this.swatch);
   final String label;
   final Color swatch;
-  final _ThemePalette _light, _dark;
 
-  static ThemeColor fromPreference(Object? value) =>
-      values.where((color) => color.name == value).firstOrNull ?? blue;
-
-  _ThemePalette _palette(Brightness brightness) =>
-      brightness == Brightness.dark ? _dark : _light;
+  static ThemeColor fromPreference(Object? value) => switch (value) {
+    'blue' => royalBlue,
+    'purple' => classicViolet,
+    'red' => crimson,
+    'orange' => tangerine,
+    'yellow' => gold,
+    'green' => emerald,
+    _ => values.where((color) => color.name == value).firstOrNull ?? royalBlue,
+  };
 }
-
-typedef _ThemePalette = ({
-  Color accent,
-  Color surface,
-  Color panel,
-  Color bubble,
-  Color raised,
-});
 
 abstract final class ZompadoBrand {
   static const ink = Color(0xff091a20);
@@ -146,38 +45,73 @@ abstract final class ZompadoBrand {
   static const markAsset = 'docs/brand/bubble.png';
   static const wordmarkAsset = 'docs/brand/wordmark.png';
 
+  static double contrastRatio(Color first, Color second) {
+    final a = first.computeLuminance() + .05;
+    final b = second.computeLuminance() + .05;
+    return a >= b ? a / b : b / a;
+  }
+
+  static Color inkOnAccent(Color background) =>
+      contrastRatio(background, Colors.black) >=
+          contrastRatio(background, Colors.white)
+      ? Colors.black
+      : Colors.white;
+
+  static Color readableAccent(Color accent, Color background, Color fallback) {
+    if (contrastRatio(accent, background) >= 4.5) return accent;
+    return contrastRatio(fallback, background) >= 4.5
+        ? fallback
+        : inkOnAccent(background);
+  }
+
+  static Color actionInk(ColorScheme colors) =>
+      [
+        colors.surface,
+        colors.surfaceContainer,
+        colors.surfaceContainerHighest,
+      ].every((surface) => contrastRatio(colors.primary, surface) >= 4.5)
+      ? colors.primary
+      : colors.onSurface;
+
   static ThemeData theme(
     Brightness brightness, {
-    ThemeColor color = ThemeColor.blue,
+    ThemeColor color = ThemeColor.royalBlue,
   }) {
     final dark = brightness == Brightness.dark;
-    final palette = color._palette(brightness);
-    final text = dark ? white : ink;
-    final accentText = dark ? palette.surface : white;
+    final accent = color.swatch;
+    final accentInk = inkOnAccent(accent);
+    final background = dark ? const Color(0xff171717) : const Color(0xfff8f8f8);
+    final panel = dark ? const Color(0xff242424) : const Color(0xfff0f0f0);
+    final variant = dark ? const Color(0xff303337) : const Color(0xffe4e6e9);
+    final text = dark ? const Color(0xfff2f2f2) : const Color(0xff222222);
+    final muted = dark ? const Color(0xffb9b9b9) : const Color(0xff505050);
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: palette.accent,
+          seedColor: accent,
           brightness: brightness,
         ).copyWith(
-          primary: palette.accent,
-          onPrimary: accentText,
-          primaryContainer: palette.bubble,
-          onPrimaryContainer: text,
-          secondary: palette.accent,
-          onSecondary: accentText,
-          secondaryContainer: palette.accent,
-          onSecondaryContainer: accentText,
-          surface: palette.surface,
+          primary: accent,
+          onPrimary: accentInk,
+          primaryContainer: accent,
+          onPrimaryContainer: accentInk,
+          secondary: accent,
+          onSecondary: accentInk,
+          secondaryContainer: accent,
+          onSecondaryContainer: accentInk,
+          surface: background,
+          surfaceDim: background,
+          surfaceBright: panel,
+          surfaceContainerLowest: background,
+          surfaceContainerLow: panel,
+          surfaceContainer: panel,
+          surfaceContainerHigh: variant,
+          surfaceContainerHighest: variant,
           onSurface: text,
-          onSurfaceVariant: Color.alphaBlend(
-            text.withValues(alpha: .8),
-            palette.surface,
-          ),
-          surfaceContainerLow: Color.lerp(palette.surface, palette.panel, .55),
-          surfaceContainer: palette.panel,
-          surfaceContainerHigh: Color.lerp(palette.panel, palette.raised, .53),
-          surfaceContainerHighest: palette.raised,
+          onSurfaceVariant: muted,
+          outline: dark ? const Color(0xff757575) : const Color(0xff686868),
+          surfaceTint: Colors.transparent,
         );
+    final action = actionInk(scheme);
 
     return ThemeData(
       useMaterial3: true,
@@ -193,6 +127,23 @@ abstract final class ZompadoBrand {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: action),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(foregroundColor: action),
+      ),
+      inputDecorationTheme: InputDecorationThemeData(
+        floatingLabelStyle: WidgetStateTextStyle.resolveWith(
+          (states) => TextStyle(
+            color: states.contains(WidgetState.error)
+                ? scheme.error
+                : states.contains(WidgetState.focused)
+                ? action
+                : muted,
+          ),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

@@ -940,14 +940,8 @@ class _FriendConversationState extends State<FriendConversation>
             author,
             photo: message.sender?.photo,
             radius: 16,
-            backgroundColor: message.outgoing
-                ? Colors.white
-                : theme.colorScheme.primaryContainer,
-            foregroundColor: message.outgoing
-                ? (theme.brightness == Brightness.dark
-                      ? theme.colorScheme.primaryContainer
-                      : theme.colorScheme.primary)
-                : theme.colorScheme.onPrimaryContainer,
+            backgroundColor: theme.colorScheme.onSecondaryContainer,
+            foregroundColor: theme.colorScheme.secondaryContainer,
           ),
           const SizedBox(width: 8),
           Expanded(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
 import 'package:flutter/services.dart';
 
+import 'brand.dart';
 import 'app_log.dart';
 import 'chat_avatar.dart';
 import 'chatmail.dart';
@@ -704,7 +705,7 @@ class VoicePanel extends StatelessWidget {
                             style: TextButton.styleFrom(
                               foregroundColor: remoteVisible
                                   ? Colors.white
-                                  : colors.primary,
+                                  : ZompadoBrand.actionInk(colors),
                             ),
                             onPressed: controller._hideCall,
                             child: const Column(

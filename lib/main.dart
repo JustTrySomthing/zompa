@@ -1800,6 +1800,12 @@ class _AppearancePageState extends State<_AppearancePage> {
     widget.write('themeColor', color.name);
   }
 
+  void _selectMode(bool dark) {
+    if (_dark == dark) return;
+    setState(() => _dark = dark);
+    widget.onTheme(dark ? ThemeMode.dark : ThemeMode.light);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -1811,65 +1817,46 @@ class _AppearancePageState extends State<_AppearancePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: SegmentedButton<bool>(
-              expandedInsets: EdgeInsets.zero,
-              showSelectedIcon: false,
-              selected: {_dark},
-              segments: const [
-                ButtonSegment(value: false, label: Text('Light mode')),
-                ButtonSegment(value: true, label: Text('Dark mode')),
-              ],
-              onSelectionChanged: (selection) {
-                final dark = selection.single;
-                setState(() => _dark = dark);
-                widget.onTheme(dark ? ThemeMode.dark : ThemeMode.light);
-              },
-            ),
-          ),
-          _settingsCard(
-            context,
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Theme color',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, box) {
-                      final unit =
-                          MediaQuery.textScalerOf(context).scale(13) * 3.6;
-                      final columns =
-                          box.maxWidth >= 288 && box.maxWidth >= unit * 6
-                          ? 6
-                          : box.maxWidth >= 162 && box.maxWidth >= unit * 3
-                          ? 3
-                          : 2;
-                      return Wrap(
-                        runSpacing: 12,
-                        children: [
-                          for (final color in ThemeColor.values)
-                            SizedBox(
-                              width: box.maxWidth / columns,
-                              child: _ThemeSwatch(
-                                color: color,
-                                selected: color == _color,
-                                onPressed: () => _selectColor(color),
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
+          Text('Theme', style: Theme.of(context).textTheme.titleSmall),
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            children: [
+              TextButton(
+                onPressed: () => _selectMode(true),
+                child: const Text('Dark'),
               ),
-            ),
+              Semantics(
+                label: 'Light theme',
+                child: Switch(
+                  value: !_dark,
+                  onChanged: (light) => _selectMode(!light),
+                ),
+              ),
+              TextButton(
+                onPressed: () => _selectMode(false),
+                child: const Text('Light'),
+              ),
+            ],
           ),
+          const SizedBox(height: 16),
+          Text('Accent color', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          for (var start = 0; start < ThemeColor.values.length; start += 6)
+            Row(
+              children: [
+                for (final color in ThemeColor.values.skip(start).take(6))
+                  Expanded(
+                    child: _ThemeSwatch(
+                      color: color,
+                      selected: color == _color,
+                      onPressed: () => _selectColor(color),
+                    ),
+                  ),
+              ],
+            ),
+          const SizedBox(height: 16),
           _settingsCard(
             context,
             Padding(
@@ -1896,7 +1883,7 @@ class _AppearancePageState extends State<_AppearancePage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: MessageBubble(
-                      outgoing: true,
+                      outgoing: false,
                       builder: (_) =>
                           MessageBody('See you in the game!', size: _size),
                     ),
@@ -1923,48 +1910,37 @@ class _ThemeSwatch extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final swatch = color.swatch;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          label: color.label,
-          selected: selected,
-          child: SizedBox.square(
-            dimension: 48,
-            child: TextButton(
-              onPressed: onPressed,
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                backgroundColor: swatch,
-                foregroundColor: swatch.computeLuminance() < .18
-                    ? Colors.white
-                    : Colors.black,
-                shape: const CircleBorder(),
-                side: BorderSide(
-                  color: selected
-                      ? theme.colorScheme.onSurface
-                      : theme.colorScheme.outline,
-                  width: selected ? 2 : 1,
-                ),
+  Widget build(BuildContext context) => Tooltip(
+    message: color.label,
+    excludeFromSemantics: true,
+    child: Semantics(
+      label: color.label,
+      checked: selected,
+      inMutuallyExclusiveGroup: true,
+      child: InkWell(
+        onTap: onPressed,
+        child: SizedBox(
+          height: 48,
+          child: Center(
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: color.swatch,
+                shape: BoxShape.circle,
               ),
+              alignment: Alignment.center,
               child: selected
-                  ? const Icon(Icons.check)
-                  : const SizedBox.shrink(),
+                  ? Icon(
+                      Icons.check,
+                      size: 17,
+                      color: ZompadoBrand.inkOnAccent(color.swatch),
+                    )
+                  : null,
             ),
           ),
         ),
-        const SizedBox(height: 4),
-        ExcludeSemantics(
-          child: Text(
-            color.label,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium,
-          ),
-        ),
-      ],
-    );
-  }
+      ),
+    ),
+  );
 }
