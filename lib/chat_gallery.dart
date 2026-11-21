@@ -79,6 +79,11 @@ class _ChatGalleryState extends State<ChatGallery> {
     }
   }
 
+  Future<void> _loadOlder() async {
+    _limit += _pageSize;
+    await _refresh();
+  }
+
   Future<void> _save(FriendMessage message) async {
     if (!_saving.add(message.id)) return;
     setState(() {});
@@ -111,6 +116,7 @@ class _ChatGalleryState extends State<ChatGallery> {
       final labelHeight = MediaQuery.textScalerOf(context).scale(12) * 3.6;
       return CustomScrollView(
         key: PageStorageKey('chat-media-${widget.chat}'),
+        primary: false,
         slivers: [
           if (_items.isNotEmpty)
             SliverPadding(
@@ -134,24 +140,21 @@ class _ChatGalleryState extends State<ChatGallery> {
                 },
               ),
             ),
-          if (_loading != null || _failed || _items.isEmpty || _hasOlder)
+          if (_failed || _items.isEmpty || _hasOlder)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Center(
-                  child: _loading != null
+                  child: _loading != null && _items.isEmpty
                       ? const LinearProgressIndicator()
                       : _failed
                       ? TextButton(
-                          onPressed: _refresh,
+                          onPressed: _loading == null ? _refresh : null,
                           child: const Text('Couldn’t load media. Retry'),
                         )
                       : _hasOlder
                       ? TextButton(
-                          onPressed: () {
-                            _limit += _pageSize;
-                            unawaited(_refresh());
-                          },
+                          onPressed: _loading == null ? _loadOlder : null,
                           child: const Text('Load older attachments'),
                         )
                       : _loaded

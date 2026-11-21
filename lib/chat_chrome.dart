@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'brand.dart';
+import 'tab_content.dart';
 
 class ChatNotificationSettings extends ChangeNotifier {
   ChatNotificationSettings(this.host);
@@ -169,7 +170,9 @@ AppBar chatPageBar(
                 excludeFromSemantics: true,
               ),
               SizedBox(width: compact ? 6 : 10),
-              Flexible(child: title),
+              Flexible(
+                child: TabContent(selection: label, child: title),
+              ),
             ],
           )
         : title,

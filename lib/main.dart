@@ -31,6 +31,7 @@ import 'love_imports.dart';
 import 'game_play_page.dart';
 import 'game_audio.dart';
 import 'voice_calls.dart';
+import 'tab_content.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
@@ -355,6 +356,7 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   late int tab = widget.openChats > 0 ? 0 : 1;
+  bool _openedChats = false;
 
   @override
   void initState() {
@@ -955,6 +957,7 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     final isGames = tab == 1;
+    if (!isGames) _openedChats = true;
     return Scaffold(
       appBar: chatPageBar(
         context,
@@ -974,32 +977,53 @@ class _HomeState extends State<Home> {
               ],
             ),
           Expanded(
-            child: isGames
-                ? games()
-                : widget.chatmail == null
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text(
-                        'Chatmail is unavailable on this device or build.',
-                      ),
-                    ),
-                  )
-                : FriendsPane(
-                    chatmail: widget.chatmail!,
-                    addContact: (route) =>
-                        _contactInvites(route, widget.chatmail!).choose(),
-                    installedGames: _installedGameChoices,
-                    verifiedGameLink: _installedGameLink,
-                    openGameLink: _openGameLink,
-                    prepareGame: _prepareOnlineGame,
+            child: TabContent(
+              selection: tab,
+              child: IndexedStack(
+                index: tab,
+                sizing: StackFit.expand,
+                children: [
+                  TickerMode(
+                    enabled: !isGames,
+                    child: !_openedChats
+                        ? const SizedBox.shrink()
+                        : widget.chatmail == null
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Text(
+                                'Chatmail is unavailable on this device or build.',
+                              ),
+                            ),
+                          )
+                        : FriendsPane(
+                            key: ObjectKey(widget.chatmail),
+                            chatmail: widget.chatmail!,
+                            active: !isGames,
+                            addContact: (route) => _contactInvites(
+                              route,
+                              widget.chatmail!,
+                            ).choose(),
+                            installedGames: _installedGameChoices,
+                            verifiedGameLink: _installedGameLink,
+                            openGameLink: _openGameLink,
+                            prepareGame: _prepareOnlineGame,
+                          ),
                   ),
+                  TickerMode(enabled: isGames, child: games()),
+                ],
+              ),
+            ),
           ),
         ],
       ),
       bottomNavigationBar: _HomeBottomBar(
         selected: tab,
-        onSelected: (value) => setState(() => tab = value),
+        onSelected: (value) {
+          if (tab == value) return;
+          FocusScope.of(context).unfocus();
+          setState(() => tab = value);
+        },
       ),
     );
   }
@@ -1040,28 +1064,43 @@ class _HomeState extends State<Home> {
   }
 
   Widget games() {
-    final colors = Theme.of(context).colorScheme;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+    return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('My Games')),
-              ButtonSegment(value: true, label: Text('Get Games')),
-            ],
-            selected: {catalog},
-            showSelectedIcon: false,
-            onSelectionChanged: (values) {
-              if (values.first) {
-                browseGames();
-              } else {
-                setState(() => catalog = false);
-              }
-            },
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('My Games')),
+                ButtonSegment(value: true, label: Text('Get Games')),
+              ],
+              selected: {catalog},
+              showSelectedIcon: false,
+              onSelectionChanged: (values) {
+                if (values.first) {
+                  browseGames();
+                } else {
+                  setState(() => catalog = false);
+                }
+              },
+            ),
           ),
         ),
+        Expanded(
+          child: TabContent(selection: catalog, child: _gameList()),
+        ),
+      ],
+    );
+  }
+
+  Widget _gameList() {
+    final colors = Theme.of(context).colorScheme;
+    return ListView(
+      key: PageStorageKey('games-$catalog'),
+      primary: false,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      children: [
         Align(
           child: TextButton(
             style: TextButton.styleFrom(

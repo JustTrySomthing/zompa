@@ -137,6 +137,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
                           ChoiceChip(
                             materialTapTargetSize: MaterialTapTargetSize.padded,
                             label: Text(name),
+                            showCheckmark: false,
                             selected: _filter == name,
                             onSelected: (_) => setState(() => _filter = name),
                           ),

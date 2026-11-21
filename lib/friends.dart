@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'chatmail.dart';
 import 'chat_files.dart';
 import 'chat_gallery.dart';
+import 'tab_content.dart';
 import 'chat_emoji.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
@@ -35,6 +36,7 @@ class FriendsPane extends StatefulWidget {
   const FriendsPane({
     super.key,
     required this.chatmail,
+    this.active = true,
     required this.addContact,
     required this.installedGames,
     required this.verifiedGameLink,
@@ -43,6 +45,7 @@ class FriendsPane extends StatefulWidget {
   });
 
   final Chatmail chatmail;
+  final bool active;
   final Future<void> Function(BuildContext) addContact;
   final List<GameRelease> Function() installedGames;
   final Future<String?> Function(GameRelease) verifiedGameLink;
@@ -65,6 +68,7 @@ class _FriendsPaneState extends State<FriendsPane> {
   bool _busy = true;
   bool _refreshing = false;
   bool _refreshQueued = false;
+  bool _loadingFolder = false;
   String? _error;
 
   @override
@@ -84,6 +88,18 @@ class _FriendsPaneState extends State<FriendsPane> {
   }
 
   @override
+  void didUpdateWidget(FriendsPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active) {
+      if (_ready) {
+        unawaited(_refresh());
+      } else if (!_busy) {
+        unawaited(_initialize());
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _refreshTimer?.cancel();
     _events?.cancel();
@@ -93,7 +109,10 @@ class _FriendsPaneState extends State<FriendsPane> {
 
   Future<void> _initialize() => _perform(() async {
     _ready = await widget.chatmail.restore();
-    if (_ready) _chats = await _loadFolder(_folder);
+    if (_ready) {
+      _chats = await _loadFolder(_folder);
+      _loadingFolder = false;
+    }
   });
 
   Future<void> _perform(Future<void> Function() operation) async {
@@ -117,16 +136,22 @@ class _FriendsPaneState extends State<FriendsPane> {
       return;
     }
     _refreshing = true;
+    final folder = _folder;
     try {
-      final folder = _folder;
       final chats = await _loadFolder(folder);
       if (mounted && folder == _folder)
         setState(() {
           _chats = chats;
+          _loadingFolder = false;
           if (!_busy) _error = null;
         });
     } catch (error) {
-      if (mounted && !_busy) setState(() => _error = _failure(error));
+      if (mounted && folder == _folder) {
+        setState(() {
+          _loadingFolder = false;
+          if (!_busy) _error = _failure(error);
+        });
+      }
     } finally {
       _refreshing = false;
       if (_refreshQueued) {
@@ -177,6 +202,8 @@ class _FriendsPaneState extends State<FriendsPane> {
     setState(() {
       _folder = folder;
       _chats = [];
+      _loadingFolder = true;
+      _error = null;
     });
     unawaited(_refresh());
   }
@@ -317,8 +344,10 @@ class _FriendsPaneState extends State<FriendsPane> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+    final body = ListView(
+      key: PageStorageKey(_folder),
+      primary: false,
+      padding: EdgeInsets.fromLTRB(20, _ready ? 0 : 10, 20, 24),
       children: [
         if (!_ready) ...[
           if (_busy) const LinearProgressIndicator(),
@@ -343,18 +372,6 @@ class _FriendsPaneState extends State<FriendsPane> {
             child: const Text('Create chat profile'),
           ),
         ] else ...[
-          SegmentedButton<_ChatFolder>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: _ChatFolder.inbox, label: Text('Inbox')),
-              ButtonSegment(value: _ChatFolder.archive, label: Text('Archive')),
-              ButtonSegment(value: _ChatFolder.trash, label: Text('Trash')),
-            ],
-            selected: {_folder},
-            onSelectionChanged: _busy
-                ? null
-                : (folders) => _selectFolder(folders.single),
-          ),
           if (_folder == _ChatFolder.trash)
             Row(
               children: [
@@ -397,8 +414,8 @@ class _FriendsPaneState extends State<FriendsPane> {
               ],
             ),
           const SizedBox(height: 14),
-          if (_busy) const LinearProgressIndicator(),
-          if (_chats.isEmpty && !_busy && _error == null)
+          if (_busy || _loadingFolder) const LinearProgressIndicator(),
+          if (_chats.isEmpty && !_busy && !_loadingFolder && _error == null)
             if (_folder == _ChatFolder.inbox)
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 28, 0, 16),
@@ -509,6 +526,35 @@ class _FriendsPaneState extends State<FriendsPane> {
             child: const Text('Retry connection'),
           ),
         ],
+      ],
+    );
+    if (!_ready) return body;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<_ChatFolder>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: _ChatFolder.inbox, label: Text('Inbox')),
+                ButtonSegment(
+                  value: _ChatFolder.archive,
+                  label: Text('Archive'),
+                ),
+                ButtonSegment(value: _ChatFolder.trash, label: Text('Trash')),
+              ],
+              selected: {_folder},
+              onSelectionChanged: _busy
+                  ? null
+                  : (folders) => _selectFolder(folders.single),
+            ),
+          ),
+        ),
+        Expanded(
+          child: TabContent(selection: _folder, child: body),
+        ),
       ],
     );
   }
@@ -1819,23 +1865,26 @@ class _FriendConversationState extends State<FriendConversation>
                   ),
                 ),
               Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (_openedMedia)
-                      Visibility(
-                        visible: _showMedia,
-                        maintainState: true,
-                        child: ChatGallery(
-                          chatmail: widget.chatmail,
-                          chat: widget.id,
+                child: TabContent(
+                  selection: _showMedia,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (_openedMedia)
+                        Visibility(
+                          visible: _showMedia,
+                          maintainState: true,
+                          child: ChatGallery(
+                            chatmail: widget.chatmail,
+                            chat: widget.id,
+                          ),
                         ),
-                      ),
-                    if (!_showMedia)
-                      LayoutBuilder(
-                        builder: (_, feed) => content(feed.maxHeight),
-                      ),
-                  ],
+                      if (!_showMedia)
+                        LayoutBuilder(
+                          builder: (_, feed) => content(feed.maxHeight),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
