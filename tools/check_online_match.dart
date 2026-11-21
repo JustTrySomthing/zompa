@@ -14,12 +14,14 @@ void main() {
     MatchEvent event, {
     required bool outgoing,
     int? state,
+    int timestamp = 0,
   }) => FriendMessage.fromJson({
     'id': 1,
     'state': state ?? (outgoing ? 26 : 10),
     'text': event.wire,
     'fromId': outgoing ? 1 : 2,
     'showPadlock': true,
+    'timestamp': timestamp,
   });
 
   OnlineMatch replay(List<FriendMessage> updates, {bool mine = true}) =>
@@ -35,6 +37,38 @@ void main() {
 
   final lobby = replay([]);
   check(lobby.accepted && !lobby.myTurn, 'An accepted lobby has no turn yet');
+
+  final sentAt = DateTime.utc(2026, 1, 1);
+  final datedInvite = message(
+    invite,
+    outgoing: false,
+    timestamp: sentAt.millisecondsSinceEpoch ~/ 1000,
+  );
+  final deadline = sentAt.add(inviteLifetime);
+  check(
+    OnlineMatch.replay(invite.id, [
+      datedInvite,
+    ], now: deadline.subtract(const Duration(seconds: 1)))!.active,
+    'An unanswered invitation stays active up to the expiry deadline',
+  );
+  check(
+    OnlineMatch.replay(invite.id, [datedInvite], now: deadline)!.expired,
+    'An unanswered invitation expires exactly seven days after sending',
+  );
+  check(
+    OnlineMatch.replay(invite.id, [
+      datedInvite,
+      message(invite.accept(), outgoing: true, state: 24),
+    ], now: deadline)!.expired,
+    'A failed acceptance does not extend the invitation deadline',
+  );
+  check(
+    !OnlineMatch.replay(invite.id, [
+      datedInvite,
+      message(invite.accept(), outgoing: true),
+    ], now: deadline)!.expired,
+    'A previously accepted invitation retains the match',
+  );
 
   final queued = replay([message(start, outgoing: true, state: 20)]);
   check(
@@ -78,7 +112,9 @@ void main() {
     message(quit, outgoing: true, state: 24),
   ])!;
   check(
-    unanswered.active && !unanswered.accepted && unanswered.pending?.state == 24,
+    unanswered.active &&
+        !unanswered.accepted &&
+        unanswered.pending?.state == 24,
     'An unanswered invitation can retry a failed cancellation',
   );
   final canceled = OnlineMatch.replay(invite.id, [

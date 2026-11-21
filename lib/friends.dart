@@ -18,7 +18,7 @@ import 'saved_messages.dart';
 import 'voice_calls.dart';
 
 String _failure(Object error) => switch (error) {
-  ActiveMatchLimit() => ActiveMatchLimit.message,
+  MatchInviteExpired() => MatchInviteExpired.message,
   ChatmailIssue.invite => 'Use the invite link from a friend’s Invite screen.',
   ChatmailIssue.encrypted => 'Wait for your friend connection to finish.',
   ChatmailIssue.unavailable =>
@@ -1132,7 +1132,12 @@ class _FriendConversationState extends State<FriendConversation>
       final outgoing = prepared ?? attachment;
       final event = gameLink == null ? null : MatchEvent.parse(gameLink);
       if (event?.kind == 'invite') {
-        await widget.chatmail.sendMatchOpening(widget.id, event!);
+        final moved = await widget.chatmail.sendMatchOpening(widget.id, event!);
+        if (mounted && moved != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+        }
       } else {
         await widget.chatmail.send(
           widget.id,

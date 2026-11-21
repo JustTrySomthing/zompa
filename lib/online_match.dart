@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'board.dart';
@@ -10,19 +11,49 @@ import 'github_distribution.dart';
 const matchMarker = 'ZOMPADO_MATCH_V1 ';
 const activeMatchLimit = 12;
 
-class ActiveMatchLimit implements Exception {
-  const ActiveMatchLimit();
+const inviteLifetime = Duration(days: 7);
+const matchIdleTime = Duration(days: 30);
 
+class MatchInviteExpired implements Exception {
+  const MatchInviteExpired();
   static const message =
-      'You can have $activeMatchLimit active online games. End one in My Games before starting another.';
+      'This game invitation expired. Send a new invite to play.';
 }
 
-typedef ActiveMatch = ({FriendChat chat, OnlineMatch match, int updated});
+typedef MatchEntry = ({FriendChat chat, OnlineMatch match, int updated});
+typedef MatchLibrary = ({List<MatchEntry> active, List<MatchEntry> history});
+typedef _MatchArchive = ({
+  Map<String, String> hidden,
+  Map<String, int> reopened,
+});
 
-final _openingMatch = Expando<Future<void>>();
+String matchMovedNotice(MatchEntry entry) =>
+    'Your game with ${entry.chat.name} moved to Game History.';
+
+final _matchWrites = Expando<Future<void>>();
+
+Future<T> _withMatchLock<T>(
+  Chatmail chatmail,
+  Future<T> Function() operation,
+) async {
+  while (_matchWrites[chatmail] != null) {
+    await _matchWrites[chatmail]!;
+  }
+  final lock = Completer<void>();
+  _matchWrites[chatmail] = lock.future;
+  try {
+    return await operation();
+  } finally {
+    _matchWrites[chatmail] = null;
+    lock.complete();
+  }
+}
+
+String _matchKey(MatchEntry entry) =>
+    '${entry.chat.id}/${entry.match.invite.id}';
 
 extension OnlineMatchHistory on Chatmail {
-  Future<List<ActiveMatch>> activeMatches() async {
+  Future<List<MatchEntry>> _knownMatches(DateTime now) async {
     if (!await restore()) return [];
     final folders = await Future.wait([chats(), chats(archived: true)]);
     final byChat = {
@@ -33,16 +64,17 @@ extension OnlineMatchHistory on Chatmail {
     for (final message in await recentMatchMessages(matchMarker)) {
       if (message.info ||
           (!message.outgoing && !message.encrypted) ||
-          !byChat.containsKey(message.chat))
+          !byChat.containsKey(message.chat)) {
         continue;
+      }
       if (MatchEvent.parse(message.text) case final event?) {
         (histories[(message.chat, event.id)] ??= []).add(message);
       }
     }
     return [
       for (final entry in histories.entries)
-        if (OnlineMatch.replay(entry.key.$2, entry.value) case final match?
-            when match.active)
+        if (OnlineMatch.replay(entry.key.$2, entry.value, now: now)
+            case final match?)
           (
             chat: byChat[entry.key.$1]!,
             match: match,
@@ -50,39 +82,165 @@ extension OnlineMatchHistory on Chatmail {
                 .map((message) => message.timestamp)
                 .reduce(max),
           ),
-    ]..sort((a, b) {
+    ];
+  }
+
+  File get _matchArchiveFile =>
+      File('${accountsDirectory.path}/game-history.json');
+
+  Future<_MatchArchive> _readMatchArchive() async {
+    final file = _matchArchiveFile;
+    if (await file.exists()) {
+      try {
+        final contents = jsonDecode(await file.readAsString());
+        if (contents is Map) {
+          final hidden = contents['hidden'];
+          final reopened = contents['reopened'];
+          return (
+            hidden: {
+              if (hidden is Map)
+                for (final entry in hidden.entries)
+                  if (entry.key is String && entry.value is String)
+                    entry.key as String: entry.value as String,
+            },
+            reopened: {
+              if (reopened is Map)
+                for (final entry in reopened.entries)
+                  if (entry.key is String && entry.value is int)
+                    entry.key as String: entry.value as int,
+            },
+          );
+        }
+      } on FormatException {
+        // The match boards can still be rebuilt from Chatmail.
+      }
+    }
+    return (hidden: <String, String>{}, reopened: <String, int>{});
+  }
+
+  Future<void> _writeMatchArchive(_MatchArchive archive) async {
+    final file = _matchArchiveFile;
+    await file.parent.create(recursive: true);
+    final staging = File('${file.path}.tmp');
+    await staging.writeAsString(
+      jsonEncode({'hidden': archive.hidden, 'reopened': archive.reopened}),
+      flush: true,
+    );
+    await staging.rename(file.path);
+  }
+
+  Future<({MatchLibrary library, MatchEntry? moved})> _arrangeMatches(
+    DateTime now, {
+    String? keep,
+    String? reopen,
+  }) async {
+    final all = await _knownMatches(now);
+    final archive = await _readMatchArchive();
+    final cutoff = now.subtract(matchIdleTime).millisecondsSinceEpoch ~/ 1000;
+    int recent(MatchEntry entry) =>
+        max(entry.match.lastActivity, archive.reopened[_matchKey(entry)] ?? 0);
+    var changed = false;
+    final active = <MatchEntry>[];
+    final history = <MatchEntry>[];
+    for (final entry in all) {
+      final key = _matchKey(entry);
+      final match = entry.match;
+      if (!match.active) {
+        if (archive.hidden.remove(key) != null) changed = true;
+        if (archive.reopened.remove(key) != null) changed = true;
+        history.add(entry);
+        continue;
+      }
+      if (reopen == key) {
+        archive.reopened[key] = now.millisecondsSinceEpoch ~/ 1000;
+        archive.hidden.remove(key);
+        changed = true;
+      } else if (archive.hidden[key] case final marker?
+          when marker != match.activityMarker) {
+        archive.hidden.remove(key);
+        changed = true;
+      }
+      if (archive.hidden.containsKey(key) ||
+          (match.accepted && recent(entry) > 0 && recent(entry) <= cutoff)) {
+        history.add(entry);
+      } else {
+        active.add(entry);
+      }
+    }
+
+    final occupied =
+        active
+            .where((entry) => entry.match.mine || entry.match.accepted)
+            .toList()
+          ..sort((a, b) {
+            final byActivity = recent(a).compareTo(recent(b));
+            return byActivity != 0
+                ? byActivity
+                : a.match.activityMessage.compareTo(b.match.activityMessage);
+          });
+    MatchEntry? moved;
+    for (
+      var excess = occupied.length - activeMatchLimit;
+      excess > 0;
+      excess--
+    ) {
+      final oldest = occupied.firstWhere((entry) => _matchKey(entry) != keep);
+      occupied.remove(oldest);
+      active.remove(oldest);
+      history.add(oldest);
+      archive.hidden[_matchKey(oldest)] = oldest.match.activityMarker;
+      changed = true;
+      moved ??= oldest;
+    }
+    if (changed) await _writeMatchArchive(archive);
+    active.sort((a, b) {
       if (a.match.myTurn != b.match.myTurn) return a.match.myTurn ? -1 : 1;
       return b.updated.compareTo(a.updated);
     });
+    history.sort((a, b) => b.updated.compareTo(a.updated));
+    return (library: (active: active, history: history), moved: moved);
   }
 
-  Future<void> checkMatchCapacity(int chat, MatchEvent event) async {
-    final matches = await activeMatches();
-    final occupied = matches.where(
-      (entry) => entry.match.mine || entry.match.accepted,
-    );
-    if (occupied.length >= activeMatchLimit &&
-        !occupied.any(
-          (entry) => entry.chat.id == chat && entry.match.invite.id == event.id,
-        )) {
-      throw const ActiveMatchLimit();
-    }
+  Future<MatchLibrary> matchLibrary({DateTime? now}) => _withMatchLock(
+    this,
+    () async => (await _arrangeMatches(now ?? DateTime.now())).library,
+  );
+
+  Future<List<MatchEntry>> activeMatches() async =>
+      (await matchLibrary()).active;
+
+  Future<MatchEntry?> reopenMatch(MatchEntry entry) =>
+      _withMatchLock(this, () async {
+        final key = _matchKey(entry);
+        final result = await _arrangeMatches(
+          DateTime.now(),
+          keep: key,
+          reopen: key,
+        );
+        return result.moved;
+      });
+
+  Future<void> checkInviteExpiry(int chat, String id) async {
+    final match = OnlineMatch.replay(id, await matchHistory(chat, id));
+    if (match?.expired == true) throw const MatchInviteExpired();
   }
 
-  Future<void> sendMatchOpening(int chat, MatchEvent event) async {
-    while (_openingMatch[this] != null) {
-      await _openingMatch[this]!;
-    }
-    final opening = Completer<void>();
-    _openingMatch[this] = opening.future;
+  Future<MatchEntry?> sendMatchOpening(
+    int chat,
+    MatchEvent event,
+  ) => _withMatchLock(this, () async {
+    await checkInviteExpiry(chat, event.id);
+    await send(chat, event.wire);
     try {
-      await checkMatchCapacity(chat, event);
-      await send(chat, event.wire);
-    } finally {
-      _openingMatch[this] = null;
-      opening.complete();
+      return (await _arrangeMatches(
+        DateTime.now(),
+        keep: '$chat/${event.id}',
+      )).moved;
+    } catch (_) {
+      // The game message was sent. Refreshing the library can retry the move to History.
+      return null;
     }
-  }
+  });
 }
 
 class MatchEvent {
@@ -191,6 +349,20 @@ class OnlineMatch {
   bool started = false;
   bool declined = false;
   bool preparing = false;
+  bool expired = false;
+  int lastActivity = 0;
+  int activityMessage = 0;
+  String get activityMarker => '$lastActivity/$activityMessage';
+
+  void _recordActivity(FriendMessage message) {
+    if (message.timestamp < lastActivity ||
+        (message.timestamp == lastActivity && message.id <= activityMessage)) {
+      return;
+    }
+    lastActivity = message.timestamp;
+    activityMessage = message.id;
+  }
+
   MatchEvent? localControl, remoteControl;
 
   bool get pausedByMe => localControl?.kind == 'pause';
@@ -202,8 +374,10 @@ class OnlineMatch {
   bool conflict = false;
   FriendMessage? pending;
 
-  bool get finished => declined || quit || board.winner != 0 || board.full;
-  bool get active => !finished || (pending != null && !declined && !quit);
+  bool get finished =>
+      expired || declined || quit || board.winner != 0 || board.full;
+  bool get active =>
+      !finished || (pending != null && !expired && !declined && !quit);
   bool get myTurn =>
       accepted &&
       started &&
@@ -215,6 +389,7 @@ class OnlineMatch {
 
   String get status {
     if (quit) return 'Match ended.';
+    if (expired) return 'Invite expired.';
     if (conflict) return 'Conflicting turns. Start a new match.';
     if (pending?.state == 20) return 'Sending match update…';
     if (pending?.state == 24) return 'Couldn’t send this match update.';
@@ -237,7 +412,11 @@ class OnlineMatch {
     return myTurn ? 'Your turn' : 'Your friend’s turn';
   }
 
-  static OnlineMatch? replay(String id, List<FriendMessage> records) {
+  static OnlineMatch? replay(
+    String id,
+    List<FriendMessage> records, {
+    DateTime? now,
+  }) {
     final events = [
       for (final m in records)
         if (!m.info && (m.outgoing || m.encrypted))
@@ -247,7 +426,8 @@ class OnlineMatch {
     final invitations = events.where((r) => r.event.kind == 'invite').toList();
     if (invitations.isEmpty) return null;
     final first = invitations.first;
-    final match = OnlineMatch._(first.event, first.message.outgoing);
+    final match = OnlineMatch._(first.event, first.message.outgoing)
+      .._recordActivity(first.message);
     if (invitations.any(
       (r) =>
           r.message.outgoing != match.mine ||
@@ -280,7 +460,25 @@ class OnlineMatch {
         accepts.isEmpty &&
         replies.any((record) => record.event.kind == 'decline');
     match.accepted = accepts.isNotEmpty;
-    if (match.accepted) match.pending = pendingFor(accepts);
+    if (match.accepted) {
+      match.pending = pendingFor(accepts);
+      for (final accept in accepts) {
+        if (accept.delivery == null) match._recordActivity(accept);
+      }
+    }
+    if (!accepts.any((accept) => accept.delivery == null)) {
+      final dates = invitations
+          .map((record) => record.message.timestamp)
+          .where((timestamp) => timestamp > 0);
+      if (!match.declined && dates.isNotEmpty) {
+        final cutoff =
+            (now ?? DateTime.now())
+                .subtract(inviteLifetime)
+                .millisecondsSinceEpoch ~/
+            1000;
+        match.expired = dates.reduce(min) <= cutoff;
+      }
+    }
     while (match.accepted && !match.finished && !match.conflict) {
       final ownTurn = (match.board.turn == 1) == match.mine;
       final candidates = events
@@ -297,6 +495,10 @@ class OnlineMatch {
       if (candidates.any((r) => r.event.column != column)) {
         match.conflict = true;
         break;
+      }
+      for (final candidate in candidates) {
+        if (candidate.message.delivery == null)
+          match._recordActivity(candidate.message);
       }
       match.board.drop(column);
       match.moves += '$column';
@@ -315,6 +517,9 @@ class OnlineMatch {
       if (starts.isNotEmpty) {
         match.pending = pendingFor(starts);
         match.started = match.pending == null;
+        for (final start in starts) {
+          if (start.delivery == null) match._recordActivity(start);
+        }
       }
     }
     // Each player has a separate control revision. Replay is independent of

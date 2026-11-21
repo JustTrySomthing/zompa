@@ -50,11 +50,12 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
   Timer? _timer;
   bool _loading = false;
   bool _reload = false;
-  List<ActiveMatch> _matches = [];
+  MatchLibrary _library = (active: [], history: []);
+  bool _showHistory = false;
   bool _loaded = false;
   bool _failed = false;
-  String? _endError;
-  bool _ending = false;
+  String? _actionError;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -88,16 +89,19 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     }
     _loading = true;
     try {
-      final active = await widget.chatmail.activeMatches();
+      final library = await widget.chatmail.matchLibrary();
       if (mounted) {
         setState(() {
           final game = widget.game;
-          _matches = game == null
-              ? active
-              : [
-                  for (final entry in active)
-                    if (entry.match.invite.game?.id == game.id) entry,
-                ];
+          List<MatchEntry> forGame(List<MatchEntry> matches) => game == null
+              ? matches
+              : matches
+                    .where((entry) => entry.match.invite.game?.id == game.id)
+                    .toList();
+          _library = (
+            active: forGame(library.active),
+            history: forGame(library.history),
+          );
           _loaded = true;
           _failed = false;
         });
@@ -113,7 +117,32 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     }
   }
 
-  Future<void> _open(FriendChat chat, OnlineMatch match) async {
+  Future<void> _open(MatchEntry entry) async {
+    final (:chat, :match, updated: _) = entry;
+    if (_busy) return;
+    if (_showHistory && match.active) {
+      setState(() {
+        _busy = true;
+        _actionError = null;
+      });
+      try {
+        final moved = await widget.chatmail.reopenMatch(entry);
+        if (mounted && moved != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+        }
+      } catch (_) {
+        if (mounted)
+          setState(
+            () => _actionError = 'Couldn’t restore this game. Try again.',
+          );
+        return;
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    }
+    if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => OnlineMatchPage(
@@ -134,12 +163,12 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     await _load();
   }
 
-  Future<void> _end(ActiveMatch entry) async {
-    if (_ending) return;
+  Future<void> _end(MatchEntry entry) async {
+    if (_busy) return;
     final (:chat, :match, updated: _) = entry;
     setState(() {
-      _ending = true;
-      _endError = null;
+      _busy = true;
+      _actionError = null;
     });
     try {
       final confirmed = await showDialog<bool>(
@@ -182,18 +211,18 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     } catch (_) {
       if (mounted)
         setState(
-          () => _endError =
+          () => _actionError =
               'Couldn’t end the game. Check your connection and try again.',
         );
     } finally {
       if (mounted) {
-        setState(() => _ending = false);
+        setState(() => _busy = false);
         await _load();
       }
     }
   }
 
-  Widget _matchCard(ActiveMatch entry) {
+  Widget _matchCard(MatchEntry entry) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final (:chat, :match, updated: _) = entry;
@@ -215,9 +244,25 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
             Text(
               ending
                   ? 'Ending game…'
-                  : (pendingQuit ? 'Couldn’t end this game.' : match.status),
+                  : pendingQuit
+                  ? 'Couldn’t end this game.'
+                  : _showHistory && match.active
+                  ? 'Saved for later · ${match.status}'
+                  : match.status,
               style: TextStyle(color: colors.onSurfaceVariant),
             ),
+            if (_showHistory && entry.updated > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  MaterialLocalizations.of(context).formatMediumDate(
+                    DateTime.fromMillisecondsSinceEpoch(entry.updated * 1000),
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
             Align(
               alignment: Alignment.centerRight,
               child: Wrap(
@@ -229,17 +274,20 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
                       style: TextButton.styleFrom(
                         foregroundColor: colors.error,
                       ),
-                      onPressed: _ending || ending ? null : () => _end(entry),
+                      onPressed: _busy || ending ? null : () => _end(entry),
                       child: Text(pendingQuit ? 'Retry end' : 'End game'),
                     ),
-                  FilledButton.tonal(
-                    onPressed: _ending ? null : () => _open(chat, match),
-                    child: Text(
-                      match.started && !match.conflict
-                          ? 'Resume Game'
-                          : 'Open game',
+                  if (match.active || (match.started && !match.quit))
+                    FilledButton.tonal(
+                      onPressed: _busy ? null : () => _open(entry),
+                      child: Text(
+                        !match.active
+                            ? 'View game'
+                            : match.started && !match.conflict
+                            ? 'Resume Game'
+                            : 'Open game',
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -253,6 +301,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final matches = _showHistory ? _library.history : _library.active;
     return SafeArea(
       top: false,
       child: Column(
@@ -275,12 +324,31 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Active')),
+                  ButtonSegment(value: true, label: Text('Game History')),
+                ],
+                showSelectedIcon: false,
+                selected: {_showHistory},
+                onSelectionChanged: (values) => setState(() {
+                  _showHistory = values.single;
+                  _actionError = null;
+                }),
+              ),
+            ),
+          ),
           Expanded(
             child: ListView.builder(
+              key: ValueKey(_showHistory),
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: _matches.length + 1,
+              itemCount: matches.length + 1,
               itemBuilder: (context, index) {
-                if (index > 0) return _matchCard(_matches[index - 1]);
+                if (index > 0) return _matchCard(matches[index - 1]);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -302,14 +370,21 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
                       )
                     else if (!_loaded)
                       const LinearProgressIndicator()
-                    else if (_matches.isEmpty)
-                      const ListTile(
-                        title: Text('No active online games'),
-                        subtitle: Text(
-                          'Start one from Play or invite a friend from chat.',
-                        ),
-                      ),
-                    if (_endError case final error?)
+                    else if (matches.isEmpty)
+                      _showHistory
+                          ? const ListTile(
+                              title: Text('No games in history yet'),
+                              subtitle: Text(
+                                'Finished and inactive games appear here.',
+                              ),
+                            )
+                          : const ListTile(
+                              title: Text('No active online games'),
+                              subtitle: Text(
+                                'Start one from Play or invite a friend from chat.',
+                              ),
+                            ),
+                    if (_actionError case final error?)
                       Padding(
                         padding: const EdgeInsets.all(12),
                         child: Text(

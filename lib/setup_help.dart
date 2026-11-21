@@ -285,7 +285,7 @@ const _topics = [
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to return to the board or End game to close a match for both players. You can start or accept games until you have 12 active online games.',
+        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to return to the board or End game to close a match for both players. Unanswered invitations expire after 7 days. If an online match has no moves for 30 days, it moves to Game History. When a new game would take you over 12 active games, the least recently played game moves to History. Open Active Games → Game History to pick up a saved game.',
       ),
       (
         'How do I change game sounds?',

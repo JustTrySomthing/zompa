@@ -294,7 +294,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     try {
       final response = match.invite.accept();
       if (_game == null) {
-        await widget.chatmail.checkMatchCapacity(widget.chat, response);
+        await widget.chatmail.checkInviteExpiry(widget.chat, response.id);
         if (!mounted) return;
         if (!match.preparing) {
           await widget.chatmail.send(
@@ -306,10 +306,18 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         await _openBoard(match.invite.game!);
         if (_game == null || !mounted) return;
       }
-      await widget.chatmail.sendMatchOpening(widget.chat, response);
+      final moved = await widget.chatmail.sendMatchOpening(
+        widget.chat,
+        response,
+      );
       await _load();
-    } on ActiveMatchLimit {
-      if (mounted) setState(() => _error = ActiveMatchLimit.message);
+      if (mounted && moved != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+      }
+    } on MatchInviteExpired {
+      await _load();
     } catch (_) {
       if (mounted)
         setState(() => _error = 'Couldn’t accept this match. Try again.');
@@ -355,13 +363,21 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       if (!mounted) return;
       final event = MatchEvent.parse(message);
       if (event?.kind == 'invite') {
-        await widget.chatmail.sendMatchOpening(widget.chat, event!);
+        final moved = await widget.chatmail.sendMatchOpening(
+          widget.chat,
+          event!,
+        );
+        if (mounted && moved != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+        }
       } else {
         await widget.chatmail.send(widget.chat, message);
       }
       await _load();
-    } on ActiveMatchLimit {
-      if (mounted) setState(() => _error = ActiveMatchLimit.message);
+    } on MatchInviteExpired {
+      await _load();
     } catch (_) {
       if (mounted) {
         setState(() {

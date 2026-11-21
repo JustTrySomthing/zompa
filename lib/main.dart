@@ -831,8 +831,9 @@ class _HomeState extends State<Home> {
       if (contact == null || !mounted) return;
       final chat = await chatmail.openContact(contact.id);
       final invite = MatchEvent.invite(GameLink.fromRelease(game));
-      await chatmail.sendMatchOpening(chat, invite);
+      final moved = await chatmail.sendMatchOpening(chat, invite);
       if (!mounted) return;
+      if (moved != null) _gameNotice(matchMovedNotice(moved));
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
           builder: (_) => OnlineMatchPage(
@@ -849,8 +850,6 @@ class _HomeState extends State<Home> {
           ),
         ),
       );
-    } on ActiveMatchLimit {
-      if (mounted) _gameNotice(ActiveMatchLimit.message);
     } catch (_) {
       if (mounted)
         _gameNotice(
