@@ -1568,21 +1568,29 @@ class _PreferencesState extends State<Preferences> {
                         (box.maxWidth - 14) / 2 >= scaledLabel * 5
                     ? 2
                     : 1;
+                final items = [
+                  ...buttons,
+                  if (columns == 2 && buttons.length.isEven) const SizedBox(),
+                  _SettingsButton(
+                    'About',
+                    onPressed: () => open(const _AboutPage()),
+                  ),
+                ];
                 return Column(
                   children: [
-                    for (var i = 0; i < buttons.length; i += columns)
+                    for (var i = 0; i < items.length; i += columns)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
                         child: IntrinsicHeight(
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(child: buttons[i]),
+                              Expanded(child: items[i]),
                               if (columns == 2) ...[
                                 const SizedBox(width: 14),
                                 Expanded(
-                                  child: i + 1 < buttons.length
-                                      ? buttons[i + 1]
+                                  child: i + 1 < items.length
+                                      ? items[i + 1]
                                       : const SizedBox(),
                                 ),
                               ],
@@ -1698,6 +1706,54 @@ class _SettingsButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AboutPage extends StatelessWidget {
+  const _AboutPage();
+
+  Future<void> _openGitHub(BuildContext context) async {
+    try {
+      final opened = await bridge.invokeMethod<bool>('openPreviewExternal', {
+        'url': 'https://github.com/$githubOwner/$appRepository',
+      });
+      if (opened == true) return;
+    } on PlatformException {
+      // A browser may be unavailable on this device.
+    } on MissingPluginException {
+      // The Android host provides external browsing.
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Couldn’t open GitHub.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('About')),
+    body: SafeArea(
+      top: false,
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text('Zompado', style: Theme.of(context).textTheme.headlineMedium),
+          const Text('Version $installedVersion'),
+          const SizedBox(height: 16),
+          const Text('Play, share games, and chat with friends.'),
+          const SizedBox(height: 16),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton.icon(
+              onPressed: () => _openGitHub(context),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('Zompado on GitHub'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 Widget _settingsCard(BuildContext context, Widget child) {

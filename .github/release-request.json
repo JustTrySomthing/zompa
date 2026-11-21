@@ -1,5 +1,5 @@
 {
-  "version": "0.5.24",
-  "build": 33,
-  "notes": "- Open Active Games or choose an active match from the Play menu. Game History keeps expired invites, match results, and saved boards.\n- Unanswered invites expire after seven days. Games without a move for 30 days and the oldest game when opening a 13th active game move to History.\n- Use the new two-column Settings layout, improved invite dialogs, call and notification controls, and refined Games and bottom navigation layouts."
+  "version": "0.5.25",
+  "build": 34,
+  "notes": "- Open About in Settings for the installed version and Zompado\u2019s GitHub page.\n- Adjust or mute game volume, music, and effects separately. Game volume defaults to 20% until you set a level.\n- Switch calls between Video and Audio with larger controls.\n- Switch between Chats and Games with one control. Active Games opens directly to Active. Quit a game from Pause."
 }
