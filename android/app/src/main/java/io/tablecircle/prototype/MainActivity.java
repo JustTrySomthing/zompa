@@ -149,6 +149,10 @@ public final class MainActivity extends FlutterActivity {
                     case "chatVideoThumbnail":
                         playback.thumbnail((String) call.arguments, result);
                         break;
+                    case "pauseChatVideo":
+                        playback.pauseVideo((Integer) call.arguments);
+                        result.success(null);
+                        break;
                     case "chatAudioToggle":
                         playback.playAudio(call.argument("path"), call.argument("token"));
                         result.success(null);

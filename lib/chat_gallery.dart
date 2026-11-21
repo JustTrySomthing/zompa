@@ -85,6 +85,14 @@ class _ChatGalleryState extends State<ChatGallery> {
     try {
       await widget.chatmail.toggleSaved(message);
       await _refresh();
+      if (mounted && _failed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Saved was updated. Couldn’t refresh media.'),
+            action: SnackBarAction(label: 'Retry', onPressed: _refresh),
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -120,7 +128,7 @@ class _ChatGalleryState extends State<ChatGallery> {
                   return _MediaCard(
                     key: ValueKey((message.id, message.file)),
                     message: message,
-                    saving: _saving.contains(message.id),
+                    saving: _failed || _saving.contains(message.id),
                     onSave: () => _save(message),
                   );
                 },

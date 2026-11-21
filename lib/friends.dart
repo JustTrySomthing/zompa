@@ -910,6 +910,7 @@ class _FriendConversationState extends State<FriendConversation>
   final _scroll = ScrollController();
   bool _awayFromLatest = false;
   bool _showMedia = false;
+  bool _openedMedia = false;
   ChatFile? _attachment;
   FriendThread? _thread;
   StreamSubscription<void>? _events;
@@ -1809,17 +1810,33 @@ class _FriendConversationState extends State<FriendConversation>
                       showSelectedIcon: false,
                       onSelectionChanged: (selected) {
                         FocusScope.of(context).unfocus();
-                        setState(() => _showMedia = selected.single);
+                        setState(() {
+                          _showMedia = selected.single;
+                          _openedMedia = _openedMedia || _showMedia;
+                        });
                       },
                     ),
                   ),
                 ),
               Expanded(
-                child: _showMedia
-                    ? ChatGallery(chatmail: widget.chatmail, chat: widget.id)
-                    : LayoutBuilder(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_openedMedia)
+                      Visibility(
+                        visible: _showMedia,
+                        maintainState: true,
+                        child: ChatGallery(
+                          chatmail: widget.chatmail,
+                          chat: widget.id,
+                        ),
+                      ),
+                    if (!_showMedia)
+                      LayoutBuilder(
                         builder: (_, feed) => content(feed.maxHeight),
                       ),
+                  ],
+                ),
               ),
             ],
           );

@@ -200,6 +200,11 @@ final class ChatPlayback {
         }
     }
 
+    void pauseVideo(int id) {
+        VideoPreview video = videos.get(id);
+        if (video != null) video.pause();
+    }
+
     void pause() {
         releaseAudio();
         for (var video : videos.values()) video.pause();

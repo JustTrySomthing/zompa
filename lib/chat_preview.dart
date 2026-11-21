@@ -36,7 +36,7 @@ Future<void> openChatAttachment(
           appBar: chatPageBar(context, title, fitTitle: false),
           body: SafeArea(
             child: switch (message.media) {
-              ChatMedia.video => _PreviewSurface('io.zompado.chatVideo', path),
+              ChatMedia.video => _ChatVideoPreview(path),
               ChatMedia.audio => Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
@@ -52,6 +52,46 @@ Future<void> openChatAttachment(
         ),
       },
     ),
+  );
+}
+
+// The Android activity can stay resumed while another Flutter route covers it.
+class _ChatVideoPreview extends StatefulWidget {
+  const _ChatVideoPreview(this.path);
+
+  final String path;
+
+  @override
+  State<_ChatVideoPreview> createState() => _ChatVideoPreviewState();
+}
+
+class _ChatVideoPreviewState extends State<_ChatVideoPreview> {
+  int? _viewId;
+  bool _current = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final wasCurrent = _current;
+    _current = ModalRoute.isCurrentOf(context) != false;
+    if (wasCurrent && !_current) _pause();
+  }
+
+  void _pause() {
+    if (_viewId case final id?) {
+      unawaited(_host.invokeMethod<void>('pauseChatVideo', id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _PreviewSurface(
+    'io.zompado.chatVideo',
+    widget.path,
+    onCreated: (id) {
+      if (!mounted) return;
+      _viewId = id;
+      if (!_current) _pause();
+    },
   );
 }
 
@@ -197,7 +237,8 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
   }
 
   Future<void> _update() async {
-    if (_requesting || !mounted) return;
+    final polling = _timer;
+    if (_requesting || !mounted || polling == null) return;
     _requesting = true;
     try {
       if (ModalRoute.of(context)?.isCurrent == false) {
@@ -207,7 +248,11 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
         'chatAudioStatus',
         _token,
       );
-      if (!mounted || status == null) return;
+      if (!mounted || !identical(polling, _timer)) return;
+      if (status == null) {
+        _failPlayback();
+        return;
+      }
       if (status['active'] != true) {
         _timer?.cancel();
         _timer = null;
@@ -220,7 +265,9 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
         _position = status['position'] as int? ?? 0;
       });
     } on PlatformException {
-      if (mounted) setState(() => _error = true);
+      if (identical(polling, _timer)) _failPlayback();
+    } on MissingPluginException {
+      if (identical(polling, _timer)) _failPlayback();
     } finally {
       _requesting = false;
     }
@@ -234,7 +281,7 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
         'token': _token,
       });
       if (!mounted) {
-        unawaited(_host.invokeMethod<void>('chatAudioStop', _token));
+        unawaited(_stop());
         return;
       }
       _timer ??= Timer.periodic(
@@ -243,19 +290,55 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
       );
       await _update();
     } on PlatformException {
-      if (mounted)
-        setState(() {
-          _loading = false;
-          _error = true;
-        });
+      _failPlayback();
+    } on MissingPluginException {
+      _failPlayback();
+    }
+  }
+
+  void _failPlayback() {
+    _timer?.cancel();
+    _timer = null;
+    unawaited(_stop());
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _playing = false;
+      _error = true;
+      _seek = null;
+    });
+  }
+
+  Future<void> _stop() async {
+    try {
+      await _host.invokeMethod<void>('chatAudioStop', _token);
+    } on PlatformException {
+      // The player may already be unavailable.
+    } on MissingPluginException {
+      // The player may already be unavailable.
+    }
+  }
+
+  Future<void> _seekTo(double value) async {
+    try {
+      await _host.invokeMethod<void>('chatAudioSeek', {
+        'token': _token,
+        'position': value.round(),
+      });
+      if (!mounted) return;
+      setState(() => _seek = null);
+      await _update();
+    } on PlatformException {
+      _failPlayback();
+    } on MissingPluginException {
+      _failPlayback();
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    if (_timer != null || _loading)
-      unawaited(_host.invokeMethod<void>('chatAudioStop', _token));
+    if (_timer != null || _loading) unawaited(_stop());
     super.dispose();
   }
 
@@ -287,15 +370,7 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
                 onChanged: _duration > 0 && _timer != null
                     ? (value) => setState(() => _seek = value)
                     : null,
-                onChangeEnd: (value) async {
-                  await _host.invokeMethod<void>('chatAudioSeek', {
-                    'token': _token,
-                    'position': value.round(),
-                  });
-                  if (!mounted) return;
-                  setState(() => _seek = null);
-                  unawaited(_update());
-                },
+                onChangeEnd: _seekTo,
               ),
             ),
             if (_duration > 0) Text(_clock(_playing ? _position : _duration)),
