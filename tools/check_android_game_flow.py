@@ -43,7 +43,8 @@ def find(label):
         for node in ET.fromstring(data).iter("node"):
             candidates = [node.get("text", ""), node.get("content-desc", "")]
             if not any(label in candidate.splitlines() for candidate in candidates):
-                continue
+                if label != "<input>" or node.get("class") != "android.widget.EditText":
+                    continue
             x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
             if x2 > x1 and y2 > y1:
                 return (x1 + x2) // 2, (y1 + y2) // 2
@@ -77,14 +78,14 @@ def check_keyboard_rotation():
     adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", 1)
     press("Import or open link")
     press("Open Game Link")
-    press("Zompado game link")
+    press("<input>")
     ime_shown = lambda: b"mInputShown=true" in adb("shell", "dumpsys", "input_method")
     wait("the Android keyboard", ime_shown)
     adb("shell", "input", "text", "layout-resize-test")
     set_orientation(1)
     wait("the draft after rotation", lambda: find("layout-resize-test"))
     if not ime_shown():
-        press("layout-resize-test")
+        press("<input>")
         wait("the keyboard in landscape", ime_shown)
     screenshot().save(DIAGNOSTICS / "landscape-keyboard.png")
     for _ in range(3):
@@ -137,9 +138,21 @@ def has_center_token():
     return warm_pixels > patch.width * patch.height // 8
 
 
+def launch_setup():
+    adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
+    adb("shell", "wm", "dismiss-keyguard")
+    adb("shell", "am", "start", "-W", "-n", ACTIVITY)
+    for _ in range(3):
+        if find("Welcome to Zompado"):
+            return
+        if find("Pixel Launcher isn't responding") and (close := find("Close app")):
+            tap(*close)
+            adb("shell", "am", "start", "-W", "-n", ACTIVITY)
+    wait("first-run Setup", lambda: find("Welcome to Zompado"), seconds=65)
+
+
 def main():
-    adb("shell", "am", "start", "-n", ACTIVITY)
-    wait("Setup", lambda: find("Setup"))
+    launch_setup()
     if find("Allow camera") is None:
         adb("shell", "input", "swipe", 350, 1000, 350, 500, 350)
     press("Allow camera")
