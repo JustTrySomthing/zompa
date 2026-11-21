@@ -348,7 +348,7 @@ const _topics = [
       ),
       (
         'Can I play media in chat?',
-        'GIFs play in the conversation. Tap a photo to enlarge and zoom it, Play video to watch an attachment, or the audio play button to listen in chat. Links open in Preview Browser. Use the top-right button to open the page in your default browser.',
+        'GIFs play in the conversation. Tap a photo to enlarge and zoom it, Play video to watch an attachment, or the audio play button to listen in chat. Tap a YouTube preview to play it. Website addresses like example.com open in Preview Browser, even without https://. Use the top-right button to open the page in your default browser.',
       ),
       (
         'How do I restore a deleted chat or set a reply reminder?',

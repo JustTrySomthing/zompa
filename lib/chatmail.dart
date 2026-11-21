@@ -758,6 +758,8 @@ class FriendThread {
   final List<FriendMessage> messages;
 }
 
+enum ChatMedia { image, video, audio }
+
 class FriendMessage {
   FriendMessage.fromJson(Json message)
     : id = message['id'] as int,
@@ -795,6 +797,26 @@ class FriendMessage {
   final String text, viewType;
   final String? file, filename, mime;
   final bool outgoing, info, encrypted;
+
+  ChatMedia? get media {
+    final type = mime?.toLowerCase() ?? '';
+    if (type.startsWith('image/') ||
+        const {'Image', 'Gif', 'Sticker'}.contains(viewType)) {
+      return ChatMedia.image;
+    }
+    if (type.startsWith('video/') || viewType == 'Video')
+      return ChatMedia.video;
+    if (type.startsWith('audio/') ||
+        const {'Audio', 'Voice'}.contains(viewType)) {
+      return ChatMedia.audio;
+    }
+    return null;
+  }
+
+  String? get bubbleFilename => media == null ? filename : null;
+
+  String get bubbleCaption =>
+      media != null && text.trim() == filename ? '' : text;
 
   // Chatmail includes the local call outcome as stock text in the message.
   bool get unansweredCall =>

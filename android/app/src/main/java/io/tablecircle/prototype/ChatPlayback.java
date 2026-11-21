@@ -201,6 +201,31 @@ final class ChatPlayback {
                 && uri.getUserInfo() == null ? uri : null;
     }
 
+    private static void enableYouTubeSound(WebView page, String videoId) {
+        if (videoId == null || !videoId.matches("[A-Za-z0-9_-]{11}")) return;
+        // A YouTube page can start with its own mute preference even when
+        // the WebView permits autoplay. Enable sound once, on initial play.
+        page.evaluateJavascript("""
+            ((id) => {
+              if (!['m.youtube.com', 'www.youtube.com', 'youtube.com'].includes(location.hostname)
+                  || location.pathname !== '/watch'
+                  || new URLSearchParams(location.search).get('v') !== id
+                  || window.zompadoSoundStarted === id) return;
+              window.zompadoSoundStarted = id;
+              function enableSound(event) {
+                const video = event.target;
+                if (!(video instanceof HTMLVideoElement) || video.paused) return;
+                document.removeEventListener('playing', enableSound, true);
+                video.muted = false;
+                if (video.volume === 0) video.volume = 1;
+              }
+              document.addEventListener('playing', enableSound, true);
+              const playing = Array.from(document.querySelectorAll('video'))
+                  .find(video => !video.paused && video.readyState >= 2);
+              if (playing) enableSound({target: playing});
+            })('""" + videoId + "');", null);
+    }
+
     private final class VideoPreview implements PlatformView {
         private final int id;
         private final FrameLayout view;
@@ -279,6 +304,10 @@ final class ChatPlayback {
             settings.setMediaPlaybackRequiresUserGesture(!youtubePlayback);
             android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(view, false);
             view.setWebViewClient(new WebViewClient() {
+                @Override public void onPageFinished(WebView page, String url) {
+                    if (youtubePlayback) enableYouTubeSound(page, uri.getQueryParameter("v"));
+                }
+
                 @Override public boolean shouldOverrideUrlLoading(WebView page, WebResourceRequest request) {
                     return webUri(request.getUrl().toString()) == null;
                 }

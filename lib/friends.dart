@@ -1445,7 +1445,8 @@ class _FriendConversationState extends State<FriendConversation>
                                         else ...[
                                           if (message.file != null)
                                             ChatAttachment(message),
-                                          if (message.filename case final name?)
+                                          if (message.bubbleFilename
+                                              case final name?)
                                             MessageBody(
                                               name,
                                               size: messageTextSize,
@@ -1493,12 +1494,21 @@ class _FriendConversationState extends State<FriendConversation>
                                                 ],
                                               ),
                                             )
-                                          else if (message.text.isNotEmpty ||
-                                              message.filename == null)
+                                          else if (message.bubbleCaption
+                                              .trim()
+                                              .isNotEmpty)
                                             ChatText(
-                                              text,
+                                              message.bubbleCaption,
                                               size: messageTextSize,
-                                            ),
+                                            )
+                                          else if (message.file == null &&
+                                              message.bubbleFilename == null)
+                                            MessageBody(switch (message.media) {
+                                              ChatMedia.image => 'Photo',
+                                              ChatMedia.video => 'Video',
+                                              ChatMedia.audio => 'Audio',
+                                              null => 'Attachment',
+                                            }, size: messageTextSize),
                                         ],
                                         if (message.reactions.isNotEmpty)
                                           _reactions(
