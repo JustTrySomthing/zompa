@@ -336,7 +336,7 @@ const _topics = [
       ),
       (
         'Where can I get a log if a call is slow or crashes?',
-        'Reopen Zompado and go to Settings → App Log. Tap Copy Log to share the recorded call stages and available Android crash details. Tap Clear Log to erase the entries.',
+        'Reopen Zompado and go to Settings → App Log. Tap Copy Log to share the recorded call stages and available Android crash details. The log keeps up to 96 KiB and automatically drops the oldest entries. Tap Clear Log to erase the entries.',
       ),
       (
         'How do I call a friend?',
