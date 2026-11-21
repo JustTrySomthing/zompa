@@ -70,6 +70,8 @@ class GameRelease {
   final int build;
   final ReleaseAsset asset;
   final Set<String> modes;
+  bool get supportsLocalSaves => id == 'drop-four' && build >= 3;
+
   Map<String, Object> get playerReference => {
     'id': id,
     'build': build,

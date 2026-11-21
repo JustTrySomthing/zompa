@@ -30,7 +30,11 @@ old_sync = b'if(err){Module["printErr"](err)}else{Module.removeRunDependency("ID
 if source.count(old_sync) != 1:
     raise SystemExit("Unexpected LÖVE save initialization")
 source = source.replace(old_sync,
-    b'if(err){Module["printErr"](err)}Module.removeRunDependency("IDBFS_sync")')
+    b'if(err){Module["printErr"](err)}if(Module["onZompadoSavesLoaded"])Module["onZompadoSavesLoaded"](err,FS);Module.removeRunDependency("IDBFS_sync")')
+unload = b'window.addEventListener("beforeunload",function(event){FS.syncfs(false'
+if source.count(unload) != 1:
+    raise SystemExit("Unexpected LÖVE save shutdown")
+source = source.replace(unload, b'if(!Module["zompadoManagedSaves"])' + unload)
 old_eval = b'function _emscripten_run_script(ptr){eval(UTF8ToString(ptr))}'
 if source.count(old_eval) != 1:
     raise SystemExit("Unexpected LÖVE script callback")

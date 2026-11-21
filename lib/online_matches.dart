@@ -9,12 +9,30 @@ import 'github_distribution.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
 
-Future<void> showActiveGames(
+String localGameModeLabel(String mode) =>
+    mode == 'local' ? 'Pass & Play' : 'Single Player';
+
+Future<List<MatchEntry>> resumableMatches(
+  Chatmail chatmail,
+  GameRelease game,
+) async => (await chatmail.activeMatches()).where((entry) {
+  final match = entry.match;
+  final pending = match.pending;
+  return match.invite.game?.id == game.id &&
+      match.started &&
+      !match.finished &&
+      !(pending?.state == 20 &&
+          MatchEvent.parse(pending?.text ?? '')?.kind == 'quit');
+}).toList();
+
+Future<String?> showActiveGames(
   BuildContext context, {
-  required Chatmail chatmail,
+  required Chatmail? chatmail,
   required Future<GameRelease?> Function(GameLink) prepareGame,
   GameRelease? game,
-}) => showModalBottomSheet<void>(
+  List<String> localModes = const [],
+  bool resumeOnly = false,
+}) => showModalBottomSheet<String>(
   context: context,
   showDragHandle: true,
   isScrollControlled: true,
@@ -25,6 +43,8 @@ Future<void> showActiveGames(
       chatmail: chatmail,
       prepareGame: prepareGame,
       game: game,
+      localModes: localModes,
+      resumeOnly: resumeOnly,
     ),
   ),
 );
@@ -33,12 +53,16 @@ class _ActiveGamesSheet extends StatefulWidget {
   const _ActiveGamesSheet({
     required this.chatmail,
     required this.prepareGame,
-    this.game,
+    required this.game,
+    required this.localModes,
+    required this.resumeOnly,
   });
 
-  final Chatmail chatmail;
+  final Chatmail? chatmail;
   final Future<GameRelease?> Function(GameLink) prepareGame;
   final GameRelease? game;
+  final List<String> localModes;
+  final bool resumeOnly;
 
   @override
   State<_ActiveGamesSheet> createState() => _ActiveGamesSheetState();
@@ -60,7 +84,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _events = widget.chatmail.changes.listen((_) {
+    _events = widget.chatmail?.changes.listen((_) {
       _timer?.cancel();
       _timer = Timer(const Duration(milliseconds: 300), _load);
     });
@@ -88,15 +112,15 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     }
     _loading = true;
     try {
-      final active = await widget.chatmail.activeMatches();
+      final chatmail = widget.chatmail;
+      final active = chatmail == null
+          ? const <MatchEntry>[]
+          : widget.resumeOnly
+          ? await resumableMatches(chatmail, widget.game!)
+          : await chatmail.activeMatches();
       if (mounted) {
         setState(() {
-          final game = widget.game;
-          _matches = game == null
-              ? active
-              : active
-                    .where((entry) => entry.match.invite.game?.id == game.id)
-                    .toList();
+          _matches = active;
           _loaded = true;
           _failed = false;
         });
@@ -118,14 +142,14 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => OnlineMatchPage(
-          chatmail: widget.chatmail,
+          chatmail: widget.chatmail!,
           chat: chat.id,
           id: match.invite.id,
           playOnOpen: match.started && !match.conflict,
           prepareGame: widget.prepareGame,
           friendName: chat.name,
           buildChatDock: (close) => FriendConversation.docked(
-            chatmail: widget.chatmail,
+            chatmail: widget.chatmail!,
             id: chat.id,
             onClose: close,
           ),
@@ -169,12 +193,12 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
       if (!mounted || confirmed != true) return;
       final current = OnlineMatch.replay(
         match.invite.id,
-        await widget.chatmail.matchHistory(chat.id, match.invite.id),
+        await widget.chatmail!.matchHistory(chat.id, match.invite.id),
       );
       if (!mounted || current == null || !current.active) return;
       final pending = MatchEvent.parse(current.pending?.text ?? '');
       if (pending?.kind == 'quit' && current.pending?.state == 20) return;
-      await widget.chatmail.send(
+      await widget.chatmail!.send(
         chat.id,
         pending?.kind == 'quit'
             ? pending!.wire
@@ -265,7 +289,10 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
             child: Row(
               children: [
                 Expanded(
-                  child: Text('Active', style: theme.textTheme.titleLarge),
+                  child: Text(
+                    widget.resumeOnly ? 'Resume a game' : 'Active Games',
+                    style: theme.textTheme.titleLarge,
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Close active games',
@@ -292,6 +319,21 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
                           style: theme.textTheme.titleMedium,
                         ),
                       ),
+                    for (final mode in widget.localModes)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          leading: Icon(
+                            mode == 'local'
+                                ? Icons.people_outline
+                                : Icons.person_outline,
+                          ),
+                          title: Text(localGameModeLabel(mode)),
+                          subtitle: const Text('Resume saved game'),
+                          trailing: const Icon(Icons.play_arrow),
+                          onTap: () => Navigator.pop(context, mode),
+                        ),
+                      ),
                     if (_failed)
                       ListTile(
                         title: const Text('Couldn’t refresh active games.'),
@@ -302,12 +344,14 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
                       )
                     else if (!_loaded)
                       const LinearProgressIndicator()
-                    else if (_matches.isEmpty)
-                      const ListTile(
-                        title: Text('No active online games'),
-                        subtitle: Text(
-                          'Start one from Play or invite a friend from chat.',
+                    else if (_matches.isEmpty && widget.localModes.isEmpty)
+                      ListTile(
+                        title: Text(
+                          widget.resumeOnly
+                              ? 'No unfinished games'
+                              : 'No active online games',
                         ),
+                        subtitle: const Text('Start a new game from Play.'),
                       ),
                     if (_actionError case final error?)
                       Padding(

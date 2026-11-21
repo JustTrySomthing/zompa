@@ -2,6 +2,15 @@ name: Verify Android game flow
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/android-game-smoke.yml"
+      - "tools/check_android_game_flow.py"
+      - "tools/install_love_runtime.sh"
+      - "android/app/src/main/assets/love/**"
+      - "android/app/src/main/java/io/tablecircle/prototype/LovePlayer.java"
+      - "lib/game_play_page.dart"
   push:
     branches: [main]
     paths:
