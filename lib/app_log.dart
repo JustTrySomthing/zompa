@@ -71,15 +71,15 @@ class _AppLogPageState extends State<AppLogPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('App Log'),
-      actions: [
+    appBar: chatPageBar(
+      context,
+      'App Log',
+      firstActions: [
         IconButton(
           tooltip: 'Refresh log',
           icon: const Icon(Icons.refresh),
           onPressed: _busy ? null : _refresh,
         ),
-        ...chatActions(context),
       ],
     ),
     body: SafeArea(

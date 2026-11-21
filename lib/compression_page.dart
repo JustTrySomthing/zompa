@@ -62,10 +62,7 @@ class _CompressionPageState extends State<CompressionPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Compression'),
-      actions: chatActions(context),
-    ),
+    appBar: chatPageBar(context, 'Compression'),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [

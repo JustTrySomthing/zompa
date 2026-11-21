@@ -64,7 +64,7 @@ class _ImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title), actions: chatActions(context)),
+    appBar: chatPageBar(context, title, fitTitle: false),
     body: SafeArea(
       child: SizedBox.expand(
         child: InteractiveViewer(
@@ -103,10 +103,7 @@ class _VideoAttachmentState extends State<_VideoAttachment> {
     void open() => Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text(widget.title),
-            actions: chatActions(context),
-          ),
+          appBar: chatPageBar(context, widget.title, fitTitle: false),
           body: SafeArea(
             child: _PreviewSurface('io.zompado.chatVideo', widget.path),
           ),
@@ -435,10 +432,10 @@ class _BrowserPreviewState extends State<_BrowserPreview> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Preview Browser'),
-      actions: [
-        ...chatActions(context),
+    appBar: chatPageBar(
+      context,
+      'Preview Browser',
+      lastActions: [
         IconButton(
           onPressed: _external,
           icon: const Icon(Icons.open_in_new),

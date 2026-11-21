@@ -117,10 +117,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final photo = _remove ? null : _draft?.path ?? _photo;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Profile'),
-        actions: chatActions(context),
-      ),
+      appBar: chatPageBar(context, 'My Profile'),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),

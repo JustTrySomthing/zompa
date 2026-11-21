@@ -84,7 +84,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Setup'), actions: chatActions(context)),
+    appBar: chatPageBar(context, 'Setup'),
     body: SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -425,7 +425,7 @@ class _HelpPageState extends State<HelpPage> {
         )
         .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Help'), actions: chatActions(context)),
+      appBar: chatPageBar(context, 'Help'),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),

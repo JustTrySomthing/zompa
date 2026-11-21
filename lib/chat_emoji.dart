@@ -43,29 +43,31 @@ class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
     if (!widget.single) widget.insert(emoji);
   }
 
-  Widget _preview(BuildContext context, String value) => Container(
-    margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
-    width: double.infinity,
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Text(
-      value.isEmpty
-          ? (widget.single ? 'Choose a reaction' : 'Selected emoji appear here')
-          : value.characters.takeLast(44).string,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 17),
-    ),
-  );
+  Widget _preview(BuildContext context, String value, int maxLines) =>
+      Container(
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          value.isEmpty
+              ? (widget.single
+                    ? 'Choose a reaction'
+                    : 'Selected emoji appear here')
+              : value.characters.takeLast(44).string,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 17),
+        ),
+      );
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: SizedBox(
-      height: 290,
-      child: FutureBuilder(
+  Widget build(BuildContext context) {
+    Widget picker(int previewLines) {
+      return FutureBuilder(
         future: _catalog ??= _loadEmoji(),
         builder: (context, snapshot) {
           final groups = snapshot.data;
@@ -82,10 +84,11 @@ class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
               if (widget.draft case final draft?)
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: draft,
-                  builder: (context, value, _) => _preview(context, value.text),
+                  builder: (context, value, _) =>
+                      _preview(context, value.text, previewLines),
                 )
               else
-                _preview(context, _emoji ?? ''),
+                _preview(context, _emoji ?? '', previewLines),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -132,9 +135,19 @@ class _ChatEmojiPickerState extends State<ChatEmojiPicker> {
             ],
           );
         },
+      );
+    }
+
+    return SafeArea(
+      child: SizedBox(
+        height: 290,
+        child: LayoutBuilder(
+          builder: (context, constraints) =>
+              picker(constraints.maxHeight < 280 ? 1 : 2),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _EmojiTile extends StatefulWidget {

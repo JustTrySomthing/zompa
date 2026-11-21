@@ -1000,6 +1000,8 @@ class _FriendConversationState extends State<FriendConversation>
     FocusManager.instance.primaryFocus?.unfocus();
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => ChatEmojiPicker(
         draft: _composer,
         insert: (value) {
@@ -1042,6 +1044,8 @@ class _FriendConversationState extends State<FriendConversation>
     String? chosen;
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) =>
           ChatEmojiPicker(single: true, insert: (emoji) => chosen = emoji),
     );
@@ -1375,30 +1379,43 @@ class _FriendConversationState extends State<FriendConversation>
     }
     final docked = widget.onClose != null;
     final voice = VoiceScope.of(context);
-    final appBar = AppBar(
-      automaticallyImplyLeading: !docked,
-      primary: !docked,
-      title: Text(thread?.name ?? widget.initialName),
-      actions: [
-        if (!docked && voice != null)
-          IconButton(
-            tooltip: 'Voice call',
-            icon: const Icon(Icons.call_outlined),
-            onPressed: voice.busy || thread?.canSend != true
-                ? null
-                : () => voice.openDialer(
-                    context,
-                    widget.id,
-                    thread!.name,
-                    photo: thread.photo,
-                  ),
-          ),
-        if (!docked) ...chatActions(context),
-      ],
-    );
-    final body = SafeArea(
-      top: false,
-      child: Column(
+    final name = thread?.name ?? widget.initialName;
+    final appBar = docked
+        ? AppBar(
+            automaticallyImplyLeading: false,
+            primary: false,
+            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          )
+        : chatPageBar(
+            context,
+            name,
+            fitTitle: false,
+            firstActions: [
+              if (voice != null)
+                IconButton(
+                  tooltip: 'Voice call',
+                  icon: const Icon(Icons.call_outlined),
+                  onPressed: voice.busy || thread?.canSend != true
+                      ? null
+                      : () => voice.openDialer(
+                          context,
+                          widget.id,
+                          thread!.name,
+                          photo: thread.photo,
+                        ),
+                ),
+            ],
+          );
+    final composerFontSize =
+        Theme.of(context).textTheme.bodyLarge?.fontSize ?? 16.0;
+    final composerLineHeight =
+        MediaQuery.textScalerOf(context).scale(composerFontSize) * 1.4;
+    Widget content(double availableHeight) {
+      // Leave room for the conversation when the keyboard is open.
+      final composerLines = ((availableHeight * .6 - 28) / composerLineHeight)
+          .floor()
+          .clamp(1, 4);
+      return Column(
         children: [
           if (_loadError case final error?)
             ListTile(
@@ -1743,7 +1760,7 @@ class _FriendConversationState extends State<FriendConversation>
                       controller: _composer,
                       maxLength: 5000,
                       minLines: 1,
-                      maxLines: 4,
+                      maxLines: composerLines,
                       decoration: const InputDecoration(
                         hintText: 'Write a message',
                         counterText: '',
@@ -1759,7 +1776,11 @@ class _FriendConversationState extends State<FriendConversation>
               ),
             ),
         ],
-      ),
+      );
+    }
+    final body = SafeArea(
+      top: false,
+      child: LayoutBuilder(builder: (_, box) => content(box.maxHeight)),
     );
     if (!docked) return Scaffold(appBar: appBar, body: body);
     return Material(

@@ -78,10 +78,7 @@ class _LoveImportsState extends State<LoveImports> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Import a Game'),
-        actions: chatActions(context),
-      ),
+      appBar: chatPageBar(context, 'Import a Game'),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),

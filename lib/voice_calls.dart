@@ -523,44 +523,51 @@ class _CallDialer extends StatelessWidget {
     appBar: AppBar(title: const Text('Voice call')),
     body: SafeArea(
       child: LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: constraints.maxHeight,
-              minWidth: constraints.maxWidth,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        name,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 16),
-                      ChatAvatar(name, photo: photo, radius: 36),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: _CallAction(
-                      label: 'Call',
-                      icon: Icons.call,
-                      onPressed: () => Navigator.of(context).pop(true),
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 280;
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+                minWidth: constraints.maxWidth,
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(compact ? 8 : 20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          name,
+                          textAlign: TextAlign.center,
+                          maxLines: compact ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        SizedBox(height: compact ? 8 : 16),
+                        ChatAvatar(
+                          name,
+                          photo: photo,
+                          radius: compact ? 24 : 36,
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    Padding(
+                      padding: EdgeInsets.only(top: compact ? 8 : 24),
+                      child: _CallAction(
+                        label: 'Call',
+                        icon: Icons.call,
+                        onPressed: () => Navigator.of(context).pop(true),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     ),
   );

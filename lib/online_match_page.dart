@@ -546,14 +546,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                     ? null
                     : () => _togglePause(match),
               )
-            : AppBar(
-                title: Text(
-                  widget.friendName == null
-                      ? 'Online Cats vs Dogs'
-                      : 'Match with ${widget.friendName}',
-                ),
-                actions: [
-                  ...chatActions(context),
+            : chatPageBar(
+                context,
+                widget.friendName == null
+                    ? 'Online Cats vs Dogs'
+                    : 'Match with ${widget.friendName}',
+                fitTitle: widget.friendName == null,
+                lastActions: [
                   IconButton(
                     tooltip: _chatOpen ? 'Close match chat' : 'Open match chat',
                     onPressed: _toggleChat,

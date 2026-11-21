@@ -96,10 +96,7 @@ class _QuietHoursPageState extends State<QuietHoursPage> {
         : null;
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quiet Hours'),
-        actions: chatActions(context),
-      ),
+      appBar: chatPageBar(context, 'Quiet Hours'),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -266,7 +263,7 @@ class _BackupPageState extends State<BackupPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Backup'), actions: chatActions(context)),
+    appBar: chatPageBar(context, 'Backup'),
     body: SafeArea(
       child: FutureBuilder<bool>(
         future: _existing,
@@ -439,10 +436,7 @@ class _ConnectionsPageState extends State<ConnectionsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Connections'),
-      actions: chatActions(context),
-    ),
+    appBar: chatPageBar(context, 'Connections'),
     body: SafeArea(
       child: FutureBuilder<List<(String, String)>>(
         future: _details,

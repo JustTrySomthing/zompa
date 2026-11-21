@@ -127,18 +127,34 @@ AppBar chatPageBar(
   String label, {
   ChatDestination? selected,
   bool showBrand = false,
+  bool fitTitle = true,
+  List<Widget> firstActions = const [],
+  List<Widget> lastActions = const [],
 }) {
-  final compact = MediaQuery.sizeOf(context).width < 380;
-  final title = FittedBox(
-    alignment: AlignmentDirectional.centerStart,
-    fit: BoxFit.scaleDown,
-    child: Text(
-      label,
-      maxLines: 1,
-      softWrap: false,
-      style: showBrand ? const TextStyle(fontWeight: FontWeight.w700) : null,
-    ),
+  final width = MediaQuery.sizeOf(context).width;
+  final compact = width < 380;
+  final shortcuts = chatActions(context, selected: selected);
+  final actionWidth =
+      48.0 * (shortcuts.length + firstActions.length + lastActions.length);
+  final backWidth = Navigator.canPop(context) ? (compact ? 48.0 : 56.0) : 0.0;
+  final titleWidth = showBrand ? 100.0 : 72.0;
+  // Keep the universal shortcuts visible even when the title and actions
+  // cannot share a row with usable tap targets.
+  final separateShortcuts =
+      shortcuts.isNotEmpty && width < backWidth + actionWidth + titleWidth;
+  final text = Text(
+    label,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: showBrand ? const TextStyle(fontWeight: FontWeight.w700) : null,
   );
+  final title = fitTitle
+      ? FittedBox(
+          alignment: AlignmentDirectional.centerStart,
+          fit: BoxFit.scaleDown,
+          child: text,
+        )
+      : text;
   return AppBar(
     titleSpacing: compact ? 4 : null,
     leadingWidth: compact ? 48 : null,
@@ -156,7 +172,20 @@ AppBar chatPageBar(
             ],
           )
         : title,
-    actions: chatActions(context, selected: selected),
+    actions: [
+      ...firstActions,
+      if (!separateShortcuts) ...shortcuts,
+      ...lastActions,
+    ],
+    bottom: separateShortcuts
+        ? PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: shortcuts,
+            ),
+          )
+        : null,
   );
 }
 
@@ -243,10 +272,7 @@ class NotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Notifications'),
-      actions: chatActions(context),
-    ),
+    appBar: chatPageBar(context, 'Notifications'),
     body: SafeArea(
       child: ListenableBuilder(
         listenable: settings,

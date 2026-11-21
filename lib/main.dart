@@ -1915,10 +1915,7 @@ class _AppearancePageState extends State<_AppearancePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Appearance'),
-      actions: chatActions(context),
-    ),
+    appBar: chatPageBar(context, 'Appearance'),
     body: SafeArea(
       top: false,
       child: ListView(
