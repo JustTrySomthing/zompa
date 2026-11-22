@@ -1,5 +1,5 @@
 {
-  "version": "0.5.31",
-  "build": 40,
-  "notes": "- Play starts a fresh round. Back saves a supported unfinished round for Active Games, and Quit clears the current round.\n- The game toolbar keeps the title and back arrow on the left, with game audio and Pause/Resume on the right. The circled speaker in Game Audio mutes all game sound and keeps your volume settings.\n- The Cats vs Dogs cover stays the same size while browsing. Get Games labels the current installed version.\n- Updated the game SDK guide for save and resume behavior, toolbar layout, and online controls.\n- Incoming calls can still be missed while the recipient’s screen is off."
+  "version": "0.5.32",
+  "build": 41,
+  "notes": "- Search Inbox, Archive, and Trash, or search messages and attachments from inside a conversation.\n- Pin or mute individual chats directly from the chat list. Global mute is in Settings → Notifications.\n- Active Games shows a count and uses the same Resume Game and End Game controls for solo, pass-and-play, and online games.\n- Larger save stars make attachments easier to save in the Media gallery.\n- Incoming calls can still be missed while the recipient’s screen is off."
 }

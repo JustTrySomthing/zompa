@@ -10,8 +10,8 @@ or make your own.
 
 ## What you can do today
 
-- **Play Cats vs Dogs.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. To invite a friend from chat, tap the gamepad, choose an installed online game, and tap **Invite**. Play starts a new round. Use **Active Games** to resume local rounds or existing online matches. Back leaves your game resumable and Quit ends it.
-- **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation. Tap website addresses or YouTube previews to open them in the app. In a conversation, switch to Media to browse, preview, or save shared attachments.
+- **Play Cats vs Dogs.** Install it from **Games → Get Games**. Play solo, pass and play on one phone, or take turns online. To invite a friend from chat, tap the gamepad, choose an installed online game, and tap **Invite**. Play starts a new round. **Active Games** shows a count and lets you resume or end a local round or online match. Back leaves your game resumable and Quit ends it.
+- **Connect with friends.** Create a Chatmail profile, share an invite link or QR code, exchange encrypted one-to-one messages, and place voice calls. Message alerts open the matching conversation. Tap website addresses or YouTube previews to open them in the app. Search, pin, and mute chats from the Chats list. Search messages in Feed or browse, filter, preview, and save shared attachments in Media.
 - **Manage your game library.** A fresh install starts with an empty library. Add official `.zomp` games and remove them from **My Games**. Open the import button for compatible `.love` files on your device.
 
 [Submit a game or update its catalog artwork](https://github.com/JustTrySomthing/zompado-games#submit-a-game).
