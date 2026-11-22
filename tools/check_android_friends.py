@@ -250,7 +250,8 @@ def check_message_tools(alice, bob):
 
 def check_match(alice, bob):
     alice.press("Invite to play a game")
-    alice.see("Choose a game to play with Bob")
+    alice.see("Choose a game")
+    alice.see("Play with Bob")
     alice.press("Cats vs Dogs")
     alice.press("Invite")
     alice.see("Waiting for your friend to accept.", 100)

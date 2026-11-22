@@ -14,6 +14,8 @@ import 'app_log.dart';
 import 'github_distribution.dart';
 import 'game_screenshots.dart';
 import 'game_link.dart';
+import 'game_invite_picker.dart';
+import 'chat_avatar.dart';
 import 'dialog_actions.dart';
 import 'chatmail.dart';
 import 'chat_chrome.dart';
@@ -897,12 +899,17 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         builder: (sheet) => SafeArea(
           top: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: FutureBuilder<bool>(
               future: hasActiveGame,
               builder: (context, snapshot) => Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text(game.title, style: Theme.of(sheet).textTheme.titleLarge),
+                  const SizedBox(height: 4),
+                  const Text('Choose how to play'),
+                  const SizedBox(height: 8),
                   if (snapshot.data == true)
                     ListTile(
                       leading: const Icon(Icons.play_circle_outline),
@@ -955,7 +962,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     _refreshActiveGames();
   }
 
+  bool _invitingForGame = false;
+
   Future<void> _inviteForGame(Chatmail chatmail, GameRelease game) async {
+    if (_invitingForGame) return;
+    _invitingForGame = true;
     try {
       if (!await chatmail.restore()) {
         if (mounted) setState(() => tab = 0);
@@ -963,28 +974,29 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       }
       final contacts = await chatmail.contacts();
       if (!mounted) return;
-      final contact = await showModalBottomSheet<ChatContact>(
-        context: context,
-        showDragHandle: true,
-        builder: (sheet) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const ListTile(title: Text('Invite a friend to play')),
-              if (contacts.isEmpty)
-                const ListTile(title: Text('Add a contact in Chats first.')),
-              for (final entry in contacts)
-                ListTile(
-                  title: Text(entry.name),
-                  onTap: () => Navigator.pop(sheet, entry),
-                ),
-            ],
-          ),
-        ),
+      final contact = await showGameInvitePicker<ChatContact>(
+        context,
+        title: 'Choose a friend',
+        detail: game.title,
+        emptyMessage: 'Add a contact in Chats before inviting a friend.',
+        options: [
+          for (final entry in contacts)
+            (
+              value: entry,
+              label: entry.name,
+              leading: ChatAvatar(entry.name, photo: entry.photo),
+              unavailable: null,
+            ),
+        ],
       );
       if (contact == null || !mounted) return;
+      final verified = await _installedGameLink(game);
+      if (!mounted || verified == null) return;
+      final link = GameLink.parse(verified);
+      if (link == null) return;
       final chat = await chatmail.openContact(contact.id);
-      final invite = MatchEvent.invite(GameLink.fromRelease(game));
+      if (!mounted) return;
+      final invite = MatchEvent.invite(link);
       final moved = await chatmail.sendMatchOpening(chat, invite);
       if (!mounted) return;
       if (moved != null) _gameNotice(matchMovedNotice(moved));
@@ -1009,6 +1021,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         _gameNotice(
           'Couldn’t send an invitation. Check that this friend can receive encrypted messages.',
         );
+    } finally {
+      _invitingForGame = false;
     }
   }
 

@@ -498,6 +498,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   }
 
   String _lobbyText(OnlineMatch? match) {
+    if (match != null && match.boardComplete && match.pending == null)
+      return match.status;
     final friend = widget.friendName ?? 'Your friend';
     if (_error case final error?) return error;
     if (_preparing) return 'Getting Cats vs Dogs ready…';
@@ -619,11 +621,14 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   }
 
   Widget _finishedActions(OnlineMatch match) => Center(
-    child: Card(
-      margin: const EdgeInsets.all(16),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        child: _resultActions(match),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 400),
+      child: Card(
+        margin: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          child: _resultActions(match),
+        ),
       ),
     ),
   );
@@ -631,8 +636,15 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   Widget _resultActions(OnlineMatch match) => Column(
     mainAxisSize: MainAxisSize.min,
     children: [
-      if (_boardOpen && _error != null)
-        Text(_error!, textAlign: TextAlign.center),
+      if (_error case final error?)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            error,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
       if (_incomingRematch != null)
         const Text(
           'Your friend invited you to play again.',
@@ -937,7 +949,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               child: const Text('Retry send'),
                                             ),
                                         ],
-                                        if (_error != null)
+                                        if (_error != null && !showResult)
                                           TextButton(
                                             onPressed: _load,
                                             child: const Text('Refresh'),
@@ -963,10 +975,16 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                   key: ValueKey(_latestMessage),
                                   liveRegion: true,
                                   child: Center(
-                                    child: DecoratedBox(
+                                    child: Container(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 440,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xda1b1c20),
                                         borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: Colors.white24,
+                                        ),
                                       ),
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(

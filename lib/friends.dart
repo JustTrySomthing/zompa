@@ -15,6 +15,7 @@ import 'dialog_actions.dart';
 import 'message_bubble.dart';
 import 'chat_preview.dart';
 import 'game_link.dart';
+import 'game_invite_picker.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
 import 'online_match_page.dart';
@@ -1467,16 +1468,23 @@ class _FriendConversationState extends State<FriendConversation>
     setState(() => _pickingGame = true);
     try {
       FocusScope.of(context).unfocus();
-      final selected = await showModalBottomSheet<GameRelease>(
-        context: context,
-        showDragHandle: true,
-        isScrollControlled: true,
-        useSafeArea: true,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * .9,
-        ),
-        builder: (_) =>
-            _GameInviteSheet(friend: friend, games: widget.installedGames!()),
+      final selected = await showGameInvitePicker<GameRelease>(
+        context,
+        title: 'Choose a game',
+        detail: 'Play with $friend',
+        emptyMessage:
+            'Install an online game from Get Games to invite a friend.',
+        options: [
+          for (final game in widget.installedGames!())
+            (
+              value: game,
+              label: game.title,
+              leading: gameInviteArtwork(game),
+              unavailable: MatchEvent.supportsGame(game)
+                  ? null
+                  : 'Online play unavailable',
+            ),
+        ],
       );
       if (!mounted || selected == null) return;
       final link = await widget.verifiedGameLink!(selected);
@@ -2057,124 +2065,6 @@ class _FriendConversationState extends State<FriendConversation>
           appBar,
           Expanded(child: body),
         ],
-      ),
-    );
-  }
-}
-
-class _GameInviteSheet extends StatefulWidget {
-  const _GameInviteSheet({required this.friend, required this.games});
-
-  final String friend;
-  final List<GameRelease> games;
-
-  @override
-  State<_GameInviteSheet> createState() => _GameInviteSheetState();
-}
-
-class _GameInviteSheetState extends State<_GameInviteSheet> {
-  GameRelease? _selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Flexible(
-              child: SingleChildScrollView(
-                primary: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Choose a game to play with ${widget.friend}',
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 14),
-                    if (widget.games.isEmpty)
-                      const Text(
-                        'Install a game from Get Games to invite a friend.',
-                      ),
-                    for (final game in widget.games)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _gameTile(game, colors),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xff1b663c),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: _selected == null
-                        ? null
-                        : () => Navigator.pop(context, _selected),
-                    child: const Text('Invite'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _gameTile(GameRelease game, ColorScheme colors) {
-    final eligible = MatchEvent.supportsGame(game);
-    final selected = _selected == game;
-    return Material(
-      color: selected ? colors.secondaryContainer : colors.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: selected ? colors.primary : colors.outlineVariant,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        enabled: eligible,
-        selected: selected,
-        selectedColor: colors.onSecondaryContainer,
-        onTap: eligible ? () => setState(() => _selected = game) : null,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        leading: game.id == 'drop-four' && game.build >= 6
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
-                  'assets/games/cats-vs-dogs.webp',
-                  width: 46,
-                  height: 46,
-                  fit: BoxFit.cover,
-                ),
-              )
-            : const Icon(Icons.sports_esports_outlined),
-        title: Text(game.title),
-        subtitle: eligible ? null : const Text('Online matches unavailable'),
-        trailing: selected
-            ? Icon(Icons.check_circle, color: colors.primary)
-            : null,
       ),
     );
   }
