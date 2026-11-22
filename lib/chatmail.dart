@@ -676,8 +676,8 @@ class Chatmail {
     bool fromNotification = false,
   }) async {
     final info = await _voiceChat(chat);
-    if (fromNotification &&
-        (info['isMuted'] == true ||
+    if (info['isMuted'] == true ||
+        (fromNotification &&
             await _call('get_config', [_accountId, 'who_can_call_me']) ==
                 '2')) {
       return null;

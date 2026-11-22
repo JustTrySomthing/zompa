@@ -41,15 +41,9 @@ class ChatNotificationSettings extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> set(
-    BuildContext context,
-    String key,
-    bool value, {
-    bool showMuteFeedback = false,
-  }) async {
+  Future<void> set(BuildContext context, String key, bool value) async {
     final changingMaster = key == 'muted';
     if (changingMaster && changingMute) return;
-    final page = ModalRoute.of(context);
     if (changingMaster) {
       changingMute = true;
       notifyListeners();
@@ -75,23 +69,61 @@ class ChatNotificationSettings extends ChangeNotifier {
         notifyListeners();
       }
     }
-    if (showMuteFeedback && context.mounted && page?.isCurrent != false) {
-      final navigator = Navigator.of(context, rootNavigator: true);
-      final feedback = DialogRoute<void>(
-        context: context,
-        barrierColor: Colors.transparent,
-        builder: (_) => AlertDialog(
-          content: Text(
-            muted ? 'All notifications muted' : 'Notifications on',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-      navigator.push(feedback);
-      await Future<void>.delayed(const Duration(milliseconds: 1100));
-      if (feedback.isActive) navigator.removeRoute(feedback);
-    }
   }
+}
+
+Future<void> showNotificationFeedback(
+  BuildContext context,
+  String message,
+) async {
+  if (ModalRoute.of(context)?.isCurrent == false) return;
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final feedback = DialogRoute<void>(
+    context: context,
+    barrierColor: Colors.transparent,
+    builder: (_) =>
+        AlertDialog(content: Text(message, textAlign: TextAlign.center)),
+  );
+  navigator.push(feedback);
+  await Future<void>.delayed(const Duration(milliseconds: 1100));
+  if (feedback.isActive) navigator.removeRoute(feedback);
+}
+
+class ChatSearchField extends StatelessWidget {
+  const ChatSearchField({
+    super.key,
+    required this.label,
+    required this.controller,
+    required this.onChanged,
+    this.focusNode,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final FocusNode? focusNode;
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: controller,
+    focusNode: focusNode,
+    onChanged: onChanged,
+    textInputAction: TextInputAction.search,
+    decoration: InputDecoration(
+      labelText: label,
+      prefixIcon: const Icon(Icons.search),
+      suffixIcon: controller.text.isEmpty
+          ? null
+          : IconButton(
+              tooltip: 'Clear search',
+              onPressed: () {
+                controller.clear();
+                onChanged('');
+              },
+              icon: const Icon(Icons.clear),
+            ),
+    ),
+  );
 }
 
 class ChatChrome extends InheritedWidget {
@@ -133,7 +165,8 @@ AppBar chatPageBar(
   List<Widget> lastActions = const [],
 }) {
   final width =
-      MediaQuery.sizeOf(context).width - MediaQuery.paddingOf(context).horizontal;
+      MediaQuery.sizeOf(context).width -
+      MediaQuery.paddingOf(context).horizontal;
   final compact = width < 380;
   final shortcuts = chatActions(context, selected: selected);
   final actionWidth =
@@ -228,30 +261,6 @@ List<Widget> chatActions(BuildContext context, {ChatDestination? selected}) {
   return [
     if (chrome.openSaved case final open?)
       shortcut(ChatDestination.saved, 'Saved', Icons.star_outline, open),
-    ListenableBuilder(
-      listenable: chrome.notifications,
-      builder: (context, _) {
-        final settings = chrome.notifications;
-        return IconButton(
-          tooltip: settings.muted
-              ? 'Unmute all notifications'
-              : 'Mute all notifications',
-          icon: Icon(
-            settings.muted
-                ? Icons.notifications_off_outlined
-                : Icons.notifications_none,
-          ),
-          onPressed: settings.changingMute
-              ? null
-              : () => settings.set(
-                  context,
-                  'muted',
-                  !settings.muted,
-                  showMuteFeedback: true,
-                ),
-        );
-      },
-    ),
     if (chrome.openContacts case final open?)
       shortcut(
         ChatDestination.contacts,
@@ -298,7 +307,13 @@ class NotificationsPage extends StatelessWidget {
               SwitchListTile(
                 title: Text(label),
                 value: enabled,
-                onChanged: (value) => settings.set(context, key, value),
+                activeThumbColor: Theme.of(context).colorScheme.surface,
+                activeTrackColor: Theme.of(context)
+                    .colorScheme
+                    .onSurfaceVariant,
+                onChanged: settings.muted || settings.changingMute
+                    ? null
+                    : (value) => settings.set(context, key, value),
               ),
             ListTile(
               leading: const Icon(Icons.lock_outline),

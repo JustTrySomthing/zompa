@@ -358,11 +358,15 @@ const _topics = [
       ),
       (
         'Where are all the attachments in a chat?',
-        'Open a conversation and tap Media to browse its photos, videos, audio, and files. Tap an attachment to open its preview. Audio and video start playing when opened. Use the star to save or unsave an attachment, or tap Feed to return to the conversation.',
+        'Open a conversation and tap Media to browse its photos, videos, audio, and files. Tap an attachment to open its preview. Audio and video start playing when opened. Use the star to save or unsave an attachment. The search field finds messages in Feed and filters loaded attachments in Media.',
       ),
       (
         'Can I play media in chat?',
         'GIFs play in the conversation. Tap a photo to enlarge and zoom it, Play video to watch an attachment, or the audio play button to listen in chat. Tap a YouTube preview to play it. Website addresses like example.com open in Preview Browser, even without https://. Use the top-right button to open the page in your default browser.',
+      ),
+      (
+        'How do I find, pin, or mute a chat?',
+        'Use Search chats below Inbox, Archive, or Trash to filter by name or the latest message preview. Tap the pin beside a chat to move it to the top of its list on this device. Tap its bell to silence or restore notifications for that chat.',
       ),
       (
         'How do I restore a deleted chat or set a reply reminder?',
@@ -397,7 +401,7 @@ const _topics = [
       ),
       (
         'What alerts can I turn on?',
-        'Open Settings → Notifications for alert categories and Android lock screen settings. Tap the bell in the top bar to mute all Zompado alerts. Choose Quiet Hours to schedule when alerts arrive silently. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
+        'Open Settings → Notifications for alert categories and Android lock screen settings. Use Mute all notifications in Settings → Notifications to silence all Zompado alerts. Choose Quiet Hours to schedule when alerts arrive silently. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
       ),
     ],
   ),

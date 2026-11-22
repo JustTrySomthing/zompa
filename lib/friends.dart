@@ -37,6 +37,8 @@ class FriendsPane extends StatefulWidget {
     super.key,
     required this.chatmail,
     this.active = true,
+    required this.pins,
+    required this.savePins,
     required this.addContact,
     required this.installedGames,
     required this.verifiedGameLink,
@@ -46,6 +48,8 @@ class FriendsPane extends StatefulWidget {
 
   final Chatmail chatmail;
   final bool active;
+  final Set<int> pins;
+  final ValueChanged<Set<int>> savePins;
   final Future<void> Function(BuildContext) addContact;
   final List<GameRelease> Function() installedGames;
   final Future<String?> Function(GameRelease) verifiedGameLink;
@@ -60,6 +64,9 @@ enum _ChatFolder { inbox, archive, trash }
 
 class _FriendsPaneState extends State<FriendsPane> {
   final _name = TextEditingController();
+  final _search = TextEditingController();
+  late final _pins = {...widget.pins};
+  final _muting = <int>{};
   List<FriendChat> _chats = [];
   StreamSubscription<void>? _events;
   Timer? _refreshTimer;
@@ -106,6 +113,7 @@ class _FriendsPaneState extends State<FriendsPane> {
     _refreshTimer?.cancel();
     _events?.cancel();
     _name.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -201,6 +209,7 @@ class _FriendsPaneState extends State<FriendsPane> {
 
   void _selectFolder(_ChatFolder folder) {
     if (_folder == folder) return;
+    FocusScope.of(context).unfocus();
     setState(() {
       _folder = folder;
       _chats = [];
@@ -255,13 +264,6 @@ class _FriendsPaneState extends State<FriendsPane> {
                         chat.unread > 0 ? 'read' : 'unread',
                         chat.unread > 0 ? 'Mark read' : 'Mark unread',
                         Icons.mark_email_unread_outlined,
-                      ),
-                      (
-                        chat.muted ? 'unmute' : 'mute',
-                        chat.muted
-                            ? 'Unmute notifications'
-                            : 'Mute notifications',
-                        Icons.notifications_off_outlined,
                       ),
                       ('remind', 'Remind me later', Icons.schedule),
                       ('block', 'Block sender', Icons.block),
@@ -343,12 +345,149 @@ class _FriendsPaneState extends State<FriendsPane> {
     if (mounted) await _refresh();
   }
 
+  Future<void> _toggleMute(FriendChat chat) async {
+    if (_muting.contains(chat.id)) return;
+    setState(() => _muting.add(chat.id));
+    try {
+      final muted = !chat.muted;
+      await widget.chatmail.manageChat(chat.id, muted ? 'mute' : 'unmute');
+      if (!mounted) return;
+      await _refresh();
+      if (!mounted || !widget.active) return;
+      unawaited(
+        showNotificationFeedback(
+          context,
+          muted ? 'Chat notifications muted' : 'Chat notifications on',
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t change chat notifications.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _muting.remove(chat.id));
+    }
+  }
+
+  void _togglePin(int chat) {
+    setState(() {
+      if (!_pins.add(chat)) _pins.remove(chat);
+    });
+    widget.savePins(_pins);
+  }
+
+  Widget _chatRow(FriendChat chat, String preview) {
+    final colors = Theme.of(context).colorScheme;
+    final trashed = _folder == _ChatFolder.trash;
+    final pinned = _pins.contains(chat.id);
+    final avatar = ChatAvatar(chat.name, photo: chat.photo);
+    return Card(
+      key: ValueKey(chat.id),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final actions = trashed
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      tooltip: chat.muted ? 'Unmute chat' : 'Mute chat',
+                      icon: Icon(
+                        chat.muted
+                            ? Icons.notifications_off_outlined
+                            : Icons.notifications_none,
+                      ),
+                      color: chat.muted
+                          ? colors.onSurfaceVariant.withValues(alpha: .62)
+                          : colors.onSurface,
+                      onPressed: _busy || _muting.contains(chat.id)
+                          ? null
+                          : () => _toggleMute(chat),
+                    ),
+                    IconButton(
+                      tooltip: pinned ? 'Unpin chat' : 'Pin chat',
+                      icon: Icon(
+                        pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      ),
+                      color: pinned ? colors.primary : null,
+                      onPressed: _busy ? null : () => _togglePin(chat.id),
+                    ),
+                  ],
+                );
+          final stackActions = actions != null && box.maxWidth < 235;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              ListTile(
+                contentPadding: const EdgeInsetsDirectional.fromSTEB(
+                  12,
+                  0,
+                  6,
+                  0,
+                ),
+                horizontalTitleGap: 10,
+                leading: chat.unread > 0
+                    ? Semantics(
+                        label: '${chat.unread} unread messages',
+                        child: Badge.count(count: chat.unread, child: avatar),
+                      )
+                    : avatar,
+                title: Text(
+                  chat.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: preview.isEmpty
+                    ? null
+                    : Text(
+                        preview,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                trailing: stackActions ? null : actions,
+                onTap: _busy
+                    ? null
+                    : trashed
+                    ? () => _chatMenu(chat)
+                    : () => _open(chat.id, chat.name),
+                onLongPress: _busy ? null : () => _chatMenu(chat),
+              ),
+              if (stackActions) actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _preview(FriendChat chat) =>
+      chat.preview.startsWith(matchMarker.trimRight())
+      ? 'Cats vs Dogs match update'
+      : chat.preview;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final query = _search.text.trim().toLowerCase();
+    final matches = _chats.where(
+      (chat) =>
+          chat.name.toLowerCase().contains(query) ||
+          _preview(chat).toLowerCase().contains(query),
+    );
+    final visible = [
+      if (_folder != _ChatFolder.trash)
+        ...matches.where((chat) => _pins.contains(chat.id)),
+      ...matches.where(
+        (chat) => _folder == _ChatFolder.trash || !_pins.contains(chat.id),
+      ),
+    ];
     final body = ListView(
       key: PageStorageKey(_folder),
       primary: false,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.fromLTRB(20, _ready ? 0 : 10, 20, 24),
       children: [
         if (!_ready) ...[
@@ -374,6 +513,14 @@ class _FriendsPaneState extends State<FriendsPane> {
             child: const Text('Create chat profile'),
           ),
         ] else ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 4),
+            child: ChatSearchField(
+              label: 'Search chats',
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
           if (_folder == _ChatFolder.trash)
             Row(
               children: [
@@ -417,8 +564,10 @@ class _FriendsPaneState extends State<FriendsPane> {
             ),
           const SizedBox(height: 14),
           if (_busy || _loadingFolder) const LinearProgressIndicator(),
-          if (_chats.isEmpty && !_busy && !_loadingFolder && _error == null)
-            if (_folder == _ChatFolder.inbox)
+          if (visible.isEmpty && !_busy && !_loadingFolder && _error == null)
+            if (query.isNotEmpty)
+              const Text('No matching chats.')
+            else if (_folder == _ChatFolder.inbox)
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 28, 0, 16),
                 child: Column(
@@ -452,72 +601,10 @@ class _FriendsPaneState extends State<FriendsPane> {
                     ? 'No archived chats.'
                     : 'Trash is empty.',
               ),
-          for (final chat in _chats)
+          for (final chat in visible)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Card(
-                child: ListTile(
-                  leading: ChatAvatar(chat.name, photo: chat.photo),
-                  title: LayoutBuilder(
-                    builder: (context, box) => Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            chat.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (chat.lastMessageAt > 0) ...[
-                          const SizedBox(width: 8),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: box.maxWidth * .45,
-                            ),
-                            child: Text(
-                              chatTime(
-                                context,
-                                chat.lastMessageAt,
-                                compact: true,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  subtitle: chat.preview.isEmpty
-                      ? null
-                      : Text(
-                          chat.preview.startsWith(matchMarker.trimRight())
-                              ? 'Cats vs Dogs match update'
-                              : chat.preview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                  trailing: chat.unread > 0
-                      ? Semantics(
-                          label: '${chat.unread} unread messages',
-                          child: Badge.count(count: chat.unread),
-                        )
-                      : const Icon(Icons.chevron_right),
-                  onTap: _busy
-                      ? null
-                      : () {
-                          if (_folder == _ChatFolder.trash) {
-                            _chatMenu(chat);
-                          } else {
-                            _open(chat.id, chat.name);
-                          }
-                        },
-                  onLongPress: _busy ? null : () => _chatMenu(chat),
-                ),
-              ),
+              child: _chatRow(chat, _preview(chat)),
             ),
         ],
         if (_error case final error?) ...[
@@ -955,6 +1042,8 @@ class FriendConversation extends StatefulWidget {
 class _FriendConversationState extends State<FriendConversation>
     with WidgetsBindingObserver {
   final _composer = TextEditingController();
+  final _conversationSearch = TextEditingController();
+  final _searchFocus = FocusNode();
   final _scroll = ScrollController();
   bool _awayFromLatest = false;
   bool _showMedia = false;
@@ -994,6 +1083,8 @@ class _FriendConversationState extends State<FriendConversation>
     _timer?.cancel();
     _events?.cancel();
     _composer.dispose();
+    _conversationSearch.dispose();
+    _searchFocus.dispose();
     _scroll.dispose();
     if (!_sending) _attachment?.discard();
     super.dispose();
@@ -1444,27 +1535,21 @@ class _FriendConversationState extends State<FriendConversation>
     final docked = widget.onClose != null;
     final voice = VoiceScope.of(context);
     final name = thread?.name ?? widget.initialName;
-    final search = IconButton(
-      tooltip: 'Search conversation',
-      icon: const Icon(Icons.search_rounded),
-      onPressed: thread == null
-          ? null
-          : () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => ChatSearchPage(
-                  chatmail: widget.chatmail,
-                  chat: widget.id,
-                  name: name,
-                ),
-              ),
-            ),
+    final query = _conversationSearch.text.trim();
+    final search = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+      child: ChatSearchField(
+        label: _showMedia ? 'Search media' : 'Search messages',
+        controller: _conversationSearch,
+        focusNode: _searchFocus,
+        onChanged: (_) => setState(() {}),
+      ),
     );
     final appBar = docked
         ? AppBar(
             automaticallyImplyLeading: false,
             primary: false,
             title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-            actions: [search],
           )
         : chatPageBar(
             context,
@@ -1495,6 +1580,20 @@ class _FriendConversationState extends State<FriendConversation>
       final composerLines = ((availableHeight * .6 - 28) / composerLineHeight)
           .floor()
           .clamp(1, 4);
+      final canUseGameControl = thread?.canSend == true;
+      final compactComposer = availableHeight < 120;
+      final showGameControl = _awayFromLatest || (!docked && canUseGameControl);
+      final gameControlLabel = _awayFromLatest
+          ? 'Jump to latest message'
+          : 'Invite to play a game';
+      final gameControlIcon = _awayFromLatest
+          ? Icons.arrow_downward
+          : Icons.sports_esports_outlined;
+      final gameControlAction = _awayFromLatest
+          ? _latest
+          : _pickingGame || _sending
+          ? null
+          : _inviteMatch;
       return Column(
         children: [
           if (_loadError case final error?)
@@ -1768,7 +1867,7 @@ class _FriendConversationState extends State<FriendConversation>
                           );
                         },
                       ),
-                if (_awayFromLatest || (!docked && thread?.canSend == true))
+                if (showGameControl && (!compactComposer || !canUseGameControl))
                   Positioned(
                     right: 10,
                     bottom: 7,
@@ -1781,20 +1880,9 @@ class _FriendConversationState extends State<FriendConversation>
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(color: colors.outline),
                       ),
-                      tooltip: _awayFromLatest
-                          ? 'Jump to latest message'
-                          : 'Invite to play a game',
-                      onPressed: _awayFromLatest
-                          ? _latest
-                          : _pickingGame || _sending
-                          ? null
-                          : _inviteMatch,
-                      child: Icon(
-                        _awayFromLatest
-                            ? Icons.arrow_downward
-                            : Icons.sports_esports_outlined,
-                        size: 26,
-                      ),
+                      tooltip: gameControlLabel,
+                      onPressed: gameControlAction,
+                      child: Icon(gameControlIcon, size: 26),
                     ),
                   ),
               ],
@@ -1848,6 +1936,12 @@ class _FriendConversationState extends State<FriendConversation>
                       ),
                     ),
                   ),
+                  if (compactComposer && showGameControl)
+                    IconButton(
+                      tooltip: gameControlLabel,
+                      onPressed: gameControlAction,
+                      icon: Icon(gameControlIcon, size: 26),
+                    ),
                   IconButton(
                     tooltip: 'Send message',
                     onPressed: _sending || _pickingGame ? null : () => _send(),
@@ -1865,16 +1959,30 @@ class _FriendConversationState extends State<FriendConversation>
       top: false,
       child: LayoutBuilder(
         builder: (context, box) {
-          if (docked) return content(box.maxHeight);
-          final showTabs = !keyboardVisible || box.maxHeight >= 160;
+          final showTabs =
+              !docked && (!keyboardVisible || box.maxHeight >= 160);
+          final showSearch =
+              !keyboardVisible ||
+              _searchFocus.hasFocus ||
+              query.isNotEmpty ||
+              _showMedia;
+          final sideBySide =
+              showTabs &&
+              showSearch &&
+              box.maxHeight < 235 &&
+              box.maxWidth >= 320;
+          final toolbarWidth = sideBySide ? box.maxWidth / 2 : box.maxWidth;
           return Column(
             children: [
-              if (showTabs)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-                  child: Row(
-                    children: [
-                      Expanded(
+              Flex(
+                direction: sideBySide ? Axis.horizontal : Axis.vertical,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showTabs)
+                    SizedBox(
+                      width: toolbarWidth,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
                         child: SegmentedButton<bool>(
                           segments: const [
                             ButtonSegment(value: false, label: Text('Feed')),
@@ -1894,11 +2002,15 @@ class _FriendConversationState extends State<FriendConversation>
                           },
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      search,
-                    ],
-                  ),
-                ),
+                    ),
+                  if (showSearch)
+                    SizedBox(
+                      key: const ValueKey('conversation-search'),
+                      width: toolbarWidth,
+                      child: search,
+                    ),
+                ],
+              ),
               Expanded(
                 child: TabContent(
                   selection: _showMedia,
@@ -1913,12 +2025,21 @@ class _FriendConversationState extends State<FriendConversation>
                             chatmail: widget.chatmail,
                             chat: widget.id,
                             active: _showMedia,
+                            query: query,
                           ),
                         ),
                       if (!_showMedia)
-                        LayoutBuilder(
-                          builder: (_, feed) => content(feed.maxHeight),
-                        ),
+                        if (query.isEmpty)
+                          LayoutBuilder(
+                            builder: (_, feed) => content(feed.maxHeight),
+                          )
+                        else
+                          ConversationSearchResults(
+                            chatmail: widget.chatmail,
+                            chat: widget.id,
+                            name: name,
+                            query: query,
+                          ),
                     ],
                   ),
                 ),

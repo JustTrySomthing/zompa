@@ -5,28 +5,41 @@ import 'package:flutter/material.dart';
 import 'chat_preview.dart';
 import 'chatmail.dart';
 
-class ChatSearchPage extends StatefulWidget {
-  const ChatSearchPage({
+class ConversationSearchResults extends StatefulWidget {
+  const ConversationSearchResults({
     super.key,
     required this.chatmail,
     required this.chat,
     required this.name,
+    required this.query,
   });
 
   final Chatmail chatmail;
   final int chat;
-  final String name;
+  final String name, query;
 
   @override
-  State<ChatSearchPage> createState() => _ChatSearchPageState();
+  State<ConversationSearchResults> createState() =>
+      _ConversationSearchResultsState();
 }
 
-class _ChatSearchPageState extends State<ChatSearchPage> {
-  String _query = '';
+class _ConversationSearchResultsState extends State<ConversationSearchResults> {
   int _request = 0;
   Timer? _debounce;
   List<FriendMessage>? _results;
   bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _search();
+  }
+
+  @override
+  void didUpdateWidget(ConversationSearchResults oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query != oldWidget.query) _search();
+  }
 
   @override
   void dispose() {
@@ -34,16 +47,12 @@ class _ChatSearchPageState extends State<ChatSearchPage> {
     super.dispose();
   }
 
-  void _search(String value) {
-    final term = value.trim();
+  void _search() {
+    final term = widget.query;
     final request = ++_request;
     _debounce?.cancel();
-    setState(() {
-      _query = term;
-      _results = null;
-      _failed = false;
-    });
-    if (term.isEmpty) return;
+    _results = null;
+    _failed = false;
     _debounce = Timer(const Duration(milliseconds: 250), () async {
       try {
         final results = await widget.chatmail.searchConversation(
@@ -71,69 +80,45 @@ class _ChatSearchPageState extends State<ChatSearchPage> {
   @override
   Widget build(BuildContext context) {
     final results = _results;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Search conversation')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-          child: Column(
-            children: [
-              TextField(
-                autofocus: true,
-                onChanged: _search,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  hintText: 'Search with ${widget.name}',
-                ),
-              ),
-              Expanded(
-                child: _query.isEmpty
-                    ? const SizedBox.shrink()
-                    : _failed
-                    ? Center(
-                        child: TextButton(
-                          onPressed: () => _search(_query),
-                          child: const Text('Couldn’t search. Retry'),
-                        ),
-                      )
-                    : results == null
-                    ? const Align(
-                        alignment: Alignment.topCenter,
-                        child: LinearProgressIndicator(),
-                      )
-                    : results.isEmpty
-                    ? const Center(child: Text('No matching messages'))
-                    : ListView.builder(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        itemCount:
-                            results.length + (results.length == 50 ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == results.length) {
-                            return const ListTile(
-                              title: Text(
-                                'Showing up to 50 results. Refine your search to find older messages.',
-                              ),
-                            );
-                          }
-                          final message = results[index];
-                          return ListTile(
-                            title: Text(
-                              _messageText(message),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(_messageDate(context, message)),
-                            onTap: () => _openMessage(message),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
+    if (_failed) {
+      return Center(
+        child: TextButton(
+          onPressed: () => setState(_search),
+          child: const Text('Couldn’t search. Retry'),
         ),
-      ),
+      );
+    }
+    if (results == null) {
+      return const Align(
+        alignment: Alignment.topCenter,
+        child: LinearProgressIndicator(),
+      );
+    }
+    if (results.isEmpty) {
+      return const Center(child: Text('No matching messages'));
+    }
+    return ListView.builder(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount: results.length + (results.length == 50 ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == results.length) {
+          return const ListTile(
+            title: Text(
+              'Showing up to 50 results. Refine your search to find older messages.',
+            ),
+          );
+        }
+        final message = results[index];
+        return ListTile(
+          title: Text(
+            _messageText(message),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(_messageDate(context, message)),
+          onTap: () => _openMessage(message),
+        );
+      },
     );
   }
 

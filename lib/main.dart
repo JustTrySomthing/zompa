@@ -1152,6 +1152,13 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                             key: ObjectKey(widget.chatmail),
                             chatmail: widget.chatmail!,
                             active: !isGames,
+                            pins:
+                                (widget.data['pinnedChats'] as List?)
+                                    ?.whereType<int>()
+                                    .toSet() ??
+                                <int>{},
+                            savePins: (values) =>
+                                widget.write('pinnedChats', values.toList()),
                             addContact: (route) => _contactInvites(
                               route,
                               widget.chatmail!,

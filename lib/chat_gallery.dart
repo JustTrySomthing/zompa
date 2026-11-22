@@ -14,11 +14,13 @@ class ChatGallery extends StatefulWidget {
     required this.chatmail,
     required this.chat,
     this.active = true,
+    this.query = '',
   });
 
   final Chatmail chatmail;
   final int chat;
   final bool active;
+  final String query;
 
   @override
   State<ChatGallery> createState() => _ChatGalleryState();
@@ -147,39 +149,57 @@ class _ChatGalleryState extends State<ChatGallery> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
-        child: Row(
-          children: [
-            for (final filter in ChatMediaFilter.values)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 6),
-                child: ChoiceChip(
-                  label: Text(filter.label),
-                  showCheckmark: false,
-                  selected: _filter == filter,
-                  onSelected: (_) => _selectFilter(filter),
-                ),
-              ),
-          ],
-        ),
-      ),
-      Expanded(child: _gallery()),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) => Column(
+      children: [
+        if (box.maxHeight >= 66)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
+            child: Row(
+              children: [
+                for (final filter in ChatMediaFilter.values)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 6),
+                    child: ChoiceChip(
+                      label: Text(filter.label),
+                      showCheckmark: false,
+                      selected: _filter == filter,
+                      onSelected: (_) => _selectFilter(filter),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        Expanded(child: _gallery()),
+      ],
+    ),
   );
 
   Widget _gallery() => LayoutBuilder(
     builder: (context, bounds) {
       final artHeight = (bounds.maxWidth / 3).clamp(90.0, 180.0);
       final labelHeight = MediaQuery.textScalerOf(context).scale(12) * 3.6;
+      final query = widget.query.toLowerCase();
+      final items = _items
+          .where(
+            (message) =>
+                query.isEmpty ||
+                _attachmentName(message).toLowerCase().contains(query) ||
+                message.bubbleCaption.toLowerCase().contains(query),
+          )
+          .toList();
       return CustomScrollView(
-        key: PageStorageKey(('chat-media', widget.chat, _filter)),
+        key: PageStorageKey((
+          'chat-media',
+          widget.chat,
+          _filter,
+          query.isNotEmpty,
+        )),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         primary: false,
         slivers: [
-          if (_items.isNotEmpty)
+          if (items.isNotEmpty)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(10, 4, 10, 12),
               sliver: SliverGrid.builder(
@@ -189,9 +209,9 @@ class _ChatGalleryState extends State<ChatGallery> {
                   mainAxisSpacing: 6,
                   mainAxisExtent: artHeight + labelHeight,
                 ),
-                itemCount: _items.length,
+                itemCount: items.length,
                 itemBuilder: (context, index) {
-                  final message = _items[index];
+                  final message = items[index];
                   return _MediaCard(
                     key: ValueKey((message.id, message.file)),
                     message: message,
@@ -201,12 +221,12 @@ class _ChatGalleryState extends State<ChatGallery> {
                 },
               ),
             ),
-          if (_failed || _items.isEmpty || _hasOlder)
+          if (_failed || items.isEmpty || _hasOlder)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Center(
-                  child: _loading != null && _items.isEmpty
+                  child: _loading != null && items.isEmpty
                       ? const LinearProgressIndicator()
                       : _failed
                       ? TextButton(
@@ -220,7 +240,7 @@ class _ChatGalleryState extends State<ChatGallery> {
                         )
                       : _loaded
                       ? Text(
-                          _filter == ChatMediaFilter.all
+                          _filter == ChatMediaFilter.all && query.isEmpty
                               ? 'No attachments in this chat yet.'
                               : 'No matching attachments in this chat.',
                         )
@@ -233,6 +253,9 @@ class _ChatGalleryState extends State<ChatGallery> {
     },
   );
 }
+
+String _attachmentName(FriendMessage message) =>
+    message.filename ?? message.file!.split(Platform.pathSeparator).last;
 
 String _sizeLabel(int? bytes) {
   if (bytes == null || bytes < 0) return 'Size unavailable';
@@ -262,7 +285,7 @@ class _MediaCard extends StatelessWidget {
     final colors = theme.colorScheme;
     final path = message.file!;
     final media = message.media;
-    final name = message.filename ?? path.split(Platform.pathSeparator).last;
+    final name = _attachmentName(message);
     final size = _sizeLabel(message.fileBytes);
     final visual = media == ChatMedia.image || media == ChatMedia.video;
     final saved = message.savedId != null;
