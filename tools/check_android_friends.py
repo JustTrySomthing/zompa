@@ -50,17 +50,25 @@ class Phone:
             self.shell("uiautomator", "dump", "/sdcard/zompa-friends.xml")
             layout = self.shell("cat", "/sdcard/zompa-friends.xml")
             editable = []
+            send_button = None
             for node in ET.fromstring(layout).iter("node"):
                 x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
                 if x2 <= x1 or y2 <= y1:
                     continue
                 center = ((x1 + x2) // 2, (y1 + y2) // 2)
-                if label in (node.get("text", "") + "\n" + node.get("content-desc", "")).splitlines():
+                labels = (node.get("text", "") + "\n" + node.get("content-desc", "")).splitlines()
+                if label in labels:
                     return center
+                if "Send message" in labels:
+                    send_button = center
                 if node.get("class") == "android.widget.EditText":
                     editable.append(center)
-            if label == "<input>" and len(editable) == 1:
-                return editable[0]
+            if label == "<input>" and editable:
+                if len(editable) == 1:
+                    return editable[0]
+                if send_button is not None:
+                    # The message composer shares a row with Send, below search.
+                    return min(editable, key=lambda point: abs(point[1] - send_button[1]))
         except (RuntimeError, ET.ParseError):
             return None
         return None
