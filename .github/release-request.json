@@ -1,5 +1,5 @@
 {
-  "version": "0.5.35",
-  "build": 44,
-  "notes": "- Cats vs Dogs 1.3.6 extends the arena background and removes duplicate status text. Update the game from Get Games.\n- Online matches show a larger coin and turn or winner label above the board, with the round number and first-to-three rule beneath it.\n- Local games remember the round number when resumed, including after a draw."
+  "version": "0.5.36",
+  "build": 45,
+  "notes": "- Restores taps in online Cats vs Dogs matches at every score.\n- The online turn label now shows “Your turn” or the other player’s name without the coin."
 }

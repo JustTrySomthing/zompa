@@ -466,17 +466,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     final name = friend == null || friend.isEmpty ? 'Your friend' : friend;
     final statusOnly =
         (boardSettled && winner == 0) || match.paused || match.conflict;
-    final heading = winner != 0
-        ? (yours ? 'You' : name)
-        : (yours ? 'Your' : '$name’s');
-    final action = winner != 0
-        ? (match.finished
-              ? (yours ? 'Win!' : 'Wins!')
-              : (yours ? 'Win the round!' : 'Wins the round!'))
-        : 'Turn';
-    final theme = Theme.of(context);
-    final foreground = const Color(0xfffff4fc);
-    final team = side == 1 ? const Color(0xffffb5cb) : const Color(0xffa8e2ff);
+    final label = statusOnly
+        ? match.status
+        : winner != 0
+        ? (yours
+              ? (match.finished ? 'You win!' : 'You win the round!')
+              : (match.finished ? '$name wins!' : '$name wins the round!'))
+        : (yours ? 'Your turn' : '$name’s turn');
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -487,54 +483,16 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             fit: BoxFit.scaleDown,
             child: SizedBox(
               width: bounds.maxWidth,
-              child: statusOnly
-                  ? Text(
-                      match.status,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: foreground,
-                      ),
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _TurnToken(
-                              cat: side == 1,
-                              hasAnimalArt: match.invite.game!.build >= 6,
-                              size: 32,
-                            ),
-                            const SizedBox(width: 9),
-                            Flexible(
-                              child: Text(
-                                heading,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: foreground,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.1,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          action,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: team,
-                            fontWeight: FontWeight.w800,
-                            height: 1.1,
-                          ),
-                        ),
-                      ],
-                    ),
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: const Color(0xfffff4fc),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
         ),
@@ -1013,47 +971,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             },
           ),
         ),
-      ),
-    );
-  }
-}
-
-// The portraits come from drop-four/1.3.4/art in zompado-games.
-class _TurnToken extends StatelessWidget {
-  const _TurnToken({
-    required this.cat,
-    required this.hasAnimalArt,
-    required this.size,
-  });
-
-  final bool cat, hasAnimalArt;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final rim = hasAnimalArt
-        ? (cat ? const Color(0xffff6e9e) : const Color(0xff45b8ff))
-        : (cat ? const Color(0xffffcf50) : const Color(0xffa987ff));
-    final face = cat ? const Color(0xff6e244d) : const Color(0xff1a528a);
-    return Semantics(
-      label: hasAnimalArt ? (cat ? 'Cat' : 'Dog') : (cat ? 'Yellow' : 'Purple'),
-      child: Container(
-        width: size,
-        height: size,
-        padding: const EdgeInsets.all(1),
-        decoration: BoxDecoration(
-          color: hasAnimalArt ? face : rim,
-          shape: BoxShape.circle,
-          border: Border.all(color: rim, width: 1.5),
-        ),
-        child: hasAnimalArt
-            ? Image.asset(
-                cat
-                    ? 'assets/games/cat-token.webp'
-                    : 'assets/games/dog-token.webp',
-                excludeFromSemantics: true,
-              )
-            : null,
       ),
     );
   }

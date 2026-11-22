@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import org.json.JSONArray;
@@ -42,6 +43,8 @@ final class LovePlayer implements PlatformView {
     private static final String POLICY = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; "
         + "style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src blob: data:; "
         + "base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; worker-src 'none'";
+    private static final Pattern MATCH_STATE =
+        Pattern.compile("[012]{42}:[12]:[012]:([01])(?::[0-3]:[0-3])?");
     private final FrameLayout container;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final MethodChannel channel;
@@ -54,13 +57,14 @@ final class LovePlayer implements PlatformView {
     private boolean online;
     private MethodChannel.Result leaving;
     private String match;
+    private boolean moveAllowed;
     private String audio = "100:100:100";
     private final Runnable moves = new Runnable() {
         @Override public void run() {
             var view = web;
-            if (view == null || paused || !online || match == null || !match.endsWith("1")) return;
+            if (view == null || paused || !moveAllowed) return;
             view.evaluateJavascript("window.zompadoGame?.takeMove()", value -> {
-                if (web == view && !paused && match != null && match.endsWith("1") && value != null && value.matches("[0-6]")) {
+                if (web == view && !paused && moveAllowed && value != null && value.matches("[0-6]")) {
                     channel.invokeMethod("move", Integer.parseInt(value));
                 }
             });
@@ -98,9 +102,13 @@ final class LovePlayer implements PlatformView {
             switch (call.method) {
                 case "match":
                     String state = call.arguments();
-                    if (online && state != null && state.matches("[012]{42}:[12]:[012]:[01](:[0-3]:[0-3])?")) {
-                        match = state;
-                        sendMatch();
+                    if (online && state != null) {
+                        var parsed = MATCH_STATE.matcher(state);
+                        if (parsed.matches()) {
+                            match = state;
+                            moveAllowed = "1".equals(parsed.group(1));
+                            sendMatch();
+                        }
                     }
                     result.success(null);
                     break;
@@ -470,7 +478,7 @@ final class LovePlayer implements PlatformView {
 
     private void updatePolling() {
         main.removeCallbacks(moves);
-        if (online && !paused && web != null && match != null && match.endsWith("1")) main.post(moves);
+        if (!paused && web != null && moveAllowed) main.post(moves);
     }
 
     private void showMessage(String message) {
