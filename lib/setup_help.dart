@@ -311,7 +311,7 @@ const _topics = [
       ),
       (
         'Can I play with someone next to me?',
-        'Choose Pass & Play to take turns on one device or Single Player to play against the computer. Both start a fresh round. To continue a saved round, open My Games → Active Games.',
+        'Choose Pass & Play to take turns on one device or Single Player to play against the computer. Both start a fresh round. The Active Games button in My Games shows how many games are open. Tap it to continue a saved round or online match.',
       ),
       (
         'How do I pause or leave a game?',

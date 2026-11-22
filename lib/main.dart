@@ -377,13 +377,22 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with WidgetsBindingObserver {
   late int tab = widget.openChats > 0 ? 0 : 1;
   bool _openedChats = false;
+  StreamSubscription<void>? _activeMatchChanges;
+  Timer? _activeMatchRefresh;
+  int _localGameCount = 0;
+  int _onlineGameCount = 0;
+  int _localGameRequest = 0;
+  int _onlineGameRequest = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _watchActiveMatches();
+    _refreshActiveGames();
     _routeChatAlert();
     if (installedGames.values.any((game) => game.screenshots.isEmpty)) {
       unawaited(_loadLibraryArtwork());
@@ -396,6 +405,73 @@ class _HomeState extends State<Home> {
     if (widget.openChats != oldWidget.openChats) {
       tab = 0;
       _routeChatAlert();
+    }
+    if (widget.chatmail != oldWidget.chatmail) {
+      _onlineGameCount = 0;
+      _onlineGameRequest++;
+      _watchActiveMatches();
+      if (_showingMyGames) unawaited(_refreshOnlineGameCount());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshActiveGames();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _activeMatchRefresh?.cancel();
+    unawaited(_activeMatchChanges?.cancel());
+    super.dispose();
+  }
+
+  bool get _showingMyGames => tab == 1 && !catalog;
+
+  void _watchActiveMatches() {
+    _activeMatchRefresh?.cancel();
+    unawaited(_activeMatchChanges?.cancel());
+    _activeMatchChanges = widget.chatmail?.changes.listen((_) {
+      if (!_showingMyGames) return;
+      _activeMatchRefresh?.cancel();
+      _activeMatchRefresh = Timer(const Duration(milliseconds: 300), () {
+        if (_showingMyGames) unawaited(_refreshOnlineGameCount());
+      });
+    });
+  }
+
+  void _refreshActiveGames() {
+    if (!mounted || !_showingMyGames) return;
+    unawaited(_refreshLocalGameCount());
+    unawaited(_refreshOnlineGameCount());
+  }
+
+  Future<void> _refreshLocalGameCount() async {
+    final request = ++_localGameRequest;
+    try {
+      final count = (await _localGameEntries()).length;
+      if (mounted && request == _localGameRequest && count != _localGameCount) {
+        setState(() => _localGameCount = count);
+      }
+    } catch (_) {
+      // Keep the last successful count if the save probe fails.
+    }
+  }
+
+  Future<void> _refreshOnlineGameCount() async {
+    final chatmail = widget.chatmail;
+    if (chatmail == null) return;
+    final request = ++_onlineGameRequest;
+    try {
+      final count = (await chatmail.activeMatches()).length;
+      if (mounted &&
+          request == _onlineGameRequest &&
+          count != _onlineGameCount) {
+        setState(() => _onlineGameCount = count);
+      }
+    } catch (_) {
+      // Keep the last successful count while Chatmail reconnects.
     }
   }
 
@@ -548,6 +624,7 @@ class _HomeState extends State<Home> {
         _saveLibrary();
         catalog = false;
       });
+      _refreshActiveGames();
       return true;
     } catch (_) {
       if (mounted)
@@ -686,6 +763,7 @@ class _HomeState extends State<Home> {
         installedGames.remove(game.id);
         _saveLibrary();
       });
+      _refreshActiveGames();
     } catch (_) {
       _gameNotice('Couldn’t remove the game. Try again.');
     } finally {
@@ -782,6 +860,17 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<void> _openActiveGames([GameRelease? game]) async {
+    await showActiveGames(
+      context,
+      chatmail: widget.chatmail,
+      prepareGame: _prepareOnlineGame,
+      game: game,
+      localGames: () => _localGameEntries(game),
+    );
+    _refreshActiveGames();
+  }
+
   Future<void> selectMode(GameRelease game) async {
     var mode = 'solo';
     final chatmail = widget.chatmail;
@@ -848,13 +937,7 @@ class _HomeState extends State<Home> {
       );
       if (choice == null || !mounted) return;
       if (choice == 'resume') {
-        await showActiveGames(
-          context,
-          chatmail: chatmail,
-          prepareGame: _prepareOnlineGame,
-          game: game,
-          localGames: () => _localGameEntries(game),
-        );
+        await _openActiveGames(game);
         return;
       }
       if (choice == 'online' && chatmail != null) {
@@ -869,6 +952,7 @@ class _HomeState extends State<Home> {
             GamePlayPage.official(game: game, title: game.title, mode: mode),
       ),
     );
+    _refreshActiveGames();
   }
 
   Future<void> _inviteForGame(Chatmail chatmail, GameRelease game) async {
@@ -1091,6 +1175,7 @@ class _HomeState extends State<Home> {
           if (tab == value) return;
           FocusScope.of(context).unfocus();
           setState(() => tab = value);
+          _refreshActiveGames();
         },
       ),
     );
@@ -1150,6 +1235,7 @@ class _HomeState extends State<Home> {
                   browseGames();
                 } else {
                   setState(() => catalog = false);
+                  _refreshActiveGames();
                 }
               },
             ),
@@ -1164,6 +1250,8 @@ class _HomeState extends State<Home> {
 
   Widget _gameList() {
     final colors = Theme.of(context).colorScheme;
+    final activeCount = _localGameCount + _onlineGameCount;
+    final hasActiveGames = activeCount > 0;
     return ListView(
       key: PageStorageKey('games-$catalog'),
       primary: false,
@@ -1187,17 +1275,63 @@ class _HomeState extends State<Home> {
             child: FilledButton.tonalIcon(
               style: FilledButton.styleFrom(
                 minimumSize: const Size(0, 48),
-                backgroundColor: colors.surfaceContainer,
-                foregroundColor: colors.onSurfaceVariant,
+                backgroundColor: hasActiveGames
+                    ? Color.alphaBlend(
+                        colors.primary.withValues(alpha: 0.08),
+                        colors.surfaceContainer,
+                      )
+                    : colors.surfaceContainer,
+                foregroundColor: hasActiveGames
+                    ? colors.onSurface
+                    : colors.onSurfaceVariant,
+                side: hasActiveGames
+                    ? BorderSide(color: colors.primary.withValues(alpha: 0.36))
+                    : null,
               ),
-              onPressed: () => showActiveGames(
-                context,
-                chatmail: widget.chatmail,
-                prepareGame: _prepareOnlineGame,
-                localGames: _localGameEntries,
+              onPressed: _openActiveGames,
+              icon: Icon(
+                Icons.sports_esports_outlined,
+                size: 28,
+                color: hasActiveGames ? colors.primary : null,
               ),
-              icon: const Icon(Icons.sports_esports_outlined),
-              label: const Text('Active Games'),
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Flexible(child: Text('Active Games')),
+                  if (hasActiveGames) ...[
+                    const SizedBox(width: 10),
+                    Semantics(
+                      label: activeCount == 1
+                          ? '1 active game'
+                          : '$activeCount active games',
+                      excludeSemantics: true,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 26,
+                          minHeight: 26,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        alignment: Alignment.center,
+                        decoration: ShapeDecoration(
+                          color: colors.primaryContainer,
+                          shape: const StadiumBorder(),
+                        ),
+                        child: Text(
+                          '$activeCount',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: colors.onPrimaryContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         Row(
