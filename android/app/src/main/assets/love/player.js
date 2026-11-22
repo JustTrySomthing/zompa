@@ -2,6 +2,8 @@
 
 const canvas = document.getElementById('canvas');
 const status = document.getElementById('status');
+// Published Lua games read and write the original bridge directory.
+const bridgeDirectory = '/zompado';
 let runtime;
 let pendingMatch;
 let isPaused = false;
@@ -11,7 +13,7 @@ let audio = [100, 100, 100];
 function applyAudio() {
   if (!runtime) return;
   const [volume, music, effects] = audio;
-  runtime.ZompaFS.writeFile('/zompado/audio', `${music}:${effects}`);
+  runtime.ZompaFS.writeFile(`${bridgeDirectory}/audio`, `${music}:${effects}`);
   runtime.setZompaVolume(isPaused ? 0 : volume / 100);
 }
 let saveMounted = false;
@@ -50,7 +52,7 @@ function autosave() {
 window.zompaGame = Object.freeze({
   setMatch(state) {
     pendingMatch = state;
-    if (runtime) runtime.ZompaFS.writeFile('/zompado/match', state);
+    if (runtime) runtime.ZompaFS.writeFile(`${bridgeDirectory}/match`, state);
   },
   setAudio(settings) {
     if (typeof settings !== 'string' || !/^(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])$/.test(settings)) return;
@@ -70,13 +72,13 @@ window.zompaGame = Object.freeze({
   takeMove() {
     if (!runtime) return null;
     const fs = runtime.ZompaFS;
-    if (!fs.analyzePath('/zompado/move').exists) return null;
+    if (!fs.analyzePath(`${bridgeDirectory}/move`).exists) return null;
     try {
-      if (fs.stat('/zompado/move').size !== 1) return null;
-      const value = fs.readFile('/zompado/move', {encoding: 'utf8'});
+      if (fs.stat(`${bridgeDirectory}/move`).size !== 1) return null;
+      const value = fs.readFile(`${bridgeDirectory}/move`, {encoding: 'utf8'});
       return /^[0-6]$/.test(value) ? Number(value) : null;
     } finally {
-      fs.unlink('/zompado/move');
+      fs.unlink(`${bridgeDirectory}/move`);
     }
   },
   flushSaves: autosave,
@@ -129,9 +131,9 @@ async function start() {
     preRun: [module => {
       const fs = module.ZompaFS;
       fs.writeFile('/game.love', bytes);
-      fs.mkdir('/zompa');
-      fs.writeFile('/zompado/mode', mode);
-      if (pendingMatch !== undefined) fs.writeFile('/zompado/match', pendingMatch);
+      fs.mkdir(bridgeDirectory);
+      fs.writeFile(`${bridgeDirectory}/mode`, mode);
+      if (pendingMatch !== undefined) fs.writeFile(`${bridgeDirectory}/match`, pendingMatch);
       saveMounted = mode !== 'online' && Boolean(fs.filesystems.IDBFS);
       runtime = module;
       applyAudio();
