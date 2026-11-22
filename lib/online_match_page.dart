@@ -56,9 +56,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   bool _chatOpen = false;
   bool _chatUnread = false;
   StreamSubscription<(int, int)>? _messages;
-  Timer? _messageTimer;
-  int _latestMessage = 0;
-  String? _messagePreview;
   String? _incomingRematch;
   int _rematchMessage = 0;
 
@@ -102,80 +99,32 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     unawaited(_send(match.invite.control(action, match.nextRevision).wire));
   }
 
-  Future<void> _previewMessage(int chat, int id) async {
+  Future<void> _checkRematch(int chat, int id) async {
     if (chat != widget.chat ||
         (!_boardOpen && _match?.boardComplete != true) ||
-        ModalRoute.of(context)?.isCurrent != true)
+        id <= _rematchMessage)
       return;
     try {
-      // Live game previews are separate from Android notification delivery.
       final target = await widget.chatmail.notificationMessage(
         chat,
         id,
         forDelivery: false,
       );
-      if (!mounted ||
-          (!_boardOpen && _match?.boardComplete != true) ||
-          ModalRoute.of(context)?.isCurrent != true ||
-          target == null)
-        return;
-      final message = target.message;
-      if (message.info || message.viewType == 'Call') return;
-      if (MatchEvent.parse(message.text) case final event?) {
-        final match = _match!;
-        if (event.kind == 'invite' &&
-            event.rematchOf == match.invite.id &&
-            event.game.toString() == match.invite.game.toString() &&
-            id > _rematchMessage) {
-          setState(() {
-            _incomingRematch = event.id;
-            _rematchMessage = id;
-          });
-        }
-        return;
+      if (!mounted || target == null || id <= _rematchMessage) return;
+      final match = _match;
+      if (match == null) return;
+      final event = MatchEvent.parse(target.message.text);
+      if (event != null &&
+          event.kind == 'invite' &&
+          event.rematchOf == match.invite.id &&
+          event.game.toString() == match.invite.game.toString()) {
+        setState(() {
+          _incomingRematch = event.id;
+          _rematchMessage = id;
+        });
       }
-      if (!_boardOpen || _chatOpen || id <= _latestMessage) return;
-      final text = message.text.trim().replaceAll(RegExp(r'\s+'), ' ');
-      final mime = message.mime ?? '';
-      final kind = switch (message.viewType) {
-        'Image' || 'Sticker' => 'an image',
-        'Gif' => 'a GIF',
-        'Video' => 'a video',
-        'Audio' || 'Voice' => 'an audio file',
-        'Vcard' => 'a contact',
-        _ when mime.startsWith('image/') => 'an image',
-        _ when mime.startsWith('video/') => 'a video',
-        _ when mime.startsWith('audio/') => 'an audio file',
-        _
-            when message.file != null ||
-                message.filename != null ||
-                message.viewType == 'File' =>
-          'a file',
-        _ when GameLink.parse(text) != null => 'a game link',
-        _
-            when RegExp(
-              r'https?://|\bwww\.',
-              caseSensitive: false,
-            ).hasMatch(text) =>
-          'a link',
-        _ => null,
-      };
-      if (kind == null && text.isEmpty) return;
-      _latestMessage = id;
-      final name = message.sender?.name.trim();
-      final sender = name != null && name.isNotEmpty ? name : target.name;
-      _messageTimer?.cancel();
-      setState(() {
-        _chatUnread = true;
-        _messagePreview = kind == null
-            ? '$sender: $text'
-            : '$sender shared $kind';
-      });
-      _messageTimer = Timer(const Duration(seconds: 4), () {
-        if (mounted) setState(() => _messagePreview = null);
-      });
     } catch (_) {
-      // A failed preview never interrupts the game.
+      // An unreadable invitation does not interrupt the game.
     }
   }
 
@@ -183,11 +132,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     if (_chatOpen) FocusScope.of(context).unfocus();
     setState(() {
       _chatOpen = !_chatOpen;
-      if (_chatOpen) {
-        _chatUnread = false;
-        _messagePreview = null;
-        _messageTimer?.cancel();
-      }
+      if (_chatOpen) _chatUnread = false;
     });
     unawaited(_load());
   }
@@ -198,7 +143,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     _playing = widget.playOnOpen;
     unawaited(_loadMyName());
     _messages = widget.chatmail.incoming.listen((event) {
-      unawaited(_previewMessage(event.$1, event.$2));
+      unawaited(_checkRematch(event.$1, event.$2));
     });
     WidgetsBinding.instance.addObserver(this);
     _events = widget.chatmail.changes.listen((_) {
@@ -227,7 +172,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     _lobbyRefresh?.cancel();
     _events?.cancel();
     _messages?.cancel();
-    _messageTimer?.cancel();
     _turnTimer?.cancel();
     super.dispose();
   }
@@ -284,19 +228,16 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       if (!_chatOpen && mounted) {
         try {
           final thread = await widget.chatmail.thread(widget.chat);
-          if (mounted && !_chatOpen) {
-            setState(() {
-              _chatUnread =
-                  !_chatOpen &&
-                  (thread.messages.any(
-                    (message) =>
-                        !message.outgoing &&
-                        !message.info &&
-                        message.state == 10 &&
-                        (!message.encrypted ||
-                            MatchEvent.parse(message.text) == null),
-                  ));
-            });
+          final unread = thread.messages.any(
+            (message) =>
+                !message.outgoing &&
+                !message.info &&
+                message.viewType != 'Call' &&
+                message.state == 10 &&
+                (!message.encrypted || MatchEvent.parse(message.text) == null),
+          );
+          if (mounted && !_chatOpen && _chatUnread != unread) {
+            setState(() => _chatUnread = unread);
           }
         } catch (_) {
           // The board remains available when the conversation refresh fails.
@@ -720,13 +661,10 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                     : 'Match with ${widget.friendName}',
                 fitTitle: widget.friendName == null,
                 lastActions: [
-                  IconButton(
-                    tooltip: _chatOpen ? 'Close match chat' : 'Open match chat',
+                  MatchChatButton(
+                    open: _chatOpen,
+                    unread: _chatUnread,
                     onPressed: _toggleChat,
-                    icon: Badge(
-                      isLabelVisible: _chatUnread,
-                      child: const Icon(Icons.chat_outlined),
-                    ),
                   ),
                   IconButton(
                     tooltip: 'Refresh match',
@@ -962,51 +900,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                             ),
                           ),
                   ),
-                  if (_boardOpen)
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: 12,
-                      child: IgnorePointer(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          child: !_chatOpen && _messagePreview != null
-                              ? Semantics(
-                                  key: ValueKey(_latestMessage),
-                                  liveRegion: true,
-                                  child: Center(
-                                    child: Container(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 440,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xda1b1c20),
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(
-                                          color: Colors.white24,
-                                        ),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 10,
-                                        ),
-                                        child: Text(
-                                          _messagePreview!,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ),
-                    ),
                   Positioned(
                     left: 0,
                     right: 0,

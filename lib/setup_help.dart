@@ -295,7 +295,7 @@ const _topics = [
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'In a friend chat, tap the gamepad and choose an installed online game. In My Games, tap Play → New Online Match and choose a friend. Tap Invite to send the invitation from either screen. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to open the match or End Game to close it for both players. After a win or draw, tap Play another match to invite the same friend again, or Quit to leave the board. Tap the chat icon to message each other while playing. New messages briefly appear over the board when the chat panel is closed. Unanswered invitations expire after 7 days. Games with no moves for 30 days leave Active Games. If a new game would take you over 12 active games, the least recently played game leaves the list.',
+        'In a friend chat, tap the gamepad and choose an installed online game. In My Games, tap Play → New Online Match and choose a friend. Tap Invite to send the invitation from either screen. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to open the match or End Game to close it for both players. After a win or draw, tap Play another match to invite the same friend again, or Quit to leave the board. Tap the chat icon to message each other while playing. The chat button lights up for unread messages while the chat panel is closed. Unanswered invitations expire after 7 days. Games with no moves for 30 days leave Active Games. If a new game would take you over 12 active games, the least recently played game leaves the list.',
       ),
       (
         'How do I change game sounds?',
@@ -319,7 +319,7 @@ const _topics = [
       ),
       (
         'Can I talk to my friend while playing?',
-        'During an online match, tap the message button to open chat. Tap the bar at the bottom of the chat panel to close it. New messages briefly appear at the bottom of the board while chat is closed. Tap the phone to start a call. Use Return to game to keep talking while you play, then tap the phone again to reopen the call controls.',
+        'During an online match, tap the message button to open chat. Tap the bar at the bottom of the chat panel to close it. A dot and highlight on the message button show that you have an unread message. Tap the button to read or reply. Tap the phone to start a call. Use Return to game to keep talking while you play, then tap the phone again to reopen the call controls.',
       ),
     ],
   ),

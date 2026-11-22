@@ -1637,7 +1637,12 @@ class _FriendConversationState extends State<FriendConversation>
                         key: PageStorageKey('chat-feed-${widget.id}'),
                         controller: _scroll,
                         reverse: true,
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 60),
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          12,
+                          12,
+                          docked ? 8 : 60,
+                        ),
                         itemCount: visible.length + (thread.hasOlder ? 1 : 0),
                         itemBuilder: (context, index) {
                           if (index == visible.length) {

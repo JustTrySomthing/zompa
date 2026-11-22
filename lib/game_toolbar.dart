@@ -65,15 +65,10 @@ class _GameToolbarState extends State<GameToolbar> {
       leading: const BackButton(),
       actions: [
         if (widget.onMessage != null)
-          IconButton(
-            tooltip: widget.chatOpen ? 'Close match chat' : 'Open match chat',
-            onPressed: widget.onMessage,
-            isSelected: widget.chatOpen,
-            selectedIcon: const Icon(Icons.chat),
-            icon: Badge(
-              isLabelVisible: widget.unread,
-              child: const Icon(Icons.chat_outlined),
-            ),
+          MatchChatButton(
+            open: widget.chatOpen,
+            unread: widget.unread,
+            onPressed: widget.onMessage!,
           ),
         if (calls != null && (chat != null || calls.busy))
           IconButton(
@@ -92,6 +87,49 @@ class _GameToolbarState extends State<GameToolbar> {
           icon: Icon(widget.paused ? Icons.play_arrow : Icons.pause),
         ),
       ],
+    );
+  }
+}
+
+class MatchChatButton extends StatelessWidget {
+  const MatchChatButton({
+    super.key,
+    required this.open,
+    required this.unread,
+    required this.onPressed,
+  });
+
+  final bool open, unread;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final highlight = unread && !open;
+    return Semantics(
+      liveRegion: highlight,
+      child: IconButton(
+        tooltip: open
+            ? 'Close match chat'
+            : highlight
+            ? 'New message in match chat'
+            : 'Open match chat',
+        onPressed: onPressed,
+        isSelected: open,
+        selectedIcon: const Icon(Icons.chat),
+        style: highlight
+            ? IconButton.styleFrom(
+                backgroundColor: colors.secondaryContainer,
+                foregroundColor: colors.onSecondaryContainer,
+              )
+            : null,
+        icon: Badge(
+          isLabelVisible: highlight,
+          smallSize: 12,
+          backgroundColor: colors.error,
+          child: const Icon(Icons.chat_outlined),
+        ),
+      ),
     );
   }
 }
