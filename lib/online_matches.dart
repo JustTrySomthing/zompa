@@ -331,8 +331,8 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
             overflowAlignment: OverflowBarAlignment.end,
             spacing: 8,
             children: [
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: colors.error),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: colors.error),
                 onPressed: _busy ? null : end,
                 child: const Text('End Game'),
               ),

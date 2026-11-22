@@ -76,6 +76,20 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
     }
   }
 
+  String get _alertStatus {
+    if (_status?['notifications'] != true) {
+      return 'Allow alerts for messages, calls, matches, and updates.';
+    }
+    final off = [
+      if (_status?['messageAlerts'] == false) 'messages',
+      if (_status?['callAlerts'] == false) 'calls',
+      if (_status?['gameAlerts'] == false) 'game invites',
+    ];
+    return off.isEmpty
+        ? 'Message, call, and game invite alerts are on.'
+        : 'Alerts are off for ${off.join(', ')}. Check Android notification settings and Settings → Notifications in Zompado.';
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -103,7 +117,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           _SetupCard(
             icon: Icons.notifications_active_outlined,
             title: 'Notifications',
-            text: 'Get alerts for messages, calls, matches, and updates.',
+            text: _alertStatus,
             enabled: _status?['notifications'],
             action: !_working && _status?['notifications'] == false
                 ? () => _open('requestUpdateNotifications')
@@ -118,9 +132,20 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
             button: 'Open notification settings',
           ),
           _SetupCard(
+            icon: Icons.ring_volume_outlined,
+            title: 'Incoming call sound',
+            text: _status?['incomingCallSound'] == false
+                ? 'Android’s Incoming calls category is silent or off. Choose Alerting and a sound to hear calls with your screen locked.'
+                : 'Use Android’s Incoming calls settings to choose your sound and check that lock-screen calls can ring.',
+            action: !_working ? () => _open('openIncomingCallSettings') : null,
+            button: 'Open incoming call settings',
+          ),
+          _SetupCard(
             icon: Icons.battery_charging_full_outlined,
-            title: 'Calls while your phone is locked',
-            text: 'Allow Zompado to run without battery restrictions so its connection can receive calls while your phone is idle.',
+            title: 'Alerts while your phone is asleep',
+            text: _status?['backgroundListener'] == true
+                ? 'The background listener is on. Set Zompado’s battery use to Unrestricted so Android can keep its connection available while your phone is asleep.'
+                : 'Zompado starts a background listener after you set up Chats and enable alerts. Set its battery use to Unrestricted to help keep it connected while your phone is asleep.',
             enabled: _status?['batteryUnrestricted'],
             action: !_working && _status?['batteryUnrestricted'] == false
                 ? () => _open('openCallBatterySettings')
@@ -350,7 +375,7 @@ const _topics = [
       ),
       (
         'How do I call a friend?',
-        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, switch between Video and Audio, or end the call. When your camera is on, Preview shows or hides your own picture. For calls while the phone is locked, open Settings → Setup → Calls while your phone is locked. In Android battery settings, find Zompado and allow it to run without battery restrictions. Also check that Incoming calls can appear on your lock screen. If Android has already closed Zompado, a scheduled check may arrive after the call ends.',
+        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, switch between Video and Audio, or end the call. When your camera is on, Preview shows or hides your own picture. For alerts while the phone is locked, open Settings → Setup → Alerts while your phone is asleep. Set Zompado’s Android battery use to Unrestricted and allow Incoming calls on the lock screen. The background listener uses a silent status notification. If you force-stop Zompado, open it again to resume listening.',
       ),
       (
         'How do I send files or keep their original quality?',
@@ -401,7 +426,7 @@ const _topics = [
       ),
       (
         'What alerts can I turn on?',
-        'Open Settings → Notifications for alert categories and Android lock screen settings. Use Mute all notifications in Settings → Notifications to silence all Zompado alerts. Choose Quiet Hours to schedule when alerts arrive silently. Tap a message alert to open the chat or a turn alert to open its match. When Android closes the app process, it checks for activity periodically and may delay alerts. If you use Force stop, open Zompado again to resume checks.',
+        'Open Settings → Notifications for alert categories and Android lock screen settings. Use Mute all notifications in Settings → Notifications to silence all Zompado alerts. Choose Quiet Hours to schedule when alerts arrive silently. Tap a message alert to open the chat or a turn alert to open its match. The background listener reconnects when Android can run it. If you use Force stop, open Zompado again to resume listening. If a call appears without sound, open Setup → Incoming call sound and check Android’s sound and Do Not Disturb settings.',
       ),
     ],
   ),

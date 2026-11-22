@@ -49,7 +49,7 @@ The [signed 0.5.13 calling preview, build 20](https://github.com/JustTrySomthing
 
 The Android friend invite scanner uses the bundled ZXing decoder and the Android Camera permission. Setup offers this permission, and the scanner also requests access when first used. Paste remains available on devices without a camera.
 
-For instant Android wakeups, Zompado needs an authorized push registration for `io.tablecircle.prototype` and a compatible Chatmail notifier that can send to that registration. The pinned Core has a push token API in its native interface; Zompado's JSON-RPC bridge would need to expose it. Keep provider credentials with the notifier. Current builds use Android's scheduled fetch. [Chatmail push behavior](https://delta.chat/en/help#instant-message-delivery-and-push-notifications).
+Zompado keeps a Chatmail connection open through a foreground service with a silent Android status notification. The app owns the Chatmail Core process while its Flutter engine is present. The service takes over after the engine is removed, and Android can restart the service after process loss or after reboot and unlock. The periodic job remains a fallback. For lock-screen delivery, enable the alert categories and allow unrestricted battery use in **Settings → Setup**. Force-stopping the app interrupts the connection until the next launch. A separate push transport would require an Android app registration and a compatible Chatmail notifier.
 
 ## Toolchain and fresh checkout
 

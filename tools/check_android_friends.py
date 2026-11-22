@@ -93,11 +93,13 @@ class Phone:
         self.shell("input", "keyevent", 3)
         def process():
             return self.shell(f"pidof {APP} || true").decode().split()
-        for pid in process():
+        previous = process()
+        for pid in previous:
             if pid.isdecimal():
                 # Run under the debug app's UID so this also works if LMK considers it active.
                 self.shell("run-as", APP, "kill", "-9", pid)
-        wait(f"{self.name}'s process to stop without force-stop", lambda: not process())
+        wait(f"{self.name}'s process to stop without force-stop",
+             lambda: not set(previous).intersection(process()))
 
     def install_game(self):
         self.press("Get Games")
@@ -115,7 +117,7 @@ class Phone:
                 break
             self.shell("input", "swipe", 350, 1100, 350, 370, 400)
         self.press("Finish setup")
-        self.press("Chats")
+        self.see("Create chat profile")
         self.type(self.name)
         self.back()
         self.press("Create chat profile")
@@ -146,27 +148,45 @@ class Phone:
         self.shell("input", "tap", *wait(f"{self.name} online board", board_center, 75))
 
 
+def alert_posted(phone, tag, *, ringing=False):
+    active = phone.shell("dumpsys", "notification").decode().split("Notification List:", 1)[-1]
+    return any(
+        "NotificationRecord(" in line and f"pkg={APP}" in line and f"tag={tag}" in line
+        and (not ringing or (
+            "channel=incoming_calls_ringtone" in line
+            and (flags := re.search(r"flags=0x([0-9a-fA-F]+)", line)) is not None
+            and bool(int(flags.group(1), 16) & 4)
+        ))
+        for line in active.splitlines()
+    )
+
+
+def sleep_phone(phone):
+    phone.shell("input", "keyevent", "KEYCODE_SLEEP")
+    wait(f"{phone.name}’s screen to go to sleep", lambda:
+         re.search(rb"mWakefulness=(Asleep|Dozing)", phone.shell("dumpsys", "power")), 10)
+
+
+def wake_phone(phone):
+    phone.shell("input", "keyevent", "KEYCODE_WAKEUP")
+    phone.shell("wm", "dismiss-keyguard")
+
+
 def check_locked_call(alice, bob):
-    # Exercise the Setup path where Android allows the live connection while idle.
+    # Verify a sticky native listener can receive an alert without reopening the app.
     bob.shell("cmd", "deviceidle", "whitelist", f"+{APP}")
-    bob.shell("am", "force-stop", APP)
-    bob.start()
-    bob.see("My Games")
-
-    def voice_notification_posted():
-        active = bob.shell("dumpsys", "notification").decode().split("Notification List:", 1)[-1]
-        return any(
-            "NotificationRecord(" in line and f"pkg={APP}" in line and "tag=voice" in line
-            for line in active.splitlines()
-        )
-
-    bob.shell("input", "keyevent", "KEYCODE_SLEEP")
+    bob.stop_background_process()
+    sleep_phone(bob)
     try:
-        wait("Bob’s screen to go to sleep", lambda:
-             re.search(rb"mWakefulness=(Asleep|Dozing)", bob.shell("dumpsys", "power")), 10)
+        alice.type("Background delivery check")
+        alice.back()
+        alice.press("Send message")
+        wait("a message alert while Bob’s screen is off",
+             lambda: alert_posted(bob, "friend-activity-messages"), 75)
         alice.press("Voice call")
         alice.press("Call")
-        wait("an incoming-call notification while Bob’s screen is off", voice_notification_posted, 75)
+        wait("an incoming-call notification while Bob’s screen is off",
+             lambda: alert_posted(bob, "voice", ringing=True), 75)
     except RuntimeError:
         for phone in (alice, bob):
             app_log = phone.shell("run-as", APP, "cat", "files/app-log.txt").decode(errors="replace")
@@ -176,15 +196,14 @@ def check_locked_call(alice, bob):
     finally:
         if point := alice.find("End call"):
             alice.shell("input", "tap", *point)
-        bob.shell("input", "keyevent", "KEYCODE_WAKEUP")
-        bob.shell("wm", "dismiss-keyguard")
+        wake_phone(bob)
         bob.shell("cmd", "deviceidle", "whitelist", f"-{APP}")
+        bob.start()
         if point := bob.find("Decline"):
             bob.shell("input", "tap", *point)
-        bob.press("Chats")
         bob.press("Alice")
-    wait("the incoming-call notification to clear", lambda: not voice_notification_posted())
-    print("PASS: a call alert arrived before waking the recipient, after launching only Games.", flush=True)
+    wait("the incoming-call notification to clear", lambda: not alert_posted(bob, "voice"))
+    print("PASS: the restarted listener posted message and call alerts with the recipient’s screen off.", flush=True)
 
 
 def check_voice(alice, bob):
@@ -253,7 +272,15 @@ def check_match(alice, bob):
     alice.see("Choose a game")
     alice.see("Play with Bob")
     alice.press("Cats vs Dogs")
-    alice.press("Invite")
+    bob.shell("cmd", "deviceidle", "whitelist", f"+{APP}")
+    sleep_phone(bob)
+    try:
+        alice.press("Invite")
+        wait("a game invitation alert while Bob’s screen is off",
+             lambda: alert_posted(bob, "friend-activity-invites"), 75)
+    finally:
+        wake_phone(bob)
+        bob.shell("cmd", "deviceidle", "whitelist", f"-{APP}")
     alice.see("Waiting for your friend to accept.", 100)
     alice.back()
     alice.back()
@@ -298,9 +325,10 @@ def check_match(alice, bob):
     bob.stop_background_process()
     alice.turn()
     alice.see("Bob’s turn")
-    bob.shell("cmd", "jobscheduler", "run", "-f", APP, 291)
+    wait("a game activity alert from the restarted listener",
+         lambda: alert_posted(bob, "friend-activity-gameActivity"), 75)
     bob.shell("cmd", "statusbar", "expand-notifications")
-    bob.press("New friend activity", 75)
+    bob.press("New game activity", 75)
     bob.see("Your turn", 75)
     bob.turn()
     bob.see("Alice’s turn")
@@ -310,7 +338,7 @@ def check_match(alice, bob):
     bob.press("Quit match")
     alice.see("Match ended.", 100)
     print("PASS: the online board opened on both phones after acceptance. The inviter took the first turn and the friend replied.", flush=True)
-    print("PASS: an Android background job recovered a move, its alert opened the exact board, and the reply returned.", flush=True)
+    print("PASS: the live Android listener recovered a move, its alert opened the exact board, and the reply returned.", flush=True)
 
 
 def check_app_log(phone):

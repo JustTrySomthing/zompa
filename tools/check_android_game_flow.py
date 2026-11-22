@@ -107,6 +107,7 @@ def main():
             break
         adb("shell", "input", "swipe", 350, 1100, 350, 400, 350)
     press("Finish setup")
+    press("Games")
     wait("an empty game library", lambda: find("Your library is empty"))
     press("Get Games")
     press("Install")

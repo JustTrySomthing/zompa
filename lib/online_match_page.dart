@@ -457,7 +457,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     return match.status;
   }
 
-  Widget _turnHeading(BuildContext context, OnlineMatch match) {
+  Widget _turnHeading(
+    BuildContext context,
+    OnlineMatch match,
+    GameRelease game,
+  ) {
     final boardSettled = match.boardComplete && _displayTurn == null;
     final winner = boardSettled ? match.board.winner : 0;
     final side = winner != 0 ? winner : _displayTurn ?? match.board.turn;
@@ -474,25 +478,52 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               : (match.finished ? '$name wins!' : '$name wins the round!'))
         : (yours ? 'Your turn' : '$name’s turn');
 
+    final cats = match.mine;
+    final hasAnimalArt = game.build >= 6;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Semantics(
-        liveRegion: true,
-        child: LayoutBuilder(
-          builder: (context, bounds) => FittedBox(
-            fit: BoxFit.scaleDown,
-            child: SizedBox(
-              width: bounds.maxWidth,
-              child: Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: const Color(0xfffff4fc),
-                  fontWeight: FontWeight.w700,
+      child: LayoutBuilder(
+        builder: (context, bounds) => FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: bounds.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasAnimalArt)
+                  Image.asset(
+                    cats
+                        ? 'assets/games/cat-token.webp'
+                        : 'assets/games/dog-token.webp',
+                    width: 36,
+                    height: 36,
+                    semanticLabel: cats ? 'You play Cats' : 'You play Dogs',
+                  )
+                else
+                  Semantics(
+                    label: cats ? 'You play Yellow' : 'You play Purple',
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: cats
+                          ? const Color(0xffffcf50)
+                          : const Color(0xffa987ff),
+                    ),
+                  ),
+                const SizedBox(height: 5),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xfffff4fc),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -517,9 +548,16 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             0.0,
             bounds.maxWidth.clamp(0.0, 560.0) / aspect,
           );
+          final topInset = ((bounds.maxHeight - boardHeight) * .18).clamp(
+            0.0,
+            22.0,
+          );
           return Column(
             children: [
-              Expanded(child: Center(child: _turnHeading(context, match))),
+              SizedBox(height: topInset),
+              Expanded(
+                child: Center(child: _turnHeading(context, match, game)),
+              ),
               SizedBox(
                 width: boardHeight * aspect,
                 height: boardHeight,
@@ -657,7 +695,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         match.boardComplete &&
         match.pending == null &&
         _displayTurn == null;
-    return PopScope(
+    final page = PopScope(
       canPop: !_chatOpen,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && _chatOpen) _toggleChat();
@@ -973,5 +1011,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         ),
       ),
     );
+    return ChatAlertView(chat: widget.chat, matchId: widget.id, child: page);
   }
 }

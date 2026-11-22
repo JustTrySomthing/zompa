@@ -1,6 +1,7 @@
 package io.tablecircle.prototype;
 
 import android.Manifest;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -103,14 +104,16 @@ public final class UpdateCheckJob extends JobService {
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent target = PendingIntent.getActivity(
             this, JOB_ID, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        manager.notify(JOB_ID, new NotificationCompat.Builder(this, CHANNEL)
-            .setSilent(QuietHours.active(this))
+        boolean quiet = QuietHours.active(this);
+        var notification = new NotificationCompat.Builder(this, CHANNEL)
+            .setSilent(quiet)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("Zompado update available")
             .setContentText("Open Zompado to see the new version.")
             .setContentIntent(target)
-            .setAutoCancel(true)
-            .build());
+            .setAutoCancel(true);
+        if (Build.VERSION.SDK_INT < 26 && !quiet) notification.setDefaults(Notification.DEFAULT_SOUND);
+        manager.notify(JOB_ID, notification.build());
         prefs.edit().putInt(NOTIFIED, build).apply();
     }
 

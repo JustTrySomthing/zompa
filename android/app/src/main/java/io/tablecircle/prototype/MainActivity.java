@@ -12,6 +12,8 @@ import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
@@ -46,6 +48,8 @@ public final class MainActivity extends FlutterActivity {
     private int ringingChat;
     private final ChatPlayback playback = new ChatPlayback(this);
     private long ringDeadline;
+    private final Handler ringHandler = new Handler(Looper.getMainLooper());
+    private final Runnable ringExpired = this::stopRinging;
     private MethodChannel.Result inviteScan;
     private MethodChannel.Result cameraSetup;
     private MethodChannel.Result cameraCall;
@@ -94,7 +98,10 @@ public final class MainActivity extends FlutterActivity {
                         boolean saved = QuietHours.save(MainActivity.this,
                             Boolean.TRUE.equals(call.argument("enabled")), call.argument("start"),
                             call.argument("end"), call.argument("days"));
-                        if (saved && QuietHours.active(MainActivity.this) && ringing != null) ringing.stop();
+                        if (saved && QuietHours.active(MainActivity.this)) {
+                            if (ringing != null) ringing.stop();
+                            ChatAlerts.quietIncoming(this);
+                        }
                         result.success(saved);
                         break;
                     case "remindToReply":
@@ -258,11 +265,26 @@ public final class MainActivity extends FlutterActivity {
                             break;
                         }
                         if (!ChatAlerts.allowed(MainActivity.this, "calls")) stopRinging();
+                        ChatListenerService.sync(MainActivity.this);
                         result.success(null);
                         break;
                     case "openNotificationSettings":
                         openNotificationSettings();
                         result.success(null);
+                        break;
+                    case "openIncomingCallSettings":
+                        try {
+                            if (Build.VERSION.SDK_INT >= 26) {
+                                startActivity(new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
+                                    .putExtra(Settings.EXTRA_CHANNEL_ID, ChatAlerts.incomingChannel(this)));
+                            } else {
+                                openNotificationSettings();
+                            }
+                            result.success(null);
+                        } catch (android.content.ActivityNotFoundException error) {
+                            result.error("CALL_SETTINGS", "Couldn’t open Android call alert settings.", null);
+                        }
                         break;
                     case "openCallBatterySettings":
                         try {
@@ -271,6 +293,10 @@ public final class MainActivity extends FlutterActivity {
                         } catch (android.content.ActivityNotFoundException error) {
                             result.error("CALL_SETTINGS", "Couldn’t open Android battery settings.", null);
                         }
+                        break;
+                    case "syncChatListener":
+                        ChatListenerService.profileReady(MainActivity.this);
+                        result.success(null);
                         break;
                     case "showChatNotification":
                         Integer chat = call.argument("chat");
@@ -300,7 +326,7 @@ public final class MainActivity extends FlutterActivity {
                         Integer ended = call.argument("message");
                         if (ended != null) {
                             if (ringingId == ended) stopRinging();
-                            getSystemService(NotificationManager.class).cancel("voice", ended);
+                            ChatAlerts.dismissIncoming(this, ended);
                         }
                         result.success(null);
                         break;
@@ -360,6 +386,11 @@ public final class MainActivity extends FlutterActivity {
                     case "setupStatus":
                         HashMap<String, Boolean> statuses = new HashMap<>();
                         statuses.put("notifications", updateAlertsEnabled());
+                        statuses.put("messageAlerts", ChatAlerts.enabled(this, "messages"));
+                        statuses.put("gameAlerts", ChatAlerts.enabled(this, "invites"));
+                        statuses.put("callAlerts", ChatAlerts.callsEnabled(this));
+                        statuses.put("incomingCallSound", ChatAlerts.incomingSound(this) != null);
+                        statuses.put("backgroundListener", ChatListenerService.isRunning());
                         statuses.put("batteryUnrestricted", getSystemService(PowerManager.class)
                             .isIgnoringBatteryOptimizations(getPackageName()));
                         statuses.put("microphone", checkSelfPermission(Manifest.permission.RECORD_AUDIO)
@@ -556,14 +587,18 @@ public final class MainActivity extends FlutterActivity {
 
     private void ring(int chat, int message, int secondsLeft) {
         stopRinging();
+        if (chat <= 0 || message <= 0 || secondsLeft <= 0) return;
+        long duration = Math.min(secondsLeft, 120) * 1000L;
         ringingId = message;
         ringingChat = chat;
-        ringDeadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L;
+        ringDeadline = SystemClock.elapsedRealtime() + duration;
+        ringHandler.postDelayed(ringExpired, duration);
         if (!ChatAlerts.allowed(this, "calls") || QuietHours.active(this)) return;
         if (getSystemService(AudioManager.class).getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
         try {
-            Ringtone tone = RingtoneManager.getRingtone(this,
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
+            Uri sound = ChatAlerts.incomingSound(this);
+            if (sound == null) return;
+            Ringtone tone = RingtoneManager.getRingtone(this, sound);
             if (tone == null) return;
             tone.setAudioAttributes(new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build());
@@ -576,6 +611,7 @@ public final class MainActivity extends FlutterActivity {
     }
 
     private void stopRinging() {
+        ringHandler.removeCallbacks(ringExpired);
         if (ringing != null) ringing.stop();
         ringing = null;
         ringingId = 0;
@@ -591,15 +627,23 @@ public final class MainActivity extends FlutterActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        ChatListenerService.sync(this);
+    }
+
+    @Override
     protected void onStop() {
         if (voice != null) voice.setVisible(false);
         playback.pause();
         chatFiles.stopRecording(false);
         long remaining = ringDeadline - SystemClock.elapsedRealtime();
-        if (ringingId > 0 && remaining > 0) {
-            ChatAlerts.incoming(this, ringingChat, ringingId, (remaining + 999) / 1000);
-        }
+        int chat = ringingChat;
+        int message = ringingId;
         stopRinging();
+        if (message > 0 && remaining > 0) {
+            ChatAlerts.incoming(this, chat, message, (remaining + 999) / 1000);
+        }
         super.onStop();
     }
 
@@ -668,6 +712,7 @@ public final class MainActivity extends FlutterActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_NOTIFICATIONS && notificationRequest != null) {
+            ChatListenerService.sync(this);
             notificationRequest.success(null);
             notificationRequest = null;
         }

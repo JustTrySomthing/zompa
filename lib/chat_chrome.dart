@@ -126,6 +126,87 @@ class ChatSearchField extends StatelessWidget {
   );
 }
 
+typedef ChatAlertTargetView = ({
+  ModalRoute<dynamic> route,
+  int chat,
+  String? matchId,
+});
+
+bool showsChatAlertTarget(
+  Iterable<ChatAlertTargetView> views,
+  int chat,
+  String? matchId,
+) => views.any(
+  (view) =>
+      view.route.isCurrent &&
+      view.chat == chat &&
+      (view.matchId == null || matchId == null || view.matchId == matchId),
+);
+
+class ChatAlertView extends StatefulWidget {
+  const ChatAlertView({
+    super.key,
+    required this.chat,
+    this.matchId,
+    this.viewing = true,
+    required this.child,
+  });
+
+  final int chat;
+  final String? matchId;
+  final bool viewing;
+  final Widget child;
+
+  @override
+  State<ChatAlertView> createState() => _ChatAlertViewState();
+}
+
+class _ChatAlertViewState extends State<ChatAlertView> {
+  Map<Object, ChatAlertTargetView>? _views;
+  ModalRoute<dynamic>? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _views?.remove(this);
+    _views = ChatChrome.of(context)?.alertViews;
+    _route = ModalRoute.of(context);
+    _register();
+  }
+
+  @override
+  void didUpdateWidget(ChatAlertView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.viewing != oldWidget.viewing ||
+        widget.chat != oldWidget.chat ||
+        widget.matchId != oldWidget.matchId) {
+      _register();
+    }
+  }
+
+  void _register() {
+    final route = _route;
+    if (route == null || !widget.viewing) {
+      _views?.remove(this);
+    } else {
+      _views?[this] = (
+        route: route,
+        chat: widget.chat,
+        matchId: widget.matchId,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _views?.remove(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class ChatChrome extends InheritedWidget {
   const ChatChrome({
     super.key,
@@ -134,12 +215,14 @@ class ChatChrome extends InheritedWidget {
     required this.openSaved,
     required this.openSettings,
     required this.messageTextSize,
+    this.alertViews,
     required super.child,
   });
 
   final ChatNotificationSettings notifications;
   final void Function(BuildContext)? openContacts, openSaved, openSettings;
   final double messageTextSize;
+  final Map<Object, ChatAlertTargetView>? alertViews;
 
   static ChatChrome? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ChatChrome>();
@@ -147,6 +230,7 @@ class ChatChrome extends InheritedWidget {
   @override
   bool updateShouldNotify(ChatChrome oldWidget) =>
       notifications != oldWidget.notifications ||
+      alertViews != oldWidget.alertViews ||
       (openContacts == null) != (oldWidget.openContacts == null) ||
       (openSaved == null) != (oldWidget.openSaved == null) ||
       (openSettings == null) != (oldWidget.openSettings == null) ||

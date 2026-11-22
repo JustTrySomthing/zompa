@@ -12,10 +12,11 @@ enum ChatmailIssue implements Exception {
 }
 
 class Chatmail {
-  Chatmail(this.executable, this.accountsDirectory);
+  Chatmail(this.executable, this.accountsDirectory, {this.onReady});
 
   final String executable;
   final Directory accountsDirectory;
+  final void Function()? onReady;
   final _changes = StreamController<void>.broadcast();
   Stream<void> get changes => _changes.stream;
   final _calls = StreamController<Json>.broadcast();
@@ -30,6 +31,8 @@ class Chatmail {
   int? _account;
   bool _ready = false;
   bool _closed = false;
+  Timer? _reconnect;
+  int _retrySeconds = 5;
 
   Future<Process> _start() async {
     if (_closed) throw ChatmailIssue.unavailable;
@@ -106,6 +109,30 @@ class Chatmail {
       response.completeError(ChatmailIssue.unavailable);
     }
     if (!_closed) _changes.add(null);
+    if (_keepConnected) _scheduleReconnect();
+  }
+
+  bool _keepConnected = false;
+
+  Future<bool> maintainConnection() async {
+    _keepConnected = true;
+    try {
+      return await restore();
+    } catch (_) {
+      _scheduleReconnect();
+      rethrow;
+    }
+  }
+
+  void _scheduleReconnect() {
+    if (_closed || _ready || _reconnect != null) return;
+    _reconnect = Timer(Duration(seconds: _retrySeconds), () {
+      _reconnect = null;
+      unawaited(
+        maintainConnection().then<void>((_) {}, onError: (Object _) {}),
+      );
+    });
+    _retrySeconds = (_retrySeconds * 2).clamp(5, 60);
   }
 
   Future<dynamic> _call(
@@ -209,7 +236,12 @@ class Chatmail {
     final process = _process;
     if (process == null) throw ChatmailIssue.unavailable;
     _ready = true;
+    _keepConnected = true;
+    _reconnect?.cancel();
+    _reconnect = null;
+    _retrySeconds = 5;
     unawaited(_listenForChanges(process));
+    onReady?.call();
   }
 
   Future<void> _listenForChanges(Process process) async {
@@ -222,9 +254,10 @@ class Chatmail {
         ) as List;
         if (_closed || _process != process) return;
         var hasChanges = false;
-        for (final entry in batch.cast<Json>()) {
-          if (entry['contextId'] != _account) continue;
-          final event = entry['event'] as Json;
+        for (final entry in batch) {
+          if (entry is! Json || entry['contextId'] != _account) continue;
+          final event = entry['event'];
+          if (event is! Json || event['kind'] is! String) continue;
           final kind = event['kind'] as String;
           if (kind == 'IncomingCall' ||
               kind == 'IncomingCallAccepted' ||
@@ -236,6 +269,10 @@ class Chatmail {
               event['chatId'] is int &&
               event['msgId'] is int) {
             _incoming.add((event['chatId'] as int, event['msgId'] as int));
+          } else if (kind == 'CallEnded' &&
+              event['chat_id'] is int &&
+              event['msg_id'] is int) {
+            _incoming.add((event['chat_id'] as int, event['msg_id'] as int));
           }
           hasChanges =
               hasChanges ||
@@ -538,6 +575,39 @@ class Chatmail {
       await _messages(account, recent),
       ids.length > recent.length,
       photo: info['profileImage'] as String?,
+      oldestMessageId: recent.firstOrNull,
+    );
+  }
+
+  Future<
+    ({
+      List<FriendMessage> messages,
+      int? oldestMessageId,
+      int count,
+      bool hasOlder,
+    })?
+  >
+  olderThreadMessages(
+    int chat, {
+    required int before,
+    required int limit,
+  }) async {
+    final account = _accountId;
+    final ids = (await _call('get_message_ids', [
+      account,
+      chat,
+      false,
+      false,
+    ]) as List).cast<int>();
+    final end = ids.indexOf(before);
+    if (end < 0) return null;
+    final start = end > limit ? end - limit : 0;
+    final batch = ids.sublist(start, end);
+    return (
+      messages: await _messages(account, batch),
+      oldestMessageId: batch.firstOrNull,
+      count: batch.length,
+      hasOlder: start > 0,
     );
   }
 
@@ -614,6 +684,13 @@ class Chatmail {
 
   Future<List<FriendMessage>> recentMatchMessages(String marker) =>
       _search(null, marker);
+
+  Future<List<FriendMessage>> recentUnreadAlerts() async {
+    final account = _accountId;
+    final ids = (await _call('get_fresh_msgs', [account]) as List).cast<int>()
+      ..sort((a, b) => b.compareTo(a));
+    return _messages(account, ids.take(40).toList());
+  }
 
   Future<({String name, FriendMessage message})?> notificationMessage(
     int chat,
@@ -711,10 +788,16 @@ class Chatmail {
     return null;
   }
 
-  Future<bool> callIsRinging(int message) async {
+  Future<String?> _callState(int message) async {
     final result = await _call('call_info', [_accountId, message]) as Json;
-    return (result['state'] as Json)['kind'] == 'Alerting';
+    return (result['state'] as Json)['kind'] as String?;
   }
+
+  Future<bool> callIsRinging(int message) async =>
+      await _callState(message) == 'Alerting';
+
+  Future<bool> callWasMissed(int message) async =>
+      await _callState(message) == 'Missed';
 
   Future<int> placeCall(int chat, String offer) async {
     await _voiceChat(chat);
@@ -762,6 +845,7 @@ class Chatmail {
 
   void close() {
     _closed = true;
+    _reconnect?.cancel();
     final process = _process;
     if (process != null) _stopped(process);
     _changes.close();
@@ -807,9 +891,11 @@ class FriendThread {
     this.messages,
     this.hasOlder, {
     this.photo,
+    this.oldestMessageId,
   });
   final String name;
   final String? photo;
+  final int? oldestMessageId;
   final bool canSend, hasOlder;
   final List<FriendMessage> messages;
 }
@@ -888,15 +974,6 @@ class FriendMessage {
 
   String get bubbleCaption =>
       media != null && text.trim() == filename ? '' : text;
-
-  // Chatmail includes the local call outcome as stock text in the message.
-  bool get unansweredCall =>
-      viewType == 'Call' &&
-      const {
-        'Canceled call',
-        'Missed call',
-        'Declined call',
-      }.contains(text.trim());
 
   String? get delivery => switch (state) {
     20 => 'Sending',

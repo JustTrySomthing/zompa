@@ -108,6 +108,9 @@ class _GameInvitePickerState<T> extends State<_GameInvitePicker<T>> {
               children: [
                 Expanded(
                   child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: colors.onSurfaceVariant),
+                    ),
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancel'),
                   ),

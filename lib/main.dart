@@ -98,7 +98,16 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   StreamSubscription<(int, int)>? _incoming;
   bool get _background =>
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.paused ||
-      WidgetsBinding.instance.lifecycleState == AppLifecycleState.hidden;
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.hidden ||
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.inactive;
+  final _alertViews = <Object, ChatAlertTargetView>{};
+
+  bool get _canRecoverChatAlerts =>
+      _background || _home.currentState?._showingChatsRoot == false;
+
+  bool _shouldAlert(int chat, String? matchId) =>
+      _background || !showsChatAlertTarget(_alertViews.values, chat, matchId);
+
   bool loaded = false;
   bool _loggedChatConnection = false;
 
@@ -124,11 +133,15 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         storage = File('$path/profile.json');
         final core = await bridge.invokeMethod<String>('chatmailExecutable');
         if (mounted && core != null) {
-          final chat = Chatmail(core, Directory('$path/chatmail'));
+          final chat = Chatmail(
+            core,
+            Directory('$path/chatmail'),
+            onReady: _syncChatListener,
+          );
           chatmail = chat;
           _voice = VoiceCalls(chat, bridge);
           _incoming = chat.incoming.listen((event) {
-            if (_background) unawaited(_chatAlert(chat, event.$1, event.$2));
+            unawaited(_chatAlert(chat, event.$1, event.$2));
           });
         }
         if (await storage!.exists()) {
@@ -158,6 +171,34 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
     });
   }
 
+  void _syncChatListener() {
+    unawaited(
+      bridge.invokeMethod<void>('syncChatListener').catchError((Object _) {}),
+    );
+    unawaited(_recoverChatAlerts());
+  }
+
+  Future<void> _recoverChatAlerts() async {
+    final chat = chatmail;
+    if (chat == null || !mounted) return;
+    try {
+      for (final message in await chat.recentUnreadAlerts()) {
+        if (!mounted) return;
+        if (message.outgoing || !message.encrypted || message.chat <= 0) {
+          continue;
+        }
+        if (message.viewType == 'Call') {
+          await _voice?.recoverIncoming(message.chat, message.id);
+        }
+        if (mounted && _canRecoverChatAlerts) {
+          await _chatAlert(chat, message.chat, message.id);
+        }
+      }
+    } catch (_) {
+      // Incoming events continue to deliver live alerts.
+    }
+  }
+
   Future<void> _restoreChatConnection() async {
     final chat = chatmail;
     if (chat == null) return;
@@ -165,13 +206,13 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       final accounts = File('${chat.accountsDirectory.path}/accounts.toml');
       if (await accounts.exists() &&
           mounted &&
-          await chat.restore() &&
+          await chat.maintainConnection() &&
           !_loggedChatConnection) {
         _loggedChatConnection = true;
-        recordAppEvent('Chatmail listener started for incoming calls');
+        recordAppEvent('Chatmail listener connected');
       }
     } catch (_) {
-      recordAppEvent('Couldn’t reconnect Chatmail for incoming calls');
+      recordAppEvent('Couldn’t reconnect Chatmail; will retry');
     }
   }
 
@@ -206,11 +247,12 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   Future<void> _chatAlert(Chatmail chatmail, int chat, int id) async {
     try {
       final message = (await chatmail.notificationMessage(chat, id))?.message;
-      if (message == null || !mounted || !_background) return;
+      if (message == null || !mounted) return;
       final event = message.encrypted ? MatchEvent.parse(message.text) : null;
-      var label = message.viewType == 'Call'
-          ? 'Zompado call activity'
-          : 'New message';
+      if (!_shouldAlert(chat, event?.id)) return;
+      final isCall = message.viewType == 'Call';
+      if (isCall && !await chatmail.callWasMissed(id)) return;
+      var label = isCall ? 'Missed Zompado call' : 'New message';
       if (event != null) {
         switch (event.kind) {
           case 'invite':
@@ -223,6 +265,17 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
             label = 'Game invitation declined';
           case 'quit':
             label = 'Your friend ended the match';
+          case 'resume':
+            if (event.revision != 1) return;
+            final history = await chatmail.matchHistory(chat, event.id);
+            final match = OnlineMatch.replay(event.id, history);
+            if (match == null ||
+                match.mine ||
+                !match.started ||
+                match.finished) {
+              return;
+            }
+            label = 'Your game is ready';
           case 'move':
           case 'next':
             final history = await chatmail.matchHistory(chat, event.id);
@@ -232,14 +285,16 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
             return;
         }
       }
-      if (!mounted || !_background) return;
+      if (!mounted || !_shouldAlert(chat, event?.id)) return;
       await bridge.invokeMethod<void>('showChatNotification', {
         'chat': chat,
         'message': id,
         'label': label,
         'kind': event == null
-            ? (message.viewType == 'Call' ? 'calls' : 'messages')
-            : 'invites',
+            ? (isCall ? 'calls' : 'messages')
+            : event.kind == 'invite'
+            ? 'invites'
+            : 'gameActivity',
       });
     } catch (_) {
       // Receiving a message still works when Android suppresses its alert.
@@ -313,6 +368,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
         final audio = _gameAudio;
         return ChatChrome(
           notifications: _notifications,
+          alertViews: _alertViews,
           messageTextSize: messageTextSizeFrom(data['messageTextSize']),
           openSettings: data['setupComplete'] != true
               ? null
@@ -381,7 +437,8 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> with WidgetsBindingObserver {
-  late int tab = widget.openChats > 0 ? 0 : 1;
+  int tab = 0;
+  bool _wasInBackground = false;
   bool _openedChats = false;
   StreamSubscription<void>? _activeMatchChanges;
   Timer? _activeMatchRefresh;
@@ -419,7 +476,18 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refreshActiveGames();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _wasInBackground = true;
+    } else if (state == AppLifecycleState.resumed) {
+      if (_wasInBackground &&
+          tab != 0 &&
+          ModalRoute.of(context)?.isCurrent == true) {
+        setState(() => tab = 0);
+      }
+      _wasInBackground = false;
+      _refreshActiveGames();
+    }
   }
 
   @override
@@ -431,6 +499,9 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   }
 
   bool get _showingMyGames => tab == 1 && !catalog;
+
+  bool get _showingChatsRoot =>
+      tab == 0 && ModalRoute.of(context)?.isCurrent == true;
 
   void _watchActiveMatches() {
     _activeMatchRefresh?.cancel();
@@ -519,7 +590,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                   chatmail: chatmail,
                   chat: alert.chat,
                   id: match.id,
-                  playOnOpen: match.kind == 'move',
+                  playOnOpen: const {
+                    'move',
+                    'next',
+                    'resume',
+                  }.contains(match.kind),
                   prepareGame: _prepareOnlineGame,
                   friendName: target.name,
                   buildChatDock: (close) => FriendConversation.docked(

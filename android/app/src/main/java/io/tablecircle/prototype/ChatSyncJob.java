@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import org.json.JSONArray;
@@ -26,7 +28,7 @@ public final class ChatSyncJob extends JobService {
     private static final Object OWNER = new Object();
     private static Process jobCore;
     private static boolean appOwnsCore;
-    private Poll active;
+    private Worker active;
 
     static File executable(Context context) {
         return new File(context.getApplicationInfo().nativeLibraryDir, "libchatmail_rpc.so");
@@ -59,6 +61,21 @@ public final class ChatSyncJob extends JobService {
         synchronized (OWNER) {
             appOwnsCore = false;
         }
+        ChatListenerService.resumeListening();
+    }
+
+    static boolean canListen() {
+        synchronized (OWNER) {
+            return !appOwnsCore && jobCore == null;
+        }
+    }
+
+    static File profile(Context context) {
+        return new File(context.getFilesDir(), "chatmail");
+    }
+
+    static boolean hasProfile(Context context) {
+        return new File(profile(context), "accounts.toml").isFile();
     }
 
     @Override
@@ -66,13 +83,19 @@ public final class ChatSyncJob extends JobService {
         synchronized (OWNER) {
             if (appOwnsCore) return false;
         }
-        File profile = new File(getFilesDir(), "chatmail");
-        if ((!ChatAlerts.enabled(this) && !ChatAlerts.callsEnabled(this))
-                || !new File(profile, "accounts.toml").isFile()) return false;
-        Poll poll = new Poll(params, profile);
+        if (ChatListenerService.isRunning() || !hasProfile(this)
+                || !ChatAlerts.hasChatAlerts(this)) return false;
+        Handler main = new Handler(Looper.getMainLooper());
+        Worker poll = new Worker(this, false, finished -> main.post(() -> {
+            if (active == finished) {
+                active = null;
+                jobFinished(params, false);
+            }
+            ChatListenerService.resumeListening();
+        }));
         active = poll;
         poll.worker.start();
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+        main.postDelayed(() -> {
             if (active == poll) poll.stop();
         }, 45000);
         return true;
@@ -87,16 +110,18 @@ public final class ChatSyncJob extends JobService {
         return false;
     }
 
-    private final class Poll implements Runnable {
-        final JobParameters params;
-        final File profile;
+    static final class Worker implements Runnable {
+        final Context context;
+        final boolean live;
+        final java.util.function.Consumer<Worker> finished;
         final Thread worker = new Thread(this, "zompado-chat-sync");
         Process core;
         volatile boolean stopped;
 
-        Poll(JobParameters params, File profile) {
-            this.params = params;
-            this.profile = profile;
+        Worker(Context context, boolean live, java.util.function.Consumer<Worker> finished) {
+            this.context = context.getApplicationContext();
+            this.live = live;
+            this.finished = finished;
         }
 
         void stop() {
@@ -112,8 +137,8 @@ public final class ChatSyncJob extends JobService {
             try {
                 synchronized (OWNER) {
                     if (stopped || appOwnsCore || jobCore != null) return;
-                    ProcessBuilder builder = new ProcessBuilder(executable(ChatSyncJob.this).getPath())
-                        .directory(profile);
+                    File profile = profile(context);
+                    ProcessBuilder builder = new ProcessBuilder(executable(context).getPath()).directory(profile);
                     if (Build.VERSION.SDK_INT >= 26) builder.redirectError(new File("/dev/null"));
                     builder.environment().put("DC_ACCOUNTS_PATH", profile.getPath());
                     builder.environment().put("RUST_LOG", "off");
@@ -138,8 +163,14 @@ public final class ChatSyncJob extends JobService {
                     if (accounts.length() == 0) return;
                     int account = accounts.getInt(0);
                     if (!Boolean.TRUE.equals(rpc.call("is_configured", account))) return;
-                    rpc.call("background_fetch", 25);
-                    notifyFresh(rpc, account);
+                    if (live) {
+                        rpc.call("start_io", account);
+                        notifyFresh(rpc, account);
+                        while (!stopped) receiveEvents(rpc, account);
+                    } else {
+                        rpc.call("background_fetch", 25);
+                        notifyFresh(rpc, account);
+                    }
                 }
             } catch (Exception ignored) {
                 // The next scheduled check can retry network or process failures.
@@ -157,73 +188,134 @@ public final class ChatSyncJob extends JobService {
                         if (jobCore == core) jobCore = null;
                     }
                 }
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    if (active == this) {
-                        active = null;
-                        jobFinished(params, false);
-                    }
-                });
+                finished.accept(this);
             }
+        }
+
+        void receiveEvents(Rpc rpc, int account) throws Exception {
+            JSONArray events = (JSONArray) rpc.call("get_next_event_batch");
+            HashSet<Integer> incoming = new HashSet<>();
+            for (int i = 0; i < events.length(); i++) {
+                JSONObject entry = events.optJSONObject(i);
+                if (entry == null || entry.optInt("contextId") != account) continue;
+                JSONObject event = entry.optJSONObject("event");
+                if (event == null) continue;
+                switch (event.optString("kind")) {
+                    case "IncomingMsg":
+                        incoming.add(event.optInt("msgId"));
+                        break;
+                    case "IncomingCall":
+                        incoming.add(event.optInt("msg_id"));
+                        break;
+                    case "CallEnded":
+                    case "IncomingCallAccepted":
+                        int id = event.optInt("msg_id");
+                        if (id > 0) {
+                            ChatAlerts.dismissIncoming(context, id);
+                            incoming.add(id);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+            incoming.remove(0);
+            if (!incoming.isEmpty()) notifyMessages(rpc, account, new ArrayList<>(incoming));
         }
 
         void notifyFresh(Rpc rpc, int account) throws Exception {
             JSONArray ids = (JSONArray) rpc.call("get_fresh_msgs", account);
-            HashSet<Integer> notified = new HashSet<>();
-            for (int offset = 0; offset < ids.length(); offset += 40) {
+            var fresh = new ArrayList<Integer>();
+            for (int i = 0; i < ids.length(); i++) fresh.add(ids.getInt(i));
+            notifyMessages(rpc, account, fresh);
+        }
+
+        void notifyMessages(Rpc rpc, int account, ArrayList<Integer> ids) throws Exception {
+            ids.sort(Comparator.reverseOrder());
+            HashSet<String> notified = new HashSet<>();
+            for (int offset = 0; offset < ids.size(); offset += 40) {
                 JSONArray batch = new JSONArray();
-                for (int i = offset; i < Math.min(offset + 40, ids.length()); i++) {
-                    batch.put(ids.getInt(i));
+                for (int i = offset; i < Math.min(offset + 40, ids.size()); i++) {
+                    batch.put(ids.get(i));
                 }
                 JSONObject messages = (JSONObject) rpc.call("get_messages", account, batch);
                 for (int i = 0; i < batch.length(); i++) {
                     int id = batch.getInt(i);
                     JSONObject msg = messages.optJSONObject(Integer.toString(id));
-                    if (msg == null || !"message".equals(msg.optString("kind"))
-                            || !msg.optBoolean("showPadlock") || msg.optInt("fromId") <= 1
-                            || msg.optInt("state") != 10) continue;
-                    int chat = msg.optInt("chatId");
-                    boolean call = "Call".equals(msg.optString("viewType"));
-                    if (chat <= 0 || (notified.contains(chat) && !call)
-                            || (msg.optBoolean("isInfo") && !call)) continue;
-                    JSONObject info = (JSONObject) rpc.call("get_full_chat_by_id", account, chat);
-                    if (!"Single".equals(info.optString("chatType")) || !info.optBoolean("isEncrypted")
-                            || info.optBoolean("isSelfTalk") || info.optBoolean("isDeviceChat")
-                            || info.optBoolean("isMuted") || info.optBoolean("isContactRequest")) continue;
-                    if (call) {
-                        JSONObject details = (JSONObject) rpc.call("call_info", account, id);
-                        String state = details.getJSONObject("state").optString("kind");
-                        if (!info.optBoolean("canSend")) continue;
-                        if ("Alerting".equals(state)) {
-                            long secondsLeft = Math.min(120, msg.optLong("timestamp") + 120
-                                - System.currentTimeMillis() / 1000);
-                            if ("2".equals(rpc.call("get_config", account, "who_can_call_me"))) continue;
-                            synchronized (OWNER) {
-                                if (stopped || appOwnsCore) return;
-                                ChatAlerts.incoming(ChatSyncJob.this, chat, id, secondsLeft);
-                            }
-                            continue;
-                        }
-                        if (!"Missed".equals(state) || notified.contains(chat)) continue;
-                    }
-                    synchronized (OWNER) {
-                        if (stopped || appOwnsCore) return;
-                        String text = msg.optString("text");
-                        String kind = call ? "calls" : text.startsWith("ZOMPADO_MATCH_V1 ") ? "invites" : "messages";
-                        if (!ChatAlerts.allowed(ChatSyncJob.this, kind)) continue;
-                        String title = call ? "Missed Zompado call" : "New friend activity";
-                        if ("invites".equals(kind)) {
-                            try {
-                                String type = new JSONObject(text.substring("ZOMPADO_MATCH_V1 ".length())).optString("type");
-                                if ("invite".equals(type)) title = "New game invitation";
-                                if ("pause".equals(type) || "resume".equals(type)) continue;
-                            } catch (org.json.JSONException ignored) {
-                                // Unknown payloads keep the generic alert title.
-                            }
-                        }
-                        if (ChatAlerts.post(ChatSyncJob.this, chat, id, title, kind)) notified.add(chat);
+                    try {
+                        notifyMessage(rpc, account, id, msg, notified);
+                    } catch (RpcError stale) {
+                        // A deleted message or chat should not block the rest of the batch.
                     }
                 }
             }
+        }
+
+        private void notifyMessage(Rpc rpc, int account, int id, JSONObject msg,
+                HashSet<String> notified) throws Exception {
+            if (msg == null || !"message".equals(msg.optString("kind"))
+                    || !msg.optBoolean("showPadlock") || msg.optInt("fromId") <= 1) return;
+            int chat = msg.optInt("chatId");
+            boolean call = "Call".equals(msg.optString("viewType"));
+            if (chat <= 0 || (!call && (msg.optBoolean("isInfo")
+                    || msg.optInt("state") != 10))) return;
+            JSONObject info = (JSONObject) rpc.call("get_full_chat_by_id", account, chat);
+            if (!"Single".equals(info.optString("chatType")) || !info.optBoolean("isEncrypted")
+                    || info.optBoolean("isSelfTalk") || info.optBoolean("isDeviceChat")
+                    || info.optBoolean("isMuted") || info.optBoolean("isContactRequest")) return;
+            if (call) {
+                JSONObject details = (JSONObject) rpc.call("call_info", account, id);
+                String state = details.getJSONObject("state").optString("kind");
+                if (!info.optBoolean("canSend")) return;
+                if ("Alerting".equals(state)) {
+                    long secondsLeft = Math.min(120, msg.optLong("timestamp") + 120
+                        - System.currentTimeMillis() / 1000);
+                    if ("2".equals(rpc.call("get_config", account, "who_can_call_me"))) return;
+                    synchronized (OWNER) {
+                        if (stopped || appOwnsCore) return;
+                        ChatAlerts.incoming(context, chat, id, secondsLeft);
+                    }
+                    return;
+                }
+                ChatAlerts.dismissIncoming(context, id);
+                if (!"Missed".equals(state)) return;
+            }
+            synchronized (OWNER) {
+                if (stopped || appOwnsCore) return;
+                String text = msg.optString("text");
+                String kind = call ? "calls" : text.startsWith("ZOMPADO_MATCH_V1 ") ? "invites" : "messages";
+                String title = call ? "Missed Zompado call" : "New message";
+                if ("invites".equals(kind)) {
+                    try {
+                        JSONObject event = new JSONObject(text.substring("ZOMPADO_MATCH_V1 ".length()));
+                        String type = event.optString("type");
+                        title = switch (type) {
+                            case "invite" -> "New game invitation";
+                            case "accept" -> "Your friend is ready to play";
+                            case "decline" -> "Game invitation declined";
+                            case "quit" -> "Your friend ended the match";
+                            case "move", "next" -> "New game activity";
+                            case "resume" -> event.optInt("rev") == 1 ? "Your game is ready" : null;
+                            default -> null;
+                        };
+                        if (title == null) return;
+                        if (!"invite".equals(type)) kind = "gameActivity";
+                    } catch (org.json.JSONException ignored) {
+                        kind = "messages";
+                    }
+                }
+                String key = chat + ":" + kind;
+                if (notified.contains(key)) return;
+                if (ChatAlerts.post(context, chat, id, title, kind)) notified.add(key);
+            }
+        }
+    }
+
+    private static final class RpcError extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        RpcError() {
+            super("Chatmail request failed.");
         }
     }
 
@@ -249,9 +341,10 @@ public final class ChatSyncJob extends JobService {
             String line = reader.readLine();
             if (line == null) throw new IOException("Chatmail stopped.");
             JSONObject response = new JSONObject(line);
-            if (response.optInt("id") != id || response.has("error")) {
-                throw new IOException("Chatmail request failed.");
+            if (response.optInt("id") != id) {
+                throw new IOException("Chatmail response did not match the request.");
             }
+            if (response.has("error")) throw new RpcError();
             return response.get("result");
         }
 

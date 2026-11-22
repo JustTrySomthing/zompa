@@ -1057,7 +1057,10 @@ class _FriendConversationState extends State<FriendConversation>
   bool _fetchAgain = false;
   bool _sending = false;
   bool _pickingGame = false;
-  int _limit = 60;
+  static const _messagePageSize = 60;
+  int _limit = _messagePageSize;
+  DateTime? _olderRetryAfter;
+  bool _olderCheckScheduled = false;
   String? _loadError;
   String? _sendError;
 
@@ -1105,27 +1108,107 @@ class _FriendConversationState extends State<FriendConversation>
         _thread = thread;
         _loadError = null;
       });
-      if (!_showMedia &&
-          ModalRoute.of(context)?.isCurrent == true &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        await widget.chatmail.markSeen([
-          for (final message in thread.messages)
-            if (!message.outgoing &&
-                message.state == 10 &&
-                (widget.onClose == null ||
-                    !message.encrypted ||
-                    MatchEvent.parse(message.text) == null))
-              message.id,
-        ]);
-      }
+      await _markSeen(thread.messages);
     } catch (error) {
       if (mounted) setState(() => _loadError = _failure(error));
     } finally {
-      _fetching = false;
-      if (_fetchAgain) {
-        _fetchAgain = false;
-        unawaited(_load());
+      _finishFetch();
+    }
+  }
+
+  Future<void> _markSeen(List<FriendMessage> messages) async {
+    if (_showMedia ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    await widget.chatmail.markSeen([
+      for (final message in messages)
+        if (!message.outgoing &&
+            message.state == 10 &&
+            (widget.onClose == null ||
+                !message.encrypted ||
+                MatchEvent.parse(message.text) == null))
+          message.id,
+    ]);
+  }
+
+  void _finishFetch() {
+    _fetching = false;
+    if (!mounted) return;
+    if (_fetchAgain) {
+      _fetchAgain = false;
+      unawaited(_load());
+    } else {
+      _scheduleOlderCheck();
+    }
+  }
+
+  void _scheduleOlderCheck() {
+    if (_olderCheckScheduled || _thread?.hasOlder != true) return;
+    _olderCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _olderCheckScheduled = false;
+      if (mounted) unawaited(_loadOlder());
+    });
+  }
+
+  Future<void> _loadOlder() async {
+    final thread = _thread;
+    if (_fetching ||
+        _loadError != null ||
+        thread?.hasOlder != true ||
+        _showMedia ||
+        _conversationSearch.text.trim().isNotEmpty ||
+        !_scroll.hasClients) {
+      return;
+    }
+    final position = _scroll.position;
+    if (!position.hasContentDimensions || position.extentAfter > 320) return;
+    if (_olderRetryAfter case final retry?
+        when DateTime.now().isBefore(retry)) {
+      return;
+    }
+    final before = thread!.oldestMessageId ?? thread.messages.firstOrNull?.id;
+    if (before == null) return;
+
+    _fetching = true;
+    try {
+      final page = await widget.chatmail.olderThreadMessages(
+        widget.id,
+        before: before,
+        limit: _messagePageSize,
+      );
+      if (!mounted) return;
+      if (page == null) {
+        // The anchor was deleted after the last refresh.
+        _olderRetryAfter = DateTime.now().add(const Duration(seconds: 3));
+        _fetchAgain = true;
+        return;
       }
+      final loadedIds = thread.messages.map((message) => message.id).toSet();
+      setState(() {
+        _limit += page.count;
+        _thread = FriendThread(
+          thread.name,
+          thread.canSend,
+          [
+            for (final message in page.messages)
+              if (loadedIds.add(message.id)) message,
+            ...thread.messages,
+          ],
+          page.hasOlder,
+          photo: thread.photo,
+          oldestMessageId: page.oldestMessageId ?? before,
+        );
+        _olderRetryAfter = null;
+      });
+      await _markSeen(page.messages);
+    } catch (_) {
+      // A history fetch should never replace or move an open conversation.
+      _olderRetryAfter = DateTime.now().add(const Duration(seconds: 3));
+    } finally {
+      _finishFetch();
     }
   }
 
@@ -1133,6 +1216,10 @@ class _FriendConversationState extends State<FriendConversation>
     if (!_scroll.hasClients) return;
     final away = _scroll.offset > 80;
     if (away != _awayFromLatest) setState(() => _awayFromLatest = away);
+    if (_scroll.position.hasContentDimensions &&
+        _scroll.position.extentAfter <= 320) {
+      unawaited(_loadOlder());
+    }
   }
 
   void _latest() {
@@ -1240,13 +1327,14 @@ class _FriendConversationState extends State<FriendConversation>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  author,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onSurface,
+                if (widget.onClose == null)
+                  Text(
+                    author,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
                 if (time.isNotEmpty)
                   Text(
                     time,
@@ -1541,44 +1629,6 @@ class _FriendConversationState extends State<FriendConversation>
       }
     }
     final docked = widget.onClose != null;
-    final voice = VoiceScope.of(context);
-    final name = thread?.name ?? widget.initialName;
-    final query = _conversationSearch.text.trim();
-    final search = Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-      child: ChatSearchField(
-        label: _showMedia ? 'Search media' : 'Search messages',
-        controller: _conversationSearch,
-        focusNode: _searchFocus,
-        onChanged: (_) => setState(() {}),
-      ),
-    );
-    final appBar = docked
-        ? AppBar(
-            automaticallyImplyLeading: false,
-            primary: false,
-            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          )
-        : chatPageBar(
-            context,
-            name,
-            fitTitle: false,
-            firstActions: [
-              if (voice != null)
-                IconButton(
-                  tooltip: 'Voice call',
-                  icon: const Icon(Icons.call_outlined),
-                  onPressed: voice.busy || thread?.canSend != true
-                      ? null
-                      : () => voice.openDialer(
-                          context,
-                          widget.id,
-                          thread!.name,
-                          photo: thread.photo,
-                        ),
-                ),
-            ],
-          );
     final composerFontSize =
         Theme.of(context).textTheme.bodyLarge?.fontSize ?? 16.0;
     final composerLineHeight =
@@ -1602,7 +1652,7 @@ class _FriendConversationState extends State<FriendConversation>
           : _pickingGame || _sending
           ? null
           : _inviteMatch;
-      return Column(
+      final conversation = Column(
         children: [
           if (_loadError case final error?)
             ListTile(
@@ -1643,17 +1693,8 @@ class _FriendConversationState extends State<FriendConversation>
                           12,
                           docked ? 8 : 60,
                         ),
-                        itemCount: visible.length + (thread.hasOlder ? 1 : 0),
+                        itemCount: visible.length,
                         itemBuilder: (context, index) {
-                          if (index == visible.length) {
-                            return TextButton(
-                              onPressed: () {
-                                _limit += 60;
-                                _load();
-                              },
-                              child: const Text('Load older messages'),
-                            );
-                          }
                           final message = visible[visible.length - index - 1];
                           final text = message.text.isEmpty
                               ? 'Attachment'
@@ -1724,11 +1765,12 @@ class _FriendConversationState extends State<FriendConversation>
                                             Wrap(
                                               spacing: 8,
                                               children: [
-                                                TextButton(
-                                                  style: TextButton.styleFrom(
-                                                    foregroundColor:
-                                                        bubbleColors.error,
-                                                  ),
+                                                OutlinedButton(
+                                                  style:
+                                                      OutlinedButton.styleFrom(
+                                                        foregroundColor:
+                                                            bubbleColors.error,
+                                                      ),
                                                   onPressed: _sending
                                                       ? null
                                                       : () => _send(
@@ -1798,46 +1840,25 @@ class _FriendConversationState extends State<FriendConversation>
                                               bold: true,
                                             ),
                                           if (message.viewType == 'Call')
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 5,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                border: Border.all(
-                                                  color: message.unansweredCall
-                                                      ? bubbleColors.error
-                                                      : bubbleColors.outline,
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.call_outlined,
+                                                  size: 15,
+                                                  color: bubbleColors.onSurface,
                                                 ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.call_outlined,
-                                                    size: 15,
-                                                    color:
-                                                        message.unansweredCall
-                                                        ? bubbleColors.error
-                                                        : bubbleColors
-                                                              .onSurface,
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: MessageBody(
+                                                    text,
+                                                    size: (messageTextSize - 1)
+                                                        .clamp(
+                                                          12.0,
+                                                          maxMessageTextSize,
+                                                        ),
                                                   ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: MessageBody(
-                                                      text,
-                                                      size:
-                                                          (messageTextSize - 1)
-                                                              .clamp(
-                                                                12.0,
-                                                                maxMessageTextSize,
-                                                              ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
+                                                ),
+                                              ],
                                             )
                                           else if (message.bubbleCaption
                                               .trim()
@@ -1965,15 +1986,63 @@ class _FriendConversationState extends State<FriendConversation>
             ),
         ],
       );
+      return NotificationListener<ScrollMetricsNotification>(
+        onNotification: (notification) {
+          if (notification.depth == 0) unawaited(_loadOlder());
+          return false;
+        },
+        child: conversation,
+      );
     }
 
+    if (docked) {
+      return Material(
+        elevation: 12,
+        child: SafeArea(
+          top: false,
+          child: LayoutBuilder(builder: (_, box) => content(box.maxHeight)),
+        ),
+      );
+    }
+
+    final voice = VoiceScope.of(context);
+    final name = thread?.name ?? widget.initialName;
+    final query = _conversationSearch.text.trim();
+    final search = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+      child: ChatSearchField(
+        label: _showMedia ? 'Search media' : 'Search messages',
+        controller: _conversationSearch,
+        focusNode: _searchFocus,
+        onChanged: (_) => setState(() {}),
+      ),
+    );
+    final appBar = chatPageBar(
+      context,
+      name,
+      fitTitle: false,
+      firstActions: [
+        if (voice != null)
+          IconButton(
+            tooltip: 'Voice call',
+            icon: const Icon(Icons.call_outlined),
+            onPressed: voice.busy || thread?.canSend != true
+                ? null
+                : () => voice.openDialer(
+                    context,
+                    widget.id,
+                    thread!.name,
+                    photo: thread.photo,
+                  ),
+          ),
+      ],
+    );
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final body = SafeArea(
       top: false,
       child: LayoutBuilder(
         builder: (context, box) {
-          final showTabs =
-              !docked && (!keyboardVisible || box.maxHeight >= 160);
+          final showTabs = !keyboardVisible || box.maxHeight >= 160;
           final showSearch =
               !keyboardVisible ||
               _searchFocus.hasFocus ||
@@ -2062,15 +2131,10 @@ class _FriendConversationState extends State<FriendConversation>
         },
       ),
     );
-    if (!docked) return Scaffold(appBar: appBar, body: body);
-    return Material(
-      elevation: 12,
-      child: Column(
-        children: [
-          appBar,
-          Expanded(child: body),
-        ],
-      ),
+    return ChatAlertView(
+      chat: widget.id,
+      viewing: !_showMedia && query.isEmpty,
+      child: Scaffold(appBar: appBar, body: body),
     );
   }
 }

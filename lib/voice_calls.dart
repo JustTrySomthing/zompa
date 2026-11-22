@@ -238,6 +238,8 @@ class VoiceCalls extends ChangeNotifier {
         _ended.add(id);
         if (call != null && call.message == id && call.chat == chat) {
           _end(call, signal: false);
+        } else {
+          unawaited(_native('dismissIncomingCall', {'message': id}));
         }
     }
   }
@@ -245,17 +247,21 @@ class VoiceCalls extends ChangeNotifier {
   Future<void> restoreIncoming(int chat, int id) =>
       _incoming(chat, id, fromNotification: true);
 
+  Future<void> recoverIncoming(int chat, int id) =>
+      _incoming(chat, id, recovering: true);
+
   Future<void> _incoming(
     int chat,
     int id, {
     bool fromNotification = false,
+    bool recovering = false,
   }) async {
     try {
       if (fromNotification && !await _chatmail.restore()) return;
       final offer = await _chatmail.incomingVoiceCall(
         chat,
         id,
-        fromNotification: fromNotification,
+        fromNotification: fromNotification || recovering,
       );
       if (_disposed ||
           offer == null ||
