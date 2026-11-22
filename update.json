@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "version": "0.5.31",
-  "build": 40,
+  "version": "0.5.32",
+  "build": 41,
   "abi": "arm64-v8a",
-  "url": "https://github.com/JustTrySomthing/zompado/releases/download/v0.5.31/Zompado-ARM64.apk",
-  "sha256": "31a67305fb5db050d2eefd136bd3c07f8e23c723b8dbd5357efb48fb32d7d6c9",
-  "size": 29160678
+  "url": "https://github.com/JustTrySomthing/zompado/releases/download/v0.5.32/Zompado-ARM64.apk",
+  "sha256": "f4ea9ba39cc457be5476bd280d0ff20072f76d8818815e4f06344d87a19e6aa4",
+  "size": 29164774
 }
