@@ -91,9 +91,18 @@ def has_center_token():
     return warm_pixels > patch.width * patch.height // 8
 
 
+def setup_visible():
+    # A cold CI emulator can put a launcher ANR in front of the app.
+    if find("Pixel Launcher isn't responding"):
+        if close := find("Close app"):
+            tap(*close)
+        return None
+    return find("Setup")
+
+
 def main():
     adb("shell", "am", "start", "-n", ACTIVITY)
-    wait("Setup", lambda: find("Setup"))
+    wait("Setup", setup_visible, seconds=75)
     for _ in range(4):
         if find("Allow camera"):
             break
@@ -123,6 +132,7 @@ def main():
     time.sleep(3)
     adb("shell", "am", "force-stop", APP)
     adb("shell", "am", "start", "-n", ACTIVITY)
+    press("Games")
     press("Active Games")
     press("Pass & Play")
     wait("the restored token", has_center_token, seconds=50)
