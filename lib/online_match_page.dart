@@ -1,10 +1,9 @@
-import 'chat_chrome.dart';
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import 'brand.dart';
+import 'chat_chrome.dart';
 import 'chatmail.dart';
 import 'dialog_actions.dart';
 import 'game_link.dart';
@@ -60,6 +59,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   Timer? _messageTimer;
   int _latestMessage = 0;
   String? _messagePreview;
+  String? _incomingRematch;
+  int _rematchMessage = 0;
 
   Timer? _turnTimer;
   int? _displayTurn;
@@ -102,20 +103,40 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   }
 
   Future<void> _previewMessage(int chat, int id) async {
-    if (chat != widget.chat || !_boardOpen || _chatOpen) return;
+    if (chat != widget.chat ||
+        !_boardOpen ||
+        (_chatOpen && _match?.boardComplete != true) ||
+        ModalRoute.of(context)?.isCurrent != true)
+      return;
     try {
-      final target = await widget.chatmail.notificationMessage(chat, id);
+      // Live game previews are separate from Android notification delivery.
+      final target = await widget.chatmail.notificationMessage(
+        chat,
+        id,
+        forDelivery: false,
+      );
       if (!mounted ||
-          _chatOpen ||
           !_boardOpen ||
-          target == null ||
-          id <= _latestMessage)
+          ModalRoute.of(context)?.isCurrent != true ||
+          target == null)
         return;
       final message = target.message;
-      if (message.info ||
-          message.viewType == 'Call' ||
-          MatchEvent.parse(message.text) != null)
+      if (message.info || message.viewType == 'Call') return;
+      if (MatchEvent.parse(message.text) case final event?) {
+        final match = _match!;
+        if (event.kind == 'invite' &&
+            match.boardComplete &&
+            event.id != match.invite.id &&
+            event.game?.id == match.invite.game?.id &&
+            id > _rematchMessage) {
+          setState(() {
+            _incomingRematch = event.id;
+            _rematchMessage = id;
+          });
+        }
         return;
+      }
+      if (_chatOpen || id <= _latestMessage) return;
       final text = message.text.trim().replaceAll(RegExp(r'\s+'), ' ');
       final mime = message.mime ?? '';
       final kind = switch (message.viewType) {
@@ -147,6 +168,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       final sender = name != null && name.isNotEmpty ? name : target.name;
       _messageTimer?.cancel();
       setState(() {
+        _chatUnread = true;
         _messagePreview = kind == null
             ? '$sender: $text'
             : '$sender shared $kind';
@@ -240,12 +262,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       if (mounted) {
         final match = OnlineMatch.replay(widget.id, records);
         setState(() {
-          _syncTurn(match);
-          _match = match;
-          if (match?.started == true && match?.conflict == false) {
-            _playing = true;
+          if (match != null) {
+            _syncTurn(match);
+            _match = match;
+            if (match.started && !match.conflict) _playing = true;
           }
-          _error = _match == null
+          _error = match == null
               ? 'The match invitation is unavailable.'
               : null;
         });
@@ -314,9 +336,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       );
       await _load();
       if (mounted && moved != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
       }
     } on MatchInviteExpired {
       await _load();
@@ -365,20 +386,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     });
     try {
       if (!mounted) return;
-      final event = MatchEvent.parse(message);
-      if (event?.kind == 'invite') {
-        final moved = await widget.chatmail.sendMatchOpening(
-          widget.chat,
-          event!,
-        );
-        if (mounted && moved != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
-        }
-      } else {
-        await widget.chatmail.send(widget.chat, message);
-      }
+      await widget.chatmail.send(widget.chat, message);
       await _load();
     } on MatchInviteExpired {
       await _load();
@@ -394,6 +402,49 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Future<void> _rematch(OnlineMatch match) async {
+    if (_sending) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    final invitation = MatchEvent.invite(match.invite.game!);
+    try {
+      final moved = await widget.chatmail.sendMatchOpening(
+        widget.chat,
+        invitation,
+      );
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (moved != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+      }
+      _openRematch(invitation.id);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Couldn’t send a rematch invite. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _openRematch(String id, {bool accept = false}) {
+    Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute(
+        builder: (_) => OnlineMatchPage(
+          chatmail: widget.chatmail,
+          chat: widget.chat,
+          id: id,
+          prepareGame: widget.prepareGame,
+          buildChatDock: widget.buildChatDock,
+          friendName: widget.friendName,
+          acceptOnOpen: accept,
+        ),
+      ),
+    );
   }
 
   Future<void> _openBoard(GameLink link) async {
@@ -459,15 +510,27 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   Widget _turnHeading(BuildContext context, OnlineMatch match) {
     final theme = Theme.of(context);
-    if (match.finished ||
+    final nameStyle = theme.textTheme.titleLarge!.copyWith(height: 1.2);
+    final turnStyle = theme.textTheme.titleMedium!.copyWith(height: 1.2);
+    final nameStrut = StrutStyle.fromTextStyle(
+      nameStyle,
+      forceStrutHeight: true,
+    );
+    final turnStrut = StrutStyle.fromTextStyle(
+      turnStyle,
+      forceStrutHeight: true,
+    );
+    final scale = MediaQuery.textScalerOf(context);
+    // Keep the board in place when the player label changes to a status message.
+    final height =
+        (scale.scale(nameStyle.fontSize!) + scale.scale(turnStyle.fontSize!)) *
+            1.2 +
+        16;
+    final statusOnly =
+        match.finished ||
         match.paused ||
-        match.pending != null ||
-        match.conflict) {
-      return Padding(
-        padding: const EdgeInsets.all(8),
-        child: Text(match.status, style: theme.textTheme.titleMedium),
-      );
-    }
+        (match.pending != null && _displayTurn == null) ||
+        match.conflict;
     final side = _displayTurn ?? match.board.turn;
     final yours = (side == 1) == match.mine;
     final name = yours ? _myName : widget.friendName ?? 'Your friend';
@@ -477,44 +540,118 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       (false, 1) => '🟡',
       (false, _) => '🟣',
     };
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      child: Semantics(
-        liveRegion: true,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ExcludeSemantics(
-                  child: Text(piece, style: const TextStyle(fontSize: 24)),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
+    return SizedBox(
+      height: height,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Semantics(
+          liveRegion: true,
+          child: statusOnly
+              ? Center(
                   child: Text(
-                    name,
-                    maxLines: 1,
+                    match.status,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleLarge,
+                    style: turnStyle,
+                    strutStyle: turnStrut,
                   ),
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ExcludeSemantics(
+                          child: SizedBox(
+                            width: scale.scale(nameStyle.fontSize!),
+                            height: scale.scale(nameStyle.fontSize!) * 1.2,
+                            child: FittedBox(
+                              fit: BoxFit.contain,
+                              child: Text(piece, style: nameStyle),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: nameStyle,
+                            strutStyle: nameStrut,
+                          ),
+                        ),
+                      ],
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        yours ? 'Your Turn' : 'Their Turn',
+                        strutStyle: turnStrut,
+                        maxLines: 1,
+                        style: turnStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: yours
+                              ? ZompadoBrand.actionInk(theme.colorScheme)
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            Text(
-              yours ? 'Your Turn' : 'Their Turn',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: yours
-                    ? ZompadoBrand.actionInk(theme.colorScheme)
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
+
+  Widget _finishedActions(OnlineMatch match) => Center(
+    child: Card(
+      margin: const EdgeInsets.all(16),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_error case final error?)
+              Text(error, textAlign: TextAlign.center),
+            if (_incomingRematch != null)
+              const Text(
+                'Your friend invited you to play again.',
+                textAlign: TextAlign.center,
+              ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: _sending ? null : () => Navigator.pop(context),
+                  child: const Text('Quit'),
+                ),
+                FilledButton(
+                  onPressed: _sending
+                      ? null
+                      : () {
+                          if (_incomingRematch case final id?) {
+                            _openRematch(id, accept: true);
+                          } else {
+                            _rematch(match);
+                          }
+                        },
+                  child: Text(
+                    _incomingRematch == null
+                        ? 'Play another match'
+                        : 'Accept rematch',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -522,6 +659,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     final pendingAction = MatchEvent.parse(match?.pending?.text ?? '');
     final pendingControl = pendingAction?.revision != null;
     final pendingQuit = pendingAction?.kind == 'quit';
+    final showResult =
+        match != null &&
+        match.boardComplete &&
+        match.pending == null &&
+        _displayTurn == null;
     return PopScope(
       canPop: !_chatOpen,
       onPopInvokedWithResult: (didPop, _) {
@@ -619,7 +761,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                   ),
                                 ],
                               ),
-                              if (match.paused ||
+                              if (showResult)
+                                _finishedActions(match)
+                              else if (match.paused ||
                                   pendingControl ||
                                   _error != null ||
                                   (match.pending?.state == 24 && !_sending))
@@ -653,7 +797,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               child: const Text('Retry send'),
                                             ),
                                           if ((match.paused ||
-                                                  pendingAction?.kind == 'pause') &&
+                                                  pendingAction?.kind ==
+                                                      'pause') &&
                                               !match.finished &&
                                               !pendingQuit)
                                             TextButton(
@@ -803,7 +948,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                   child: Center(
                                     child: DecoratedBox(
                                       decoration: BoxDecoration(
-                                        color: const Color(0xe61b1c20),
+                                        color: const Color(0xda1b1c20),
                                         borderRadius: BorderRadius.circular(14),
                                       ),
                                       child: Padding(

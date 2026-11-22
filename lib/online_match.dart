@@ -358,8 +358,8 @@ class OnlineMatch {
   bool conflict = false;
   FriendMessage? pending;
 
-  bool get finished =>
-      expired || declined || quit || board.winner != 0 || board.full;
+  bool get boardComplete => board.winner != 0 || board.full;
+  bool get finished => expired || declined || quit || boardComplete;
   bool get active =>
       !finished || (pending != null && !expired && !declined && !quit);
   bool get myTurn =>
@@ -378,6 +378,10 @@ class OnlineMatch {
     if (pending?.state == 20) return 'Sending match update…';
     if (pending?.state == 24) return 'Couldn’t send this match update.';
     if (declined) return 'Invitation declined.';
+    if (board.winner != 0) {
+      return (board.winner == 1) == mine ? 'You won!' : 'Your friend won.';
+    }
+    if (board.full) return 'Draw.';
     if (pausedByMe) return 'You paused the game.';
     if (pausedByFriend) return 'Your friend paused the game.';
     if (!accepted && preparing) return 'Getting the game ready…';
@@ -386,10 +390,6 @@ class OnlineMatch {
           ? 'Waiting for your friend to accept.'
           : 'Your friend invited you to a match.';
     }
-    if (board.winner != 0) {
-      return (board.winner == 1) == mine ? 'You won!' : 'Your friend won.';
-    }
-    if (board.full) return 'Draw.';
     if (!started) {
       return mine ? 'Ready to start.' : 'Waiting for your friend to start.';
     }
