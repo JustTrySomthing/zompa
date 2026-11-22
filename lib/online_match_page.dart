@@ -104,8 +104,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   Future<void> _previewMessage(int chat, int id) async {
     if (chat != widget.chat ||
-        !_boardOpen ||
-        (_chatOpen && _match?.boardComplete != true) ||
+        (!_boardOpen && _match?.boardComplete != true) ||
         ModalRoute.of(context)?.isCurrent != true)
       return;
     try {
@@ -116,7 +115,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         forDelivery: false,
       );
       if (!mounted ||
-          !_boardOpen ||
+          (!_boardOpen && _match?.boardComplete != true) ||
           ModalRoute.of(context)?.isCurrent != true ||
           target == null)
         return;
@@ -125,9 +124,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       if (MatchEvent.parse(message.text) case final event?) {
         final match = _match!;
         if (event.kind == 'invite' &&
-            match.boardComplete &&
-            event.id != match.invite.id &&
-            event.game?.id == match.invite.game?.id &&
+            event.rematchOf == match.invite.id &&
+            event.game.toString() == match.invite.game.toString() &&
             id > _rematchMessage) {
           setState(() {
             _incomingRematch = event.id;
@@ -136,7 +134,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         }
         return;
       }
-      if (_chatOpen || id <= _latestMessage) return;
+      if (!_boardOpen || _chatOpen || id <= _latestMessage) return;
       final text = message.text.trim().replaceAll(RegExp(r'\s+'), ' ');
       final mime = message.mime ?? '';
       final kind = switch (message.viewType) {
@@ -271,7 +269,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               ? 'The match invitation is unavailable.'
               : null;
         });
-        if (match != null && match.active) {
+        if (match != null && match.active && !match.conflict) {
           if (widget.acceptOnOpen &&
               !_acceptedFromChat &&
               !match.mine &&
@@ -349,7 +347,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     }
   }
 
-  Future<void> _quit(OnlineMatch match) async {
+  Future<void> _quit() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
@@ -369,8 +367,10 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         ],
       ),
     );
-    if (!mounted || confirmed != true || _match?.finished != false) return;
-    await _send(match.invite.control('quit', match.nextRevision).wire);
+    final current = _match;
+    if (!mounted || confirmed != true || current == null || current.finished)
+      return;
+    await _send(current.invite.control('quit', current.nextRevision).wire);
     if (mounted &&
         _match?.quit == true &&
         ModalRoute.of(context)?.isCurrent == true) {
@@ -386,7 +386,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     });
     try {
       if (!mounted) return;
-      await widget.chatmail.send(widget.chat, message);
+      if (MatchEvent.parse(message) case final event?
+          when event.kind == 'invite') {
+        await _sendInvitation(event);
+      } else {
+        await widget.chatmail.send(widget.chat, message);
+      }
       await _load();
     } on MatchInviteExpired {
       await _load();
@@ -410,17 +415,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _sending = true;
       _error = null;
     });
-    final invitation = MatchEvent.invite(match.invite.game!);
+    final invitation = MatchEvent.invite(
+      match.invite.game!,
+      rematchOf: match.invite.id,
+    );
     try {
-      final moved = await widget.chatmail.sendMatchOpening(
-        widget.chat,
-        invitation,
-      );
+      await _sendInvitation(invitation);
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-      if (moved != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
-      }
       _openRematch(invitation.id);
     } catch (_) {
       if (mounted) {
@@ -428,6 +429,17 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       }
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _sendInvitation(MatchEvent invitation) async {
+    final moved = await widget.chatmail.sendMatchOpening(
+      widget.chat,
+      invitation,
+    );
+    if (mounted && moved != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
     }
   }
 
@@ -611,46 +623,48 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       margin: const EdgeInsets.all(16),
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_error case final error?)
-              Text(error, textAlign: TextAlign.center),
-            if (_incomingRematch != null)
-              const Text(
-                'Your friend invited you to play again.',
-                textAlign: TextAlign.center,
-              ),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              children: [
-                TextButton(
-                  onPressed: _sending ? null : () => Navigator.pop(context),
-                  child: const Text('Quit'),
-                ),
-                FilledButton(
-                  onPressed: _sending
-                      ? null
-                      : () {
-                          if (_incomingRematch case final id?) {
-                            _openRematch(id, accept: true);
-                          } else {
-                            _rematch(match);
-                          }
-                        },
-                  child: Text(
-                    _incomingRematch == null
-                        ? 'Play another match'
-                        : 'Accept rematch',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+        child: _resultActions(match),
       ),
     ),
+  );
+
+  Widget _resultActions(OnlineMatch match) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (_boardOpen && _error != null)
+        Text(_error!, textAlign: TextAlign.center),
+      if (_incomingRematch != null)
+        const Text(
+          'Your friend invited you to play again.',
+          textAlign: TextAlign.center,
+        ),
+      Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        children: [
+          TextButton(
+            onPressed: _sending ? null : () => Navigator.pop(context),
+            child: const Text('Quit'),
+          ),
+          FilledButton(
+            onPressed: _sending
+                ? null
+                : () {
+                    if (_incomingRematch case final id?) {
+                      _openRematch(id, accept: true);
+                    } else {
+                      _rematch(match);
+                    }
+                  },
+            child: Text(
+              _incomingRematch == null
+                  ? 'Play another match'
+                  : 'Accept rematch',
+            ),
+          ),
+        ],
+      ),
+    ],
   );
 
   @override
@@ -750,7 +764,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                             ),
                                             game: _game!,
                                             mode: 'online',
-                                            paused: match.paused,
+                                            paused:
+                                                match.paused &&
+                                                !match.boardComplete,
                                             match:
                                                 '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}',
                                             onMove: _move,
@@ -804,7 +820,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                             TextButton(
                                               onPressed: _sending
                                                   ? null
-                                                  : () => _quit(match),
+                                                  : _quit,
                                               child: const Text('Quit game'),
                                             ),
                                         ],
@@ -840,6 +856,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               .textTheme
                                               .titleLarge,
                                         ),
+                                        if (showResult) _resultActions(match),
                                         if (match != null &&
                                             match.active &&
                                             !match.conflict) ...[

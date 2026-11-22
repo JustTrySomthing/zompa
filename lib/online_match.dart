@@ -235,21 +235,22 @@ class MatchEvent {
     this.previous,
     this.column,
     this.revision,
+    this.rematchOf,
   });
 
-  factory MatchEvent.invite(GameLink game) {
+  factory MatchEvent.invite(GameLink game, {String? rematchOf}) {
     final random = Random.secure();
     final id = List.generate(
       16,
       (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
     ).join();
-    return MatchEvent._(id, 'invite', game: game);
+    return MatchEvent._(id, 'invite', game: game, rematchOf: rematchOf);
   }
 
   final String id;
   final String kind;
   final GameLink? game;
-  final String? previous;
+  final String? previous, rematchOf;
   final int? column, revision;
 
   static bool supportsGame(GameRelease game) =>
@@ -266,7 +267,7 @@ class MatchEvent {
       MatchEvent._(id, 'move', previous: previous, column: column);
 
   String get wire =>
-      '$matchMarker${jsonEncode({'id': id, 'type': kind, if (game != null) 'game': game.toString(), if (previous != null) 'previous': previous, if (column != null) 'column': column, if (revision != null) 'rev': revision})}';
+      '$matchMarker${jsonEncode({'id': id, 'type': kind, if (game != null) 'game': game.toString(), if (rematchOf != null) 'rematchOf': rematchOf, if (previous != null) 'previous': previous, if (column != null) 'column': column, if (revision != null) 'rev': revision})}';
 
   static MatchEvent? parse(String text) {
     if (!text.startsWith(matchMarker) || text.length > 800) return null;
@@ -280,8 +281,20 @@ class MatchEvent {
           case 'invite':
             if (data['game'] case final String link) {
               final game = GameLink.parse(link);
-              if (game != null && _supportsGameId(game.id))
-                return MatchEvent._(id, 'invite', game: game);
+              if (game != null && _supportsGameId(game.id)) {
+                final rematchOf = data['rematchOf'];
+                return MatchEvent._(
+                  id,
+                  'invite',
+                  game: game,
+                  rematchOf:
+                      rematchOf is String &&
+                          rematchOf != id &&
+                          RegExp(r'^[a-f0-9]{32}$').hasMatch(rematchOf)
+                      ? rematchOf
+                      : null,
+                );
+              }
             }
           case 'accept':
           case 'preparing':
@@ -415,7 +428,8 @@ class OnlineMatch {
     if (invitations.any(
       (r) =>
           r.message.outgoing != match.mine ||
-          r.event.game.toString() != first.event.game.toString(),
+          r.event.game.toString() != first.event.game.toString() ||
+          r.event.rematchOf != first.event.rematchOf,
     )) {
       match.conflict = true;
     }
