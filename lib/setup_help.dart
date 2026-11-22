@@ -319,7 +319,7 @@ const _topics = [
       ),
       (
         'Can I talk to my friend while playing?',
-        'During an online match, tap the message button to open chat. Tap the bar at the bottom of the chat panel to close it. A dot and highlight on the message button show that you have an unread message. Tap the button to read or reply. Tap the phone to start a call. Use Return to game to keep talking while you play, then tap the phone again to reopen the call controls.',
+        'During an online match, tap the message button to open chat. Tap the bar at the bottom of the chat panel to close it. A dot and highlight on the message button show that you have an unread message. Tap the button to read or reply. Tap the phone to start a call. Use the Return to game button below the call status to keep talking while you play, then tap the phone again to reopen the call controls.',
       ),
     ],
   ),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -6,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
 import 'package:flutter/services.dart';
 
-import 'brand.dart';
 import 'app_log.dart';
 import 'chat_avatar.dart';
 import 'chatmail.dart';
@@ -637,6 +637,7 @@ class VoicePanel extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final incoming = call.phase == VoicePhase.incoming;
     final connected = call.phase == VoicePhase.connected;
+    final canReturnToGame = controller._visibleGames.isNotEmpty && !incoming;
     final remoteVisible = call.remoteCamera && !call.voiceOnly;
     final previewVisible = call.camera && call.selfPreview && !call.voiceOnly;
     final videoVisible = remoteVisible || (call.camera && !call.voiceOnly);
@@ -664,40 +665,91 @@ class VoicePanel extends StatelessWidget {
           color: remoteVisible ? Colors.black : colors.surface,
           child: SafeArea(
             child: LayoutBuilder(
-              builder: (context, constraints) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (remoteVisible || previewVisible) const _CallVideo(),
-                  if (!remoteVisible)
-                    Center(
-                      child: CircleAvatar(
-                        radius: 40,
-                        backgroundColor: colors.secondaryContainer,
-                        foregroundColor: colors.onSecondaryContainer,
-                        child: Icon(
-                          call.incomingVideo
-                              ? Icons.videocam_outlined
-                              : Icons.person_outline,
-                          size: 40,
+              builder: (context, constraints) {
+                final compactActions =
+                    canReturnToGame &&
+                    constraints.maxHeight < 320 &&
+                    constraints.maxWidth >= 340;
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (remoteVisible || previewVisible) const _CallVideo(),
+                    if (!remoteVisible)
+                      Center(
+                        child: CircleAvatar(
+                          radius: 40,
+                          backgroundColor: colors.secondaryContainer,
+                          foregroundColor: colors.onSecondaryContainer,
+                          child: Icon(
+                            call.incomingVideo
+                                ? Icons.videocam_outlined
+                                : Icons.person_outline,
+                            size: 40,
+                          ),
                         ),
                       ),
+                    Positioned(
+                      top: 10,
+                      left: 12,
+                      right: 12,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              status,
+                              textAlign: TextAlign.center,
+                              maxLines:
+                                  canReturnToGame && constraints.maxHeight < 500
+                                  ? 1
+                                  : 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: remoteVisible
+                                        ? Colors.white
+                                        : colors.onSurface,
+                                    shadows: remoteVisible
+                                        ? _videoControlShadows
+                                        : null,
+                                  ),
+                            ),
+                          ),
+                          if (canReturnToGame && !compactActions) ...[
+                            SizedBox(
+                              height:
+                                  constraints.maxHeight < 360 ||
+                                      constraints.maxWidth < 320
+                                  ? 12
+                                  : (constraints.maxHeight * .17).clamp(
+                                      24,
+                                      112,
+                                    ),
+                            ),
+                            _ReturnToGameButton(
+                              onPressed: controller._hideCall,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                  Positioned(
-                    top: 10,
-                    left: 12,
-                    right: 12,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            status,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
+                    Positioned(
+                      left: 4,
+                      right: 4,
+                      bottom: incoming || compactActions
+                          ? 4
+                          : _callActionInset(constraints.maxHeight),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (call.cameraError case final issue?)
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(
+                                issue,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
                                   color: remoteVisible
                                       ? Colors.white
                                       : colors.onSurface,
@@ -705,203 +757,221 @@ class VoicePanel extends StatelessWidget {
                                       ? _videoControlShadows
                                       : null,
                                 ),
-                          ),
-                        ),
-                        if (controller._visibleGames.isNotEmpty && !incoming)
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              foregroundColor: remoteVisible
-                                  ? Colors.white
-                                  : ZompadoBrand.actionInk(colors),
+                              ),
                             ),
-                            onPressed: controller._hideCall,
-                            child: const Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.sports_esports_outlined, size: 34),
-                                Text(
-                                  'Return to game',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                          if (connected || incoming)
+                            IconTheme.merge(
+                              data: IconThemeData(
+                                color: remoteVisible
+                                    ? Colors.white
+                                    : colors.onSurface,
+                                shadows: remoteVisible
+                                    ? _videoControlShadows
+                                    : null,
+                              ),
+                              child: DefaultTextStyle.merge(
+                                style: TextStyle(
+                                  color: remoteVisible
+                                      ? Colors.white
+                                      : colors.onSurface,
+                                  shadows: remoteVisible
+                                      ? _videoControlShadows
+                                      : null,
                                 ),
-                                Text('Call stays connected'),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    left: 4,
-                    right: 4,
-                    bottom: incoming
-                        ? 4
-                        : _callActionInset(constraints.maxHeight),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (call.cameraError case final issue?)
-                          Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Text(
-                              issue,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: remoteVisible
-                                    ? Colors.white
-                                    : colors.onSurface,
-                                shadows: remoteVisible
-                                    ? _videoControlShadows
-                                    : null,
-                              ),
-                            ),
-                          ),
-                        if (connected || incoming)
-                          IconTheme.merge(
-                            data: IconThemeData(
-                              color: remoteVisible
-                                  ? Colors.white
-                                  : colors.onSurface,
-                              shadows: remoteVisible
-                                  ? _videoControlShadows
-                                  : null,
-                            ),
-                            child: DefaultTextStyle.merge(
-                              style: TextStyle(
-                                color: remoteVisible
-                                    ? Colors.white
-                                    : colors.onSurface,
-                                shadows: remoteVisible
-                                    ? _videoControlShadows
-                                    : null,
-                              ),
-                              child: LayoutBuilder(
-                                builder: (context, box) {
-                                  final labelSize = MediaQuery.textScalerOf(
-                                    context,
-                                  ).scale(14);
-                                  final targetWidth = labelSize > 18
-                                      ? labelSize * 5
-                                      : (box.maxWidth / (incoming ? 2 : 4))
-                                            .clamp(48.0, 82.0);
-                                  final width = targetWidth
-                                      .clamp(0.0, box.maxWidth)
-                                      .toDouble();
-                                  return Wrap(
-                                    alignment: WrapAlignment.center,
-                                    runSpacing: 4,
-                                    children: [
-                                      if (connected) ...[
-                                        _VoiceButton(
-                                          width: width,
-                                          tooltip: call.muted
-                                              ? 'Unmute microphone'
-                                              : 'Mute microphone',
-                                          label: call.muted ? 'Unmute' : 'Mute',
-                                          onPressed: () => controller
-                                              .changeAudio(speaker: false),
-                                          icon: call.muted
-                                              ? Icons.mic_off
-                                              : Icons.mic_none,
-                                          selected: call.muted,
-                                        ),
-                                        _VoiceButton(
-                                          width: width,
-                                          tooltip: call.speaker
-                                              ? 'Turn off speaker'
-                                              : 'Turn on speaker',
-                                          label: 'Speaker',
-                                          onPressed: () => controller
-                                              .changeAudio(speaker: true),
-                                          icon: call.speaker
-                                              ? Icons.volume_up
-                                              : Icons.volume_down_outlined,
-                                          selected: call.speaker,
-                                        ),
-                                        if (call.canVideo ||
-                                            call.remoteCamera ||
-                                            call.camera)
+                                child: LayoutBuilder(
+                                  builder: (context, box) {
+                                    final labelSize = MediaQuery.textScalerOf(
+                                      context,
+                                    ).scale(14);
+                                    final targetWidth = labelSize > 18
+                                        ? labelSize * 5
+                                        : (box.maxWidth / (incoming ? 2 : 4))
+                                              .clamp(48.0, 82.0);
+                                    // Leave a separate row for Return to game on compact screens.
+                                    final columns = box.maxWidth >= 350 ? 4 : 2;
+                                    final maxWidth = canReturnToGame
+                                        ? (box.maxWidth / columns)
+                                              .floorToDouble()
+                                        : box.maxWidth;
+                                    final width = targetWidth
+                                        .clamp(0.0, maxWidth)
+                                        .toDouble();
+                                    return Wrap(
+                                      alignment: WrapAlignment.center,
+                                      runSpacing: 4,
+                                      children: [
+                                        if (connected) ...[
                                           _VoiceButton(
                                             width: width,
-                                            tooltip: videoVisible
-                                                ? 'Switch to audio'
-                                                : 'Switch to video',
-                                            label: videoVisible
-                                                ? 'Audio'
-                                                : 'Video',
-                                            onPressed: call.changingCamera
-                                                ? null
-                                                : controller.toggleVideoMode,
-                                            icon: videoVisible
-                                                ? Icons.call_outlined
-                                                : Icons.videocam_outlined,
+                                            tooltip: call.muted
+                                                ? 'Unmute microphone'
+                                                : 'Mute microphone',
+                                            label: call.muted
+                                                ? 'Unmute'
+                                                : 'Mute',
+                                            onPressed: () => controller
+                                                .changeAudio(speaker: false),
+                                            icon: call.muted
+                                                ? Icons.mic_off
+                                                : Icons.mic_none,
+                                            selected: call.muted,
                                           ),
-                                        if (videoVisible && call.camera)
                                           _VoiceButton(
                                             width: width,
-                                            tooltip: call.selfPreview
-                                                ? 'Hide preview'
-                                                : 'Show preview',
-                                            label: 'Preview',
-                                            onPressed:
-                                                controller.toggleSelfPreview,
-                                            icon: call.selfPreview
-                                                ? Icons.picture_in_picture_alt
-                                                : Icons
-                                                      .picture_in_picture_alt_outlined,
-                                            selected: call.selfPreview,
-                                          )
-                                        else if (remoteVisible && call.canVideo)
+                                            tooltip: call.speaker
+                                                ? 'Turn off speaker'
+                                                : 'Turn on speaker',
+                                            label: 'Speaker',
+                                            onPressed: () => controller
+                                                .changeAudio(speaker: true),
+                                            icon: call.speaker
+                                                ? Icons.volume_up
+                                                : Icons.volume_down_outlined,
+                                            selected: call.speaker,
+                                          ),
+                                          if (call.canVideo ||
+                                              call.remoteCamera ||
+                                              call.camera)
+                                            _VoiceButton(
+                                              width: width,
+                                              tooltip: videoVisible
+                                                  ? 'Switch to audio'
+                                                  : 'Switch to video',
+                                              label: videoVisible
+                                                  ? 'Audio'
+                                                  : 'Video',
+                                              onPressed: call.changingCamera
+                                                  ? null
+                                                  : controller.toggleVideoMode,
+                                              icon: videoVisible
+                                                  ? Icons.call_outlined
+                                                  : Icons.videocam_outlined,
+                                            ),
+                                          if (videoVisible && call.camera)
+                                            _VoiceButton(
+                                              width: width,
+                                              tooltip: call.selfPreview
+                                                  ? 'Hide preview'
+                                                  : 'Show preview',
+                                              label: 'Preview',
+                                              onPressed:
+                                                  controller.toggleSelfPreview,
+                                              icon: call.selfPreview
+                                                  ? Icons.picture_in_picture_alt
+                                                  : Icons
+                                                        .picture_in_picture_alt_outlined,
+                                              selected: call.selfPreview,
+                                            )
+                                          else if (remoteVisible &&
+                                              call.canVideo)
+                                            _VoiceButton(
+                                              width: width,
+                                              tooltip: 'Turn on camera',
+                                              label: 'Camera',
+                                              onPressed: call.changingCamera
+                                                  ? null
+                                                  : controller.changeCamera,
+                                              icon: Icons.videocam_outlined,
+                                            ),
+                                        ],
+                                        if (incoming)
                                           _VoiceButton(
                                             width: width,
-                                            tooltip: 'Turn on camera',
-                                            label: 'Camera',
-                                            onPressed: call.changingCamera
-                                                ? null
-                                                : controller.changeCamera,
-                                            icon: Icons.videocam_outlined,
+                                            tooltip: 'Decline',
+                                            label: 'Decline',
+                                            onPressed: controller.hangUp,
+                                            color: colors.error,
+                                            icon: Icons.call_end,
+                                          ),
+                                        if (incoming)
+                                          _VoiceButton(
+                                            width: width,
+                                            tooltip: 'Answer',
+                                            label: 'Answer',
+                                            onPressed: controller.accept,
+                                            color: const Color(0xff43b981),
+                                            icon: Icons.call,
                                           ),
                                       ],
-                                      if (incoming)
-                                        _VoiceButton(
-                                          width: width,
-                                          tooltip: 'Decline',
-                                          label: 'Decline',
-                                          onPressed: controller.hangUp,
-                                          color: colors.error,
-                                          icon: Icons.call_end,
-                                        ),
-                                      if (incoming)
-                                        _VoiceButton(
-                                          width: width,
-                                          tooltip: 'Answer',
-                                          label: 'Answer',
-                                          onPressed: controller.accept,
-                                          color: const Color(0xff43b981),
-                                          icon: Icons.call,
-                                        ),
-                                    ],
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               ),
                             ),
-                          ),
-                        if (!incoming) ...[
-                          if (connected) const SizedBox(height: 12),
-                          _CallAction(
-                            label: 'End call',
-                            icon: Icons.call_end,
-                            onPressed: controller.hangUp,
-                            destructive: true,
-                          ),
+                          if (!incoming) ...[
+                            if (connected) const SizedBox(height: 12),
+                            if (compactActions)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _ReturnToGameButton(
+                                        onPressed: controller._hideCall,
+                                        compact: true,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: _endCallAction(controller)),
+                                  ],
+                                ),
+                              )
+                            else
+                              _endCallAction(controller),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              },
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _endCallAction(VoiceCalls calls) => _CallAction(
+    label: 'End call',
+    icon: Icons.call_end,
+    onPressed: calls.hangUp,
+    destructive: true,
+  );
+}
+
+class _ReturnToGameButton extends StatelessWidget {
+  const _ReturnToGameButton({required this.onPressed, this.compact = false});
+
+  final VoidCallback onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = FilledButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.sports_esports_outlined),
+      label: compact
+          ? const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('Return to game'),
+            )
+          : const Text('Return to game', textAlign: TextAlign.center),
+      style: FilledButton.styleFrom(
+        minimumSize: Size(compact ? 0 : 176, 48),
+        padding: compact ? const EdgeInsets.symmetric(horizontal: 10) : null,
+      ),
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return button;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 950),
+      child: button,
+      builder: (_, progress, child) => Transform.scale(
+        scale: 1 + .05 * math.sin(math.pi * progress),
+        child: child,
       ),
     );
   }

@@ -489,12 +489,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     final side = _displayTurn ?? match.board.turn;
     final yours = (side == 1) == match.mine;
     final name = yours ? _myName : widget.friendName ?? 'Your friend';
-    final piece = switch ((match.invite.game!.build >= 6, side)) {
-      (true, 1) => '🐱',
-      (true, _) => '🐶',
-      (false, 1) => '🟡',
-      (false, _) => '🟣',
-    };
+    final tokenSize = scale.scale(nameStyle.fontSize!) * 1.2;
     return SizedBox(
       height: height,
       child: Padding(
@@ -518,15 +513,10 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        ExcludeSemantics(
-                          child: SizedBox(
-                            width: scale.scale(nameStyle.fontSize!),
-                            height: scale.scale(nameStyle.fontSize!) * 1.2,
-                            child: FittedBox(
-                              fit: BoxFit.contain,
-                              child: Text(piece, style: nameStyle),
-                            ),
-                          ),
+                        _TurnToken(
+                          cat: side == 1,
+                          hasAnimalArt: match.invite.game!.build >= 6,
+                          size: tokenSize,
                         ),
                         const SizedBox(width: 8),
                         Flexible(
@@ -973,6 +963,47 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+// The portraits come from drop-four/1.3.4/art in zompado-games.
+class _TurnToken extends StatelessWidget {
+  const _TurnToken({
+    required this.cat,
+    required this.hasAnimalArt,
+    required this.size,
+  });
+
+  final bool cat, hasAnimalArt;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final rim = hasAnimalArt
+        ? (cat ? const Color(0xffff6e9e) : const Color(0xff45b8ff))
+        : (cat ? const Color(0xffffcf50) : const Color(0xffa987ff));
+    final face = cat ? const Color(0xff6e244d) : const Color(0xff1a528a);
+    return Semantics(
+      label: hasAnimalArt ? (cat ? 'Cat' : 'Dog') : (cat ? 'Yellow' : 'Purple'),
+      child: Container(
+        width: size,
+        height: size,
+        padding: const EdgeInsets.all(1),
+        decoration: BoxDecoration(
+          color: hasAnimalArt ? face : rim,
+          shape: BoxShape.circle,
+          border: Border.all(color: rim, width: 1.5),
+        ),
+        child: hasAnimalArt
+            ? Image.asset(
+                cat
+                    ? 'assets/games/cat-token.webp'
+                    : 'assets/games/dog-token.webp',
+                excludeFromSemantics: true,
+              )
+            : null,
       ),
     );
   }
