@@ -110,7 +110,8 @@ function localSavePaths(mode, build) {
   if (mode === 'local') paths.push(dropFourLocalStarted);
   for (const directory of [dropFourSaveRoot, dropFourSaveRoot + '/love']) {
     const game = directory + '/zompado-drop-four';
-    paths.push(game + '/zompado-saves/cats-' + mode, game + '/' + mode + '.save');
+    const save = game + '/zompado-saves/cats-' + mode;
+    paths.push(save, save + '-round', game + '/' + mode + '.save');
   }
   return paths;
 }

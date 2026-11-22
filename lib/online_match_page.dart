@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'brand.dart';
 import 'chat_chrome.dart';
 import 'chatmail.dart';
 import 'dialog_actions.dart';
@@ -61,16 +60,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   Timer? _turnTimer;
   int? _displayTurn;
-  String _myName = 'You';
-
-  Future<void> _loadMyName() async {
-    try {
-      final name = (await widget.chatmail.profile()).name.trim();
-      if (mounted && name.isNotEmpty) setState(() => _myName = name);
-    } catch (_) {
-      // The turn display can still identify the local player as You.
-    }
-  }
 
   void _syncTurn(OnlineMatch? match) {
     if (match == null) return;
@@ -145,7 +134,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   void initState() {
     super.initState();
     _playing = widget.playOnOpen;
-    unawaited(_loadMyName());
     _messages = widget.chatmail.incoming.listen((event) {
       unawaited(_checkRematch(event.$1, event.$2));
     });
@@ -470,90 +458,161 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   }
 
   Widget _turnHeading(BuildContext context, OnlineMatch match) {
-    final theme = Theme.of(context);
-    final nameStyle = theme.textTheme.titleLarge!.copyWith(height: 1.2);
-    final turnStyle = theme.textTheme.titleMedium!.copyWith(height: 1.2);
-    final nameStrut = StrutStyle.fromTextStyle(
-      nameStyle,
-      forceStrutHeight: true,
-    );
-    final turnStrut = StrutStyle.fromTextStyle(
-      turnStyle,
-      forceStrutHeight: true,
-    );
-    final scale = MediaQuery.textScalerOf(context);
-    // Keep the board in place when the player label changes to a status message.
-    final height =
-        (scale.scale(nameStyle.fontSize!) + scale.scale(turnStyle.fontSize!)) *
-            1.2 +
-        16;
-    final statusOnly =
-        match.finished ||
-        match.boardComplete ||
-        match.paused ||
-        (match.pending != null && _displayTurn == null) ||
-        match.conflict;
-    final side = _displayTurn ?? match.board.turn;
+    final boardSettled = match.boardComplete && _displayTurn == null;
+    final winner = boardSettled ? match.board.winner : 0;
+    final side = winner != 0 ? winner : _displayTurn ?? match.board.turn;
     final yours = (side == 1) == match.mine;
-    final name = yours ? _myName : widget.friendName ?? 'Your friend';
-    final tokenSize = scale.scale(nameStyle.fontSize!) * 1.2;
-    return SizedBox(
-      height: height,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Semantics(
-          liveRegion: true,
-          child: statusOnly
-              ? Center(
-                  child: Text(
-                    match.status,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: turnStyle,
-                    strutStyle: turnStrut,
-                  ),
-                )
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+    final friend = widget.friendName?.trim();
+    final name = friend == null || friend.isEmpty ? 'Your friend' : friend;
+    final statusOnly =
+        (boardSettled && winner == 0) || match.paused || match.conflict;
+    final heading = winner != 0
+        ? (yours ? 'You' : name)
+        : (yours ? 'Your' : '$name’s');
+    final action = winner != 0
+        ? (match.finished
+              ? (yours ? 'Win!' : 'Wins!')
+              : (yours ? 'Win the round!' : 'Wins the round!'))
+        : 'Turn';
+    final theme = Theme.of(context);
+    final foreground = const Color(0xfffff4fc);
+    final team = side == 1 ? const Color(0xffffb5cb) : const Color(0xffa8e2ff);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Semantics(
+        liveRegion: true,
+        child: LayoutBuilder(
+          builder: (context, bounds) => FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: bounds.maxWidth,
+              child: statusOnly
+                  ? Text(
+                      match.status,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: foreground,
+                      ),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        _TurnToken(
-                          cat: side == 1,
-                          hasAnimalArt: match.invite.game!.build >= 6,
-                          size: tokenSize,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _TurnToken(
+                              cat: side == 1,
+                              hasAnimalArt: match.invite.game!.build >= 6,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 9),
+                            Flexible(
+                              child: Text(
+                                heading,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: foreground,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: nameStyle,
-                            strutStyle: nameStrut,
+                        Text(
+                          action,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: team,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
                           ),
                         ),
                       ],
                     ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        yours ? 'Your Turn' : 'Their Turn',
-                        strutStyle: turnStrut,
-                        maxLines: 1,
-                        style: turnStyle.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: yours
-                              ? ZompadoBrand.actionInk(theme.colorScheme)
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _arena(BuildContext context, OnlineMatch match, GameRelease game) {
+    final themedGame = game.build >= 12;
+    const arenaColor = Color(0xff181423);
+    return ColoredBox(
+      color: themedGame ? arenaColor : const Color(0xff0b0d1c),
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final aspect = 540 / (themedGame ? 665 : 620);
+          final footer = match.series;
+          final reserved = (bounds.maxHeight * (footer ? .35 : .24)).clamp(
+            0.0,
+            footer ? 156.0 : 88.0,
+          );
+          final boardHeight = (bounds.maxHeight - reserved).clamp(
+            0.0,
+            bounds.maxWidth.clamp(0.0, 560.0) / aspect,
+          );
+          return Column(
+            children: [
+              Expanded(child: Center(child: _turnHeading(context, match))),
+              SizedBox(
+                width: boardHeight * aspect,
+                height: boardHeight,
+                child: LoveGameView.official(
+                  key: ValueKey('${widget.id}/${game.build}/$_boardGeneration'),
+                  game: game,
+                  mode: 'online',
+                  paused: match.paused && !match.boardComplete,
+                  match:
+                      '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}'
+                      '${match.series ? ':${match.scores.join(':')}' : ''}',
+                  onMove: _move,
+                ),
+              ),
+              Expanded(
+                child: footer
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'ROUND ${match.round}',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(
+                                        color: const Color(0xfffff4fc),
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 2,
+                                      ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'First to 3 round wins takes the match',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: const Color(0xffdbd1eb),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -707,37 +766,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                         ? Stack(
                             fit: StackFit.expand,
                             children: [
-                              Column(
-                                children: [
-                                  _turnHeading(context, match),
-                                  Expanded(
-                                    child: Center(
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 560,
-                                        ),
-                                        child: AspectRatio(
-                                          aspectRatio: 540 / 620,
-                                          child: LoveGameView.official(
-                                            key: ValueKey(
-                                              '${widget.id}/${_game!.build}/$_boardGeneration',
-                                            ),
-                                            game: _game!,
-                                            mode: 'online',
-                                            paused:
-                                                match.paused &&
-                                                !match.boardComplete,
-                                            match:
-                                                '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}'
-                                                '${match.series ? ':${match.scores.join(':')}' : ''}',
-                                            onMove: _move,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              _arena(context, match, _game!),
                               if (showResult)
                                 _finishedActions(match)
                               else if (match.paused ||
