@@ -1,5 +1,5 @@
 {
-  "version": "0.5.33",
-  "build": 42,
-  "notes": "- Play another match or quit after a win or draw. The other player can accept the rematch from the completed match.\n- The online board stays in place as turn and connection statuses change. Short chat previews appear while the chat panel is closed.\n- Online invitations from My Games and chats use the same bottom sheet with an explicit Invite button.\n- Incoming calls can still be missed while the recipient’s screen is off."
+  "version": "0.5.34",
+  "build": 43,
+  "notes": "- Cats vs Dogs 1.3.5 has a wider board and larger numeric scoreboards. Update the game from Get Games. Online series go to three round wins when both players have the updated app.\n- The chat button highlights unread match messages without covering the board.\n- The Return to game button is easier to spot during a call, and the turn indicator uses the original Cats vs Dogs coins.\n- Incoming calls can still be missed while the recipient’s screen is off."
 }
