@@ -98,7 +98,7 @@ final class LovePlayer implements PlatformView {
             switch (call.method) {
                 case "match":
                     String state = call.arguments();
-                    if (online && state != null && state.matches("[012]{42}:[12]:[012]:[01]")) {
+                    if (online && state != null && state.matches("[012]{42}:[12]:[012]:[01](:[0-3]:[0-3])?")) {
                         match = state;
                         sendMatch();
                     }

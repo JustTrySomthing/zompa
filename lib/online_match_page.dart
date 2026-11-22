@@ -75,13 +75,16 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   void _syncTurn(OnlineMatch? match) {
     if (match == null) return;
     final previous = _match;
-    if (previous != null && match.moves.length == previous.moves.length + 1) {
+    if (previous != null &&
+        match.round == previous.round &&
+        match.moves.length == previous.moves.length + 1) {
       _turnTimer?.cancel();
       _displayTurn = previous.board.turn;
       _turnTimer = Timer(const Duration(milliseconds: 740), () {
         if (mounted) setState(() => _displayTurn = null);
       });
-    } else if (previous?.moves != match.moves) {
+    } else if (previous?.round != match.round ||
+        previous?.moves != match.moves) {
       _turnTimer?.cancel();
       _displayTurn = null;
     }
@@ -93,6 +96,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   void _togglePause(OnlineMatch match) {
     if (_sending ||
         match.finished ||
+        match.boardComplete ||
         (match.pausedByFriend && !match.pausedByMe))
       return;
     final action = match.pausedByMe ? 'resume' : 'pause';
@@ -435,7 +439,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         column >= 7 ||
         match.board.landing(column) < 0)
       return;
-    unawaited(_send(match.invite.move(match.moves, column).wire));
+    unawaited(
+      _send(match.invite.move(match.moves, column, round: match.round).wire),
+    );
   }
 
   String _lobbyText(OnlineMatch? match) {
@@ -483,6 +489,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         16;
     final statusOnly =
         match.finished ||
+        match.boardComplete ||
         match.paused ||
         (match.pending != null && _displayTurn == null) ||
         match.conflict;
@@ -576,7 +583,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ),
-      if (_incomingRematch != null)
+      if (match.finished && _incomingRematch != null)
         const Text(
           'Your friend invited you to play again.',
           textAlign: TextAlign.center,
@@ -586,21 +593,33 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         spacing: 8,
         children: [
           TextButton(
-            onPressed: _sending ? null : () => Navigator.pop(context),
+            onPressed: _sending
+                ? null
+                : match.finished
+                ? () => Navigator.pop(context)
+                : _quit,
             child: const Text('Quit'),
           ),
           FilledButton(
             onPressed: _sending
                 ? null
                 : () {
-                    if (_incomingRematch case final id?) {
+                    if (!match.finished) {
+                      unawaited(
+                        _send(
+                          match.invite.nextRound(match.round, match.moves).wire,
+                        ),
+                      );
+                    } else if (_incomingRematch case final id?) {
                       _openRematch(id, accept: true);
                     } else {
                       _rematch(match);
                     }
                   },
             child: Text(
-              _incomingRematch == null
+              !match.finished
+                  ? 'Next round'
+                  : _incomingRematch == null
                   ? 'Play another match'
                   : 'Accept rematch',
             ),
@@ -640,6 +659,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                     _sending ||
                         pendingControl ||
                         match.finished ||
+                        match.boardComplete ||
                         (match.pausedByFriend && !match.pausedByMe)
                     ? null
                     : () => _togglePause(match),
@@ -708,7 +728,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                                 match.paused &&
                                                 !match.boardComplete,
                                             match:
-                                                '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}',
+                                                '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}'
+                                                '${match.series ? ':${match.scores.join(':')}' : ''}',
                                             onMove: _move,
                                           ),
                                         ),

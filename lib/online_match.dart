@@ -236,6 +236,8 @@ class MatchEvent {
     this.column,
     this.revision,
     this.rematchOf,
+    this.series = false,
+    this.round = 1,
   });
 
   factory MatchEvent.invite(GameLink game, {String? rematchOf}) {
@@ -244,7 +246,13 @@ class MatchEvent {
       16,
       (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
     ).join();
-    return MatchEvent._(id, 'invite', game: game, rematchOf: rematchOf);
+    return MatchEvent._(
+      id,
+      'invite',
+      game: game,
+      rematchOf: rematchOf,
+      series: game.build >= 11,
+    );
   }
 
   final String id;
@@ -252,22 +260,43 @@ class MatchEvent {
   final GameLink? game;
   final String? previous, rematchOf;
   final int? column, revision;
+  final bool series;
+  final int round;
 
   static bool supportsGame(GameRelease game) =>
       _supportsGameId(game.id) && game.modes.contains('online');
 
   static bool _supportsGameId(String id) => id == 'drop-four';
 
-  MatchEvent accept() => MatchEvent._(id, 'accept');
+  MatchEvent accept() => MatchEvent._(id, 'accept', series: series);
   MatchEvent decline() => MatchEvent._(id, 'decline');
   MatchEvent preparing() => MatchEvent._(id, 'preparing');
   MatchEvent control(String kind, int revision) =>
       MatchEvent._(id, kind, revision: revision);
-  MatchEvent move(String previous, int column) =>
-      MatchEvent._(id, 'move', previous: previous, column: column);
+  MatchEvent move(String previous, int column, {int round = 1}) => MatchEvent._(
+    id,
+    'move',
+    previous: previous,
+    column: column,
+    round: round,
+  );
+  MatchEvent nextRound(int completedRound, String moves) =>
+      MatchEvent._(id, 'next', round: completedRound, previous: moves);
 
-  String get wire =>
-      '$matchMarker${jsonEncode({'id': id, 'type': kind, if (game != null) 'game': game.toString(), if (rematchOf != null) 'rematchOf': rematchOf, if (previous != null) 'previous': previous, if (column != null) 'column': column, if (revision != null) 'rev': revision})}';
+  String get wire {
+    final data = {
+      'id': id,
+      'type': kind,
+      if (game != null) 'game': game.toString(),
+      if (rematchOf != null) 'rematchOf': rematchOf,
+      if (previous != null) 'previous': previous,
+      if (column != null) 'column': column,
+      if (revision != null) 'rev': revision,
+      if (series) 'series': true,
+      if (kind == 'next' || round > 1) 'round': round,
+    };
+    return '$matchMarker${jsonEncode(data)}';
+  }
 
   static MatchEvent? parse(String text) {
     if (!text.startsWith(matchMarker) || text.length > 800) return null;
@@ -287,6 +316,7 @@ class MatchEvent {
                   id,
                   'invite',
                   game: game,
+                  series: game.build >= 11 && data['series'] == true,
                   rematchOf:
                       rematchOf is String &&
                           rematchOf != id &&
@@ -297,6 +327,17 @@ class MatchEvent {
               }
             }
           case 'accept':
+            return MatchEvent._(id, 'accept', series: data['series'] == true);
+          case 'next':
+            final round = data['round'];
+            final moves = data['previous'];
+            if (round is int &&
+                round >= 1 &&
+                round <= 0x7fffffff &&
+                moves is String &&
+                RegExp(r'^[0-6]{7,42}$').hasMatch(moves)) {
+              return MatchEvent._(id, 'next', round: round, previous: moves);
+            }
           case 'preparing':
           case 'decline':
             return MatchEvent._(id, data['type'] as String);
@@ -314,7 +355,11 @@ class MatchEvent {
           case 'move':
             final previous = data['previous'];
             final column = data['column'];
-            if (previous is String &&
+            final round = data['round'] ?? 1;
+            if (round is int &&
+                round >= 1 &&
+                round <= 0x7fffffff &&
+                previous is String &&
                 RegExp(r'^[0-6]{0,41}$').hasMatch(previous) &&
                 column is int &&
                 column >= 0 &&
@@ -324,6 +369,7 @@ class MatchEvent {
                 'move',
                 previous: previous,
                 column: column,
+                round: round,
               );
             }
         }
@@ -340,8 +386,11 @@ class OnlineMatch {
 
   final MatchEvent invite;
   final bool mine;
-  final board = Board();
+  Board board = Board();
   String moves = '';
+  bool series = false;
+  int round = 1;
+  final scores = [0, 0];
   bool accepted = false;
   bool started = false;
   bool declined = false;
@@ -372,7 +421,11 @@ class OnlineMatch {
   FriendMessage? pending;
 
   bool get boardComplete => board.winner != 0 || board.full;
-  bool get finished => expired || declined || quit || boardComplete;
+  bool get finished =>
+      expired ||
+      declined ||
+      quit ||
+      (series ? scores.contains(3) : boardComplete);
   bool get active =>
       !finished || (pending != null && !expired && !declined && !quit);
   bool get myTurn =>
@@ -380,6 +433,7 @@ class OnlineMatch {
       started &&
       !conflict &&
       !finished &&
+      !boardComplete &&
       !paused &&
       pending == null &&
       (board.turn == 1) == mine;
@@ -392,7 +446,13 @@ class OnlineMatch {
     if (pending?.state == 24) return 'Couldn’t send this match update.';
     if (declined) return 'Invitation declined.';
     if (board.winner != 0) {
-      return (board.winner == 1) == mine ? 'You won!' : 'Your friend won.';
+      final youWon = (board.winner == 1) == mine;
+      if (series) {
+        return finished
+            ? (youWon ? 'You won the series!' : 'Your friend won the series.')
+            : (youWon ? 'You won this round!' : 'Your friend won this round.');
+      }
+      return youWon ? 'You won!' : 'Your friend won.';
     }
     if (board.full) return 'Draw.';
     if (pausedByMe) return 'You paused the game.';
@@ -429,7 +489,8 @@ class OnlineMatch {
       (r) =>
           r.message.outgoing != match.mine ||
           r.event.game.toString() != first.event.game.toString() ||
-          r.event.rematchOf != first.event.rematchOf,
+          r.event.rematchOf != first.event.rematchOf ||
+          r.event.series != first.event.series,
     )) {
       match.conflict = true;
     }
@@ -444,8 +505,12 @@ class OnlineMatch {
         .where(
           (r) => r.event.kind == 'accept' && r.message.outgoing != match.mine,
         )
-        .map((r) => r.message)
         .toList();
+    match.series =
+        match.invite.series &&
+        accepts.any(
+          (record) => record.event.series && record.message.delivery == null,
+        );
     final replies = events.where(
       (record) =>
           record.message.outgoing != match.mine &&
@@ -459,12 +524,15 @@ class OnlineMatch {
         replies.any((record) => record.event.kind == 'decline');
     match.accepted = accepts.isNotEmpty;
     if (match.accepted) {
-      match.pending = pendingFor(accepts);
-      for (final accept in accepts) {
-        if (accept.delivery == null) match._recordActivity(accept);
+      match.pending = pendingFor(
+        accepts.map((record) => record.message).toList(),
+      );
+      for (final record in accepts) {
+        if (record.message.delivery == null)
+          match._recordActivity(record.message);
       }
     }
-    if (!accepts.any((accept) => accept.delivery == null)) {
+    if (!accepts.any((record) => record.message.delivery == null)) {
       final dates = invitations
           .map((record) => record.message.timestamp)
           .where((timestamp) => timestamp > 0);
@@ -478,11 +546,34 @@ class OnlineMatch {
       }
     }
     while (match.accepted && !match.finished && !match.conflict) {
+      if (match.boardComplete) {
+        if (!match.series || match.pending != null) break;
+        final winner = match.board.winner;
+        if (winner != 0) match.scores[winner - 1]++;
+        if (match.finished) break;
+        final next = [
+          for (final record in events)
+            if (record.event.kind == 'next' &&
+                record.event.round == match.round &&
+                record.event.previous == match.moves)
+              record.message,
+        ];
+        if (next.isEmpty) break;
+        match.pending = pendingFor(next);
+        if (match.pending != null) break;
+        for (final message in next) {
+          if (message.delivery == null) match._recordActivity(message);
+        }
+        match.round++;
+        match.board = Board();
+        match.moves = '';
+      }
       final ownTurn = (match.board.turn == 1) == match.mine;
       final candidates = events
           .where(
             (r) =>
                 r.event.kind == 'move' &&
+                r.event.round == match.round &&
                 r.event.previous == match.moves &&
                 r.message.outgoing == ownTurn &&
                 match.board.landing(r.event.column!) >= 0,
@@ -504,7 +595,7 @@ class OnlineMatch {
     }
     // An inviter can send a resume before the first move to start both boards.
     // Older clients also understand resume, and their first move starts the match.
-    match.started = match.moves.isNotEmpty;
+    match.started = match.round > 1 || match.moves.isNotEmpty;
     if (match.accepted && !match.started) {
       final starts = [
         for (final record in events)

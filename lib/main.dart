@@ -224,6 +224,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
           case 'quit':
             label = 'Your friend ended the match';
           case 'move':
+          case 'next':
             final history = await chatmail.matchHistory(chat, event.id);
             if (OnlineMatch.replay(event.id, history)?.myTurn != true) return;
             label = 'Your turn in Cats vs Dogs';
