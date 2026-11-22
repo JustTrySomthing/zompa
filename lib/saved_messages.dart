@@ -399,7 +399,7 @@ Future<void> showReplyReminder(
   var scheduled = false;
   try {
     scheduled =
-        await const MethodChannel('io.zompado.host')
+        await const MethodChannel('io.zompa.host')
             .invokeMethod<bool>('remindToReply', {
               'chat': message.chat,
               'message': message.id,

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 runner_temp=${RUNNER_TEMP:?Set RUNNER_TEMP}
-sdk="$runner_temp/zompado-android-sdk"
-archive=$(mktemp -d "$runner_temp/zompado-sdk-tools.XXXXXX")
+sdk="$runner_temp/zompa-android-sdk"
+archive=$(mktemp -d "$runner_temp/zompa-sdk-tools.XXXXXX")
 trap 'rm -rf "$archive"' EXIT
 
 url=https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip

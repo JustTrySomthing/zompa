@@ -171,7 +171,7 @@ class _GameAudioControls extends StatelessWidget {
             onChanged: audio.setLowerDuringCalls,
           ),
           const Text(
-            'Music and sound effects are separate in games that use the Zompado SDK.',
+            'Music and sound effects are separate in games that use the Zompa SDK.',
           ),
         ],
       ),

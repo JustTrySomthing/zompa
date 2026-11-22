@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the updater feed for an already signed Zompado ARM64 APK."""
+"""Write the updater feed for an already signed Zompa ARM64 APK."""
 import argparse
 import hashlib
 import json
@@ -22,6 +22,7 @@ print(json.dumps({
     "version": args.version,
     "build": args.build,
     "abi": "arm64-v8a",
+    # Earlier builds validate the original repository slug in this field.
     "url": f"https://github.com/JustTrySomthing/zompado/releases/download/v{args.version}/{args.apk.name}",
     "sha256": sha256,
     "size": args.apk.stat().st_size,

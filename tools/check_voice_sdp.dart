@@ -6,7 +6,7 @@ void main() {
   const video = 'm=video 9 UDP/TLS/RTP/SAVPF 96\r\n';
   const data = 'm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n';
   final cases = {
-    'Zompado audio': (header + audio, true),
+    'Zompa audio': (header + audio, true),
     'Delta Chat audio offer with reserved video and data': (
       header + audio + video + data,
       true,

@@ -88,14 +88,14 @@ def wait_for(label, predicate):
 
 def main():
     executable = str(Path(sys.argv[1]).resolve())
-    with tempfile.TemporaryDirectory(prefix="zompado-relay-check-") as root, ExitStack() as cleanup:
+    with tempfile.TemporaryDirectory(prefix="zompa-relay-check-") as root, ExitStack() as cleanup:
         alice = Core(executable, Path(root) / "alice")
         cleanup.callback(alice.close)
         bob = Core(executable, Path(root) / "bob")
         cleanup.callback(bob.close)
         with ThreadPoolExecutor(max_workers=2) as workers:
             profiles = (workers.submit(core.setup, name) for core, name in (
-                (alice, "Zompado verification A"), (bob, "Zompado verification B")))
+                (alice, "Zompa verification A"), (bob, "Zompa verification B")))
             for profile in list(profiles):
                 profile.result()
         print("Configured two disposable Chatmail profiles.", flush=True)
@@ -108,10 +108,10 @@ def main():
         wait_for("the accepting device's encrypted conversation", lambda: bob.encrypted_chat(bob_chat))
         print("SecureJoin created matching encrypted conversations.", flush=True)
 
-        bob_text = "Zompado relay smoke check B to A"
+        bob_text = "Zompa relay smoke check B to A"
         bob.rpc("misc_send_text_message", bob.account, bob_chat, bob_text)
         wait_for("the first encrypted message", lambda: alice.has_message(alice_chat, bob_text))
-        alice_text = "Zompado relay smoke check A to B"
+        alice_text = "Zompa relay smoke check A to B"
         alice.rpc("misc_send_text_message", alice.account, alice_chat, alice_text)
         wait_for("the encrypted reply", lambda: bob.has_message(bob_chat, alice_text))
         print("Both profiles exchanged and verified encrypted messages.", flush=True)
@@ -193,7 +193,7 @@ def main():
         bob_account = bob.account
         bob.rpc("stop_io", bob_account)
         bob.close()
-        offline_text = "Zompado relay smoke check while receiver is stopped"
+        offline_text = "Zompa relay smoke check while receiver is stopped"
         sent = alice.rpc("misc_send_text_message", alice.account, alice_chat, offline_text)
         offline_call = alice.rpc("place_outgoing_call", alice.account, alice_chat, offer, False)
         wait_for("server acceptance while the receiver is stopped", lambda:

@@ -109,7 +109,7 @@ final class ChatFiles {
                 if (output != null) output.delete();
                 activity.runOnUiThread(() -> result.error("ATTACHMENT", "Couldn’t read this file.", null));
             }
-        }, "zompado-attachment").start();
+        }, "zompa-attachment").start();
         return true;
     }
 
@@ -200,7 +200,7 @@ final class ChatFiles {
             if (!source.isFile() || !"archive.zompbackup".equals(source.getName())) {
                 throw new IOException("Invalid backup file");
             }
-            saveFile(source, "Zompado-Backup.zompbackup", "application/octet-stream", result);
+            saveFile(source, "Zompa-Backup.zompbackup", "application/octet-stream", result);
         } catch (Exception failure) {
             result.error("BACKUP", "Couldn’t open a destination for the backup.", null);
         }
@@ -224,7 +224,7 @@ final class ChatFiles {
 
     private void verifyBackupFile(File file) throws IOException {
         File parent = file.getParentFile();
-        if (parent == null || !parent.getName().startsWith("zompado-backup-")
+        if (parent == null || !parent.getName().startsWith("zompa-backup-")
                 || !activity.getCacheDir().getCanonicalFile().equals(parent.getParentFile())) {
             throw new IOException("Invalid backup location");
         }
@@ -256,7 +256,7 @@ final class ChatFiles {
             } finally {
                 java.util.Arrays.fill(password, '\0');
             }
-        }, "zompado-backup").start();
+        }, "zompa-backup").start();
     }
 
     private boolean saved(int status, Intent data) {
@@ -278,7 +278,7 @@ final class ChatFiles {
             } catch (Exception failure) {
                 activity.runOnUiThread(() -> result.error("ATTACHMENT", "Couldn’t save the file.", null));
             }
-        }, "zompado-save-attachment").start();
+        }, "zompa-save-attachment").start();
         return true;
     }
 

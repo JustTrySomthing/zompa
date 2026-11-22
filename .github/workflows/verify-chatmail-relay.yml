@@ -27,5 +27,7 @@ jobs:
           printf '%s  %s\n' db1a2c08375c9c2e73c8d6009cc99094e642722a41d06370cdb4dc680247eaa0 "$core" |
             sha256sum --check --status
           chmod 755 "$core"
-          curl -fsSL --retry 3 https://raw.githubusercontent.com/JustTrySomthing/zompado-games/main/catalog-v2.json -o "$RUNNER_TEMP/game-catalog.json"
+          catalog="$RUNNER_TEMP/game-catalog.json"
+          curl -fsSL --retry 3 https://raw.githubusercontent.com/JustTrySomthing/zompa-games/main/catalog-v2.json -o "$catalog" ||
+            curl -fsSL --retry 3 https://raw.githubusercontent.com/JustTrySomthing/zompado-games/main/catalog-v2.json -o "$catalog"
           python3 tools/check_chatmail_relay.py "$core" "$RUNNER_TEMP/game-catalog.json"

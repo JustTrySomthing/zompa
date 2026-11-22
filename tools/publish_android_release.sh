@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo=JustTrySomthing/zompado
-[[ "$GITHUB_REPOSITORY" == "$repo" && "$GITHUB_REF" == refs/heads/main && "$GITHUB_EVENT_NAME" == push ]]
+repo=$GITHUB_REPOSITORY
+[[ "$repo" == JustTrySomthing/zompa || "$repo" == JustTrySomthing/zompado ]]
+[[ "$GITHUB_REF" == refs/heads/main && "$GITHUB_EVENT_NAME" == push ]]
 request=.github/release-request.json
 version=$(jq -er '.version | select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' "$request")
 build=$(jq -er '.build | select(type == "number" and . >= 1 and floor == .)' "$request")
 tag="v$version"
-name=Zompado-ARM64.apk
+name=Zompa-ARM64.apk
 apk="release/$name"
 manifest=release/update.json
+legacy_apk=release/Zompado-ARM64.apk
+cp "$apk" "$legacy_apk"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
@@ -36,14 +39,14 @@ PY
 
 if ! gh release view "$tag" -R "$repo" --json isDraft,targetCommitish,assets > "$scratch/release.json"; then
   gh release create "$tag" -R "$repo" --target "$GITHUB_SHA" --draft \
-    --title "Zompado $version for Android" --notes-file "$scratch/notes.md"
+    --title "Zompa $version for Android" --notes-file "$scratch/notes.md"
   gh release view "$tag" -R "$repo" --json isDraft,targetCommitish,assets > "$scratch/release.json"
 fi
 
 if [[ $(jq -r '.isDraft' "$scratch/release.json") == true ]]; then
   jq -e --arg head "$GITHUB_SHA" '.targetCommitish == $head' "$scratch/release.json" > /dev/null
   mkdir -p "$scratch/existing"
-  for asset in "$apk" "$manifest"; do
+  for asset in "$apk" "$legacy_apk" "$manifest"; do
     filename=${asset##*/}
     if jq -e --arg name "$filename" '.assets | any(.name == $name)' "$scratch/release.json" > /dev/null; then
       gh release download "$tag" -R "$repo" --pattern "$filename" --dir "$scratch/existing"
@@ -74,6 +77,7 @@ verify_download() {
 base="https://github.com/$repo/releases/latest/download"
 verify_download "$(jq -er '.url' "$manifest")" "$apk"
 verify_download "$base/$name" "$apk"
+verify_download "$base/${legacy_apk##*/}" "$apk"
 verify_download "$base/update.json" "$manifest"
 
 if cmp -s "$manifest" "$scratch/published.json"; then

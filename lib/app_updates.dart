@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 
 import 'github_distribution.dart';
 
-const installedVersion = '0.5.36';
-const installedBuild = 45;
+const installedVersion = '0.5.37';
+const installedBuild = 46;
 
 class AppUpdates extends ChangeNotifier {
   AppUpdates(this.distribution, this.host, this.data, this.write);
@@ -109,7 +109,7 @@ class AppUpdates extends ChangeNotifier {
         'build': release.build,
       });
       status = result == 'permission'
-          ? 'Allow installs from Zompado in Android settings, then tap Install again.'
+          ? 'Allow installs from Zompa in Android settings, then tap Install again.'
           : 'Follow the Android installer to complete the update.';
     } on PlatformException catch (error) {
       status = error.message ?? 'Android couldn’t open the update.';

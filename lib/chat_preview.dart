@@ -11,7 +11,7 @@ import 'chat_links.dart';
 import 'chatmail.dart';
 import 'message_bubble.dart';
 
-const _host = MethodChannel('io.zompado.host');
+const _host = MethodChannel('io.zompa.host');
 
 Future<void> openChatAttachment(
   BuildContext context,
@@ -85,7 +85,7 @@ class _ChatVideoPreviewState extends State<_ChatVideoPreview> {
 
   @override
   Widget build(BuildContext context) => _PreviewSurface(
-    'io.zompado.chatVideo',
+    'io.zompa.chatVideo',
     widget.path,
     onCreated: (id) {
       if (!mounted) return;
@@ -565,7 +565,7 @@ class _BrowserPreviewState extends State<_BrowserPreview> {
           ),
           Expanded(
             child: _PreviewSurface(
-              'io.zompado.previewBrowser',
+              'io.zompa.previewBrowser',
               widget.url.toString(),
               onCreated: (id) => _viewId = id,
             ),

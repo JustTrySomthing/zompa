@@ -10,7 +10,8 @@ class GameLink {
   GameLink._(this.id, this.build, this.sha);
 
   static const host = 'justtrysomthing.github.io';
-  static const path = '/zompado/game/';
+  static const path = '/zompa/game/';
+  static const legacyPath = '/zompado/game/';
   final String id;
   final int build;
   final String sha;
@@ -24,7 +25,7 @@ class GameLink {
         uri.host != host ||
         uri.hasPort ||
         uri.userInfo.isNotEmpty ||
-        uri.path != path ||
+        (uri.path != path && uri.path != legacyPath) ||
         uri.hasFragment)
       return null;
     final Map<String, List<String>> query;
@@ -53,7 +54,12 @@ class GameLink {
       game.id == id && game.build == build && game.asset.sha == sha;
 
   @override
-  String toString() => Uri.https(host, path, {
+  String toString() => _url(path);
+
+  // Keep private match events readable by earlier app versions.
+  String toMatchWire() => _url(legacyPath);
+
+  String _url(String linkPath) => Uri.https(host, linkPath, {
     'id': id,
     'build': '$build',
     'sha': sha,

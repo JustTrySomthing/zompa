@@ -27,17 +27,17 @@ class MessageBubble extends StatelessWidget {
     final background = outgoing
         ? colors.surfaceContainerHighest
         : colors.secondaryContainer;
-    final foreground = ZompadoBrand.inkOnAccent(background);
+    final foreground = ZompaBrand.inkOnAccent(background);
     final detail = Color.alphaBlend(
       foreground.withValues(alpha: .78),
       background,
     );
-    final secondary = ZompadoBrand.readableAccent(
+    final secondary = ZompaBrand.readableAccent(
       detail,
       background,
       foreground,
     );
-    final action = ZompadoBrand.readableAccent(
+    final action = ZompaBrand.readableAccent(
       colors.primary,
       background,
       foreground,

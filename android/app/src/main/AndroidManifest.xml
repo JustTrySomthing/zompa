@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
-    <application android:label="Zompado" android:icon="@mipmap/ic_launcher" android:allowBackup="false"
+    <application android:label="Zompa" android:icon="@mipmap/ic_launcher" android:allowBackup="false"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop"
             android:theme="@style/LaunchTheme" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize"
@@ -34,7 +34,7 @@
         <service android:name=".ChatListenerService" android:exported="false"
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Live connection to a configured Chatmail account for incoming calls, messages, and game invitations while Zompado is closed" />
+                android:value="Live connection to a configured Chatmail account for incoming calls, messages, and game invitations while Zompa is closed" />
         </service>
         <receiver android:name=".ChatListenerService$BootReceiver" android:exported="false">
             <intent-filter>

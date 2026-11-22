@@ -1,13 +1,13 @@
-local zompado = require("zompado")
+local zompa = require("zompa")
 local count = 0
 
 function love.load()
-    count = tonumber(zompado.loadSession()) or 0
+    count = tonumber(zompa.loadSession()) or 0
 end
 
 local function add()
     count = count + 1
-    local saved, errorMessage = zompado.saveSession(tostring(count))
+    local saved, errorMessage = zompa.saveSession(tostring(count))
     if not saved then print(errorMessage) end
 end
 

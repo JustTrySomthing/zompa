@@ -209,22 +209,20 @@ extension OnlineMatchHistory on Chatmail {
     if (match?.expired == true) throw const MatchInviteExpired();
   }
 
-  Future<MatchEntry?> sendMatchOpening(
-    int chat,
-    MatchEvent event,
-  ) => _withMatchLock(this, () async {
-    await checkInviteExpiry(chat, event.id);
-    await send(chat, event.wire);
-    try {
-      return (await _arrangeMatches(
-        DateTime.now(),
-        keep: '$chat/${event.id}',
-      )).moved;
-    } catch (_) {
-      // The game message was sent. Refreshing the library can retry the move to History.
-      return null;
-    }
-  });
+  Future<MatchEntry?> sendMatchOpening(int chat, MatchEvent event) =>
+      _withMatchLock(this, () async {
+        await checkInviteExpiry(chat, event.id);
+        await send(chat, event.wire);
+        try {
+          return (await _arrangeMatches(
+            DateTime.now(),
+            keep: '$chat/${event.id}',
+          )).moved;
+        } catch (_) {
+          // The game message was sent. Refreshing the library can retry the move to History.
+          return null;
+        }
+      });
 }
 
 class MatchEvent {
@@ -287,7 +285,7 @@ class MatchEvent {
     final data = {
       'id': id,
       'type': kind,
-      if (game != null) 'game': game.toString(),
+      if (game case final link?) 'game': link.toMatchWire(),
       if (rematchOf != null) 'rematchOf': rematchOf,
       if (previous != null) 'previous': previous,
       if (column != null) 'column': column,

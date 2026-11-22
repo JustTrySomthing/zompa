@@ -117,7 +117,7 @@ class LoveGameViewState extends State<LoveGameView>
       );
     }
     return AndroidView(
-      viewType: 'io.zompado.love',
+      viewType: 'io.zompa.love',
       creationParams: {
         ...widget.reference,
         'mode': widget.mode,
@@ -130,7 +130,7 @@ class LoveGameViewState extends State<LoveGameView>
       },
       onPlatformViewCreated: (id) {
         if (!mounted) return;
-        final channel = MethodChannel('io.zompado.love/$id');
+        final channel = MethodChannel('io.zompa.love/$id');
         _channel = channel;
         channel.setMethodCallHandler((call) async {
           if (mounted &&

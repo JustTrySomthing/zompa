@@ -1,5 +1,5 @@
 function love.conf(t)
-    t.identity = "zompado-template"
+    t.identity = "zompa-template"
     t.version = "11.5"
     t.window.title = "Tap Counter"
     t.window.width = 480

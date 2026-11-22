@@ -38,7 +38,7 @@ import 'tab_content.dart';
 
 const gold = Color(0xffffdc71);
 const lilac = Color(0xffc9b7ff);
-const bridge = MethodChannel('io.zompado.host');
+const bridge = MethodChannel('io.zompa.host');
 typedef ChatAlertTarget = ({int chat, int message});
 
 void main() {
@@ -72,16 +72,16 @@ void main() {
       'ZXing and JourneyApps Barcode Scanner',
     ], scanner);
   });
-  runApp(const Zompado());
+  runApp(const Zompa());
 }
 
-class Zompado extends StatefulWidget {
-  const Zompado({super.key});
+class Zompa extends StatefulWidget {
+  const Zompa({super.key});
   @override
-  State<Zompado> createState() => _ZompadoState();
+  State<Zompa> createState() => _ZompaState();
 }
 
-class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
+class _ZompaState extends State<Zompa> with WidgetsBindingObserver {
   ThemeMode mode = ThemeMode.dark;
   final _home = GlobalKey<_HomeState>();
   final _notifications = ChatNotificationSettings(bridge);
@@ -252,7 +252,7 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
       if (!_shouldAlert(chat, event?.id)) return;
       final isCall = message.viewType == 'Call';
       if (isCall && !await chatmail.callWasMissed(id)) return;
-      var label = isCall ? 'Missed Zompado call' : 'New message';
+      var label = isCall ? 'Missed Zompa call' : 'New message';
       if (event != null) {
         switch (event.kind) {
           case 'invite':
@@ -349,10 +349,10 @@ class _ZompadoState extends State<Zompado> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final color = ThemeColor.fromPreference(data['themeColor']);
     return MaterialApp(
-      title: 'Zompado',
+      title: 'Zompa',
       debugShowCheckedModeBanner: false,
-      theme: ZompadoBrand.theme(Brightness.light, color: color),
-      darkTheme: ZompadoBrand.theme(Brightness.dark, color: color),
+      theme: ZompaBrand.theme(Brightness.light, color: color),
+      darkTheme: ZompaBrand.theme(Brightness.dark, color: color),
       builder: (context, child) {
         final launch = BrandLaunch(
           child: _voice == null
@@ -887,7 +887,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         builder: (dialog) => AlertDialog(
           scrollable: true,
           title: Text(game.title),
-          content: Text('Official Zompado game · Version ${game.version}'),
+          content: Text('Official Zompa game · Version ${game.version}'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialog, false),
@@ -1210,7 +1210,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         children: [
           if (widget.updates?.available case final update?)
             MaterialBanner(
-              content: Text('Zompado ${update.version} is available.'),
+              content: Text('Zompa ${update.version} is available.'),
               actions: [
                 TextButton(
                   onPressed: () => openSettings(context, showUpdates: true),
@@ -1675,10 +1675,10 @@ class _HomeBottomBar extends StatelessWidget {
     final colors = theme.colorScheme;
     final background = colors.surfaceContainerLow;
     final tintedAccent = Color.lerp(colors.primary, colors.onSurface, .45)!;
-    final activeColor = ZompadoBrand.readableAccent(
+    final activeColor = ZompaBrand.readableAccent(
       colors.primary,
       background,
-      ZompadoBrand.readableAccent(tintedAccent, background, colors.onSurface),
+      ZompaBrand.readableAccent(tintedAccent, background, colors.onSurface),
     );
 
     return Material(
@@ -1794,7 +1794,7 @@ class _GameLinkDialogState extends State<_GameLinkDialog> {
     if (text.isEmpty) return;
     final link = GameLink.parse(text);
     if (link == null) {
-      setState(() => _error = 'Use a game link shared from Zompado.');
+      setState(() => _error = 'Use a game link shared from Zompa.');
       return;
     }
     Navigator.pop(context, link);
@@ -1813,7 +1813,7 @@ class _GameLinkDialogState extends State<_GameLinkDialog> {
     content: TextField(
       controller: _input,
       decoration: InputDecoration(
-        labelText: 'Zompado game link',
+        labelText: 'Zompa game link',
         border: const OutlineInputBorder(),
         counterText: '',
         errorText: _error,
@@ -1866,7 +1866,7 @@ class GameCover extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        colors: [ZompadoBrand.darkPanel, Color(0xff1c4c63)],
+        colors: [ZompaBrand.darkPanel, Color(0xff1c4c63)],
       ),
     ),
     child: Center(
@@ -1875,9 +1875,9 @@ class GameCover extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: ZompadoBrand.ink,
+            color: ZompaBrand.ink,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: ZompadoBrand.wordmarkBlue, width: 2),
+            border: Border.all(color: ZompaBrand.wordmarkBlue, width: 2),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1920,7 +1920,7 @@ class Piece extends StatelessWidget {
     final color = switch (side) {
       1 => gold,
       2 => lilac,
-      _ => ZompadoBrand.ink,
+      _ => ZompaBrand.ink,
     };
     return Container(
       width: size,
@@ -2241,7 +2241,7 @@ class _AboutPage extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('Zompado', style: Theme.of(context).textTheme.headlineMedium),
+          Text('Zompa', style: Theme.of(context).textTheme.headlineMedium),
           const Text('Version $installedVersion'),
           const SizedBox(height: 16),
           const Text('Play, share games, and chat with friends.'),
@@ -2251,7 +2251,7 @@ class _AboutPage extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: () => _openGitHub(context),
               icon: const Icon(Icons.open_in_new),
-              label: const Text('Zompado on GitHub'),
+              label: const Text('Zompa on GitHub'),
             ),
           ),
         ],
@@ -2432,7 +2432,7 @@ class _ThemeSwatch extends StatelessWidget {
                   ? Icon(
                       Icons.check,
                       size: 17,
-                      color: ZompadoBrand.inkOnAccent(color.swatch),
+                      color: ZompaBrand.inkOnAccent(color.swatch),
                     )
                   : null,
             ),

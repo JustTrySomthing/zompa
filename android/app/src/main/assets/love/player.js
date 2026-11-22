@@ -11,8 +11,8 @@ let audio = [100, 100, 100];
 function applyAudio() {
   if (!runtime) return;
   const [volume, music, effects] = audio;
-  runtime.ZompadoFS.writeFile('/zompado/audio', `${music}:${effects}`);
-  runtime.setZompadoVolume(isPaused ? 0 : volume / 100);
+  runtime.ZompaFS.writeFile('/zompado/audio', `${music}:${effects}`);
+  runtime.setZompaVolume(isPaused ? 0 : volume / 100);
 }
 let saveMounted = false;
 let syncing;
@@ -29,13 +29,13 @@ let started = false;
 function showError() {
   setReady(false);
   status.hidden = false;
-  status.textContent = 'This game couldn’t run in Zompado. Go back to the library to try again.';
+  status.textContent = 'This game couldn’t run in Zompa. Go back to the library to try again.';
 }
 
 function flushSaves() {
   if (!saveMounted) return Promise.resolve();
   syncing ??= new Promise((resolve, reject) => {
-    runtime.ZompadoFS.syncfs(false, error => {
+    runtime.ZompaFS.syncfs(false, error => {
       if (error) reject(error);
       else resolve();
     });
@@ -47,10 +47,10 @@ function autosave() {
   if (gameRunning && !exiting) flushSaves().catch(console.error);
 }
 
-window.zompadoGame = Object.freeze({
+window.zompaGame = Object.freeze({
   setMatch(state) {
     pendingMatch = state;
-    if (runtime) runtime.ZompadoFS.writeFile('/zompado/match', state);
+    if (runtime) runtime.ZompaFS.writeFile('/zompado/match', state);
   },
   setAudio(settings) {
     if (typeof settings !== 'string' || !/^(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])$/.test(settings)) return;
@@ -69,7 +69,7 @@ window.zompadoGame = Object.freeze({
   },
   takeMove() {
     if (!runtime) return null;
-    const fs = runtime.ZompadoFS;
+    const fs = runtime.ZompaFS;
     if (!fs.analyzePath('/zompado/move').exists) return null;
     try {
       if (fs.stat('/zompado/move').size !== 1) return null;
@@ -83,21 +83,21 @@ window.zompadoGame = Object.freeze({
   async leave(quit) {
     if (!managesSave || exiting) return;
     exiting = true;
-    document.title = 'Zompado player';
+    document.title = 'Zompa player';
     this.setPaused(true);
     try {
       if (!gameRunning && !quit) {
-        document.title = 'zompado-save:ok';
+        document.title = 'zompa-save:ok';
         return;
       }
       if (!await ready) throw new Error('Game not available');
       await syncing;
-      if (quit && saveMounted) clearLocalSave(runtime.ZompadoFS, mode, build);
+      if (quit && saveMounted) clearLocalSave(runtime.ZompaFS, mode, build);
       await flushSaves();
-      document.title = 'zompado-save:ok';
+      document.title = 'zompa-save:ok';
     } catch (_) {
       exiting = false;
-      document.title = 'zompado-save:error';
+      document.title = 'zompa-save:error';
     }
   },
   start() {
@@ -117,8 +117,8 @@ async function start() {
     locateFile: name => name,
     printErr: console.error.bind(console),
     onAbort: showError,
-    zompadoManagedSaves: managesSave,
-    onZompadoSavesLoaded: (error, fs) => {
+    zompaManagedSaves: managesSave,
+    onZompaSavesLoaded: (error, fs) => {
       if (!managesSave) return;
       if (error) {
         showError();
@@ -127,9 +127,9 @@ async function start() {
       if (fresh) clearLocalSave(fs, mode, build);
     },
     preRun: [module => {
-      const fs = module.ZompadoFS;
+      const fs = module.ZompaFS;
       fs.writeFile('/game.love', bytes);
-      fs.mkdir('/zompado');
+      fs.mkdir('/zompa');
       fs.writeFile('/zompado/mode', mode);
       if (pendingMatch !== undefined) fs.writeFile('/zompado/match', pendingMatch);
       saveMounted = mode !== 'online' && Boolean(fs.filesystems.IDBFS);
@@ -140,7 +140,7 @@ async function start() {
       gameRunning = true;
       setReady(true);
       if (managesSave && fresh) {
-        if (build > 0 && mode === 'local') runtime.ZompadoFS.writeFile(dropFourLocalStarted, '');
+        if (build > 0 && mode === 'local') runtime.ZompaFS.writeFile(dropFourLocalStarted, '');
         autosave();
       }
       if (isPaused) runtime.pauseMainLoop();

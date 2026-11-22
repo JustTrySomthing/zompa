@@ -850,7 +850,7 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
       _cameraPermissionNeeded = false;
     });
     try {
-      value = await const MethodChannel('io.zompado.host')
+      value = await const MethodChannel('io.zompa.host')
           .invokeMethod<String>('scanFriendInvite');
     } on PlatformException catch (error) {
       if (mounted) {
@@ -889,7 +889,7 @@ class _AcceptInviteDialogState extends State<_AcceptInviteDialog> {
 
   Future<void> _openCameraSettings() async {
     try {
-      await const MethodChannel('io.zompado.host')
+      await const MethodChannel('io.zompa.host')
           .invokeMethod<void>('openCameraSettings');
     } on PlatformException {
       if (mounted) {
@@ -1452,7 +1452,7 @@ class _FriendConversationState extends State<FriendConversation>
     if (choice == null || !mounted) return;
     try {
       if (choice == 'capture-photo' || choice == 'capture-video') {
-        final granted = await const MethodChannel('io.zompado.host')
+        final granted = await const MethodChannel('io.zompa.host')
             .invokeMethod<bool>('requestCallCamera');
         if (granted != true) {
           if (mounted)

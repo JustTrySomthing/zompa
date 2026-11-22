@@ -37,8 +37,8 @@ def wait(label, check, seconds=35):
 
 def find(label):
     try:
-        adb("shell", "uiautomator", "dump", "/sdcard/zompado.xml")
-        data = adb("shell", "cat", "/sdcard/zompado.xml")
+        adb("shell", "uiautomator", "dump", "/sdcard/zompa.xml")
+        data = adb("shell", "cat", "/sdcard/zompa.xml")
         (DIAGNOSTICS / "window.xml").write_bytes(data)
         for node in ET.fromstring(data).iter("node"):
             candidates = [node.get("text", ""), node.get("content-desc", "")]

@@ -991,7 +991,7 @@ class _CallVideo extends StatelessWidget {
     if (defaultTargetPlatform != TargetPlatform.android) {
       return const SizedBox.expand();
     }
-    const viewType = 'io.zompado.callVideo';
+    const viewType = 'io.zompa.callVideo';
     return PlatformViewLink(
       viewType: viewType,
       surfaceFactory: (context, controller) => AndroidViewSurface(

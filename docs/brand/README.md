@@ -1,10 +1,10 @@
-# Zompado brand assets
+# Zompa brand assets
 
-The [approved brand kit](Zompado-Brand-Kit.pdf) establishes the blue wordmark and the speech bubble with the white Z. The wordmark PNG preserves the kit artwork and transparency. The speech bubble was traced for scalable app and web use.
+The [approved brand kit](Zompa-Brand-Kit.pdf) establishes the blue wordmark and the speech bubble with the white Z. The wordmark PNG uses the current lettering on a transparent background. The speech bubble was traced for scalable app and web use.
 
 | Asset | Use |
 | --- | --- |
-| [wordmark.png](wordmark.png) | Zompado name on Deep Ink |
+| [wordmark.png](wordmark.png) | Zompa name on Deep Ink |
 | [bubble.svg](bubble.svg), [bubble.png](bubble.png) | Standalone mark for the website and in-app motion |
 | [icon.svg](icon.svg), [icon.png](icon.png) | Rounded tile for web and distribution materials |
 | [Android resources](../../android/app/src/main/res) | Adaptive, themed, legacy launcher, and splash assets |

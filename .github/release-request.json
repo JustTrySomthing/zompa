@@ -1,5 +1,5 @@
 {
-  "version": "0.5.36",
-  "build": 45,
-  "notes": "- Restores taps in online Cats vs Dogs matches at every score.\n- The online turn label now shows “Your turn” or the other player’s name without the coin."
+  "version": "0.5.37",
+  "build": 46,
+  "notes": "- Zompado is now Zompa, with an updated wordmark, app label, and game SDK.\n- Includes chat and game presentation fixes and improvements to background alerts and incoming call recovery."
 }

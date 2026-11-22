@@ -1,9 +1,9 @@
 <resources>
     <style name="LaunchTheme" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:windowSplashScreenBackground">@color/zompado_ink</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/zompado_splash_mark</item>
-        <item name="android:windowBackground">@color/zompado_ink</item>
-        <item name="android:statusBarColor">@color/zompado_ink</item>
-        <item name="android:navigationBarColor">@color/zompado_ink</item>
+        <item name="android:windowSplashScreenBackground">@color/zompa_ink</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/zompa_splash_mark</item>
+        <item name="android:windowBackground">@color/zompa_ink</item>
+        <item name="android:statusBarColor">@color/zompa_ink</item>
+        <item name="android:navigationBarColor">@color/zompa_ink</item>
     </style>
 </resources>

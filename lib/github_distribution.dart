@@ -6,8 +6,15 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 const githubOwner = 'JustTrySomthing';
-const appRepository = 'zompado';
-const gamesRepository = 'zompado-games';
+const appRepository = 'zompa';
+const gamesRepository = 'zompa-games';
+// Shipped feeds, catalog entries, and installed games can contain old URLs.
+String? _previousRepository(String repository) => switch (repository) {
+  appRepository => 'zompado',
+  gamesRepository => 'zompado-games',
+  _ => null,
+};
+
 const transferLimit = 256 * 1024 * 1024;
 
 class ReleaseAsset {
@@ -27,7 +34,7 @@ class ReleaseAsset {
         url.hasFragment ||
         path.length != 6 ||
         path[0] != githubOwner ||
-        path[1] != repository ||
+        (path[1] != repository && path[1] != _previousRepository(repository)) ||
         path[2] != 'releases' ||
         path[3] != 'download' ||
         !RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(path[4]) ||
@@ -180,7 +187,11 @@ class GithubDistribution {
     final uri = game.imageUrl(file);
     final client = _client();
     try {
-      final response = await _get(client, uri);
+      final response = await _getWithPreviousRepository(
+        client,
+        uri,
+        gamesRepository,
+      );
       if (response.contentLength > maxBytes) {
         throw const FormatException('Game image is too large.');
       }
@@ -206,6 +217,7 @@ class GithubDistribution {
       ),
       schema: 1,
       fresh: true,
+      repository: appRepository,
     ),
   );
 
@@ -216,16 +228,23 @@ class GithubDistribution {
   }) => _readManifest(
     Uri.https('raw.githubusercontent.com', '/$githubOwner/$repo/main/$name'),
     schema: schema,
+    repository: repo,
   );
 
   Future<Map<String, dynamic>> _readManifest(
     Uri url, {
     required int schema,
     bool fresh = false,
+    required String repository,
   }) async {
     final client = _client();
     try {
-      final response = await _get(client, url, fresh: fresh);
+      final response = await _getWithPreviousRepository(
+        client,
+        url,
+        repository,
+        fresh: fresh,
+      );
       final bytes = <int>[];
       await for (final chunk in response.timeout(const Duration(seconds: 20))) {
         if (bytes.length + chunk.length > 128 * 1024) {
@@ -299,6 +318,24 @@ class GithubDistribution {
     } finally {
       client.close(force: true);
       await scratch.delete(recursive: true);
+    }
+  }
+
+  Future<HttpClientResponse> _getWithPreviousRepository(
+    HttpClient client,
+    Uri url,
+    String repository, {
+    bool fresh = false,
+  }) async {
+    try {
+      return await _get(client, url, fresh: fresh);
+    } on HttpException catch (error) {
+      if (error.message != 'GitHub returned 404.') rethrow;
+      final previous = _previousRepository(repository);
+      if (previous == null) rethrow;
+      final path = url.pathSegments.toList();
+      path[1] = previous;
+      return _get(client, url.replace(pathSegments: path), fresh: fresh);
     }
   }
 

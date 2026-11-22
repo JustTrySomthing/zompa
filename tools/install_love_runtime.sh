@@ -25,16 +25,16 @@ source = path.read_bytes()
 anchor = b'Module["FS_createPath"]=FS.createPath;'
 if source.count(anchor) != 2:
     raise SystemExit("Unexpected LÖVE runtime exports")
-source = source.replace(anchor, anchor + b'Module["ZompadoFS"]=FS;')
+source = source.replace(anchor, anchor + b'Module["ZompaFS"]=FS;')
 old_sync = b'if(err){Module["printErr"](err)}else{Module.removeRunDependency("IDBFS_sync")}'
 if source.count(old_sync) != 1:
     raise SystemExit("Unexpected LÖVE save initialization")
 source = source.replace(old_sync,
-    b'if(err){Module["printErr"](err)}if(Module["onZompadoSavesLoaded"])Module["onZompadoSavesLoaded"](err,FS);Module.removeRunDependency("IDBFS_sync")')
+    b'if(err){Module["printErr"](err)}if(Module["onZompaSavesLoaded"])Module["onZompaSavesLoaded"](err,FS);Module.removeRunDependency("IDBFS_sync")')
 unload = b'window.addEventListener("beforeunload",function(event){FS.syncfs(false'
 if source.count(unload) != 1:
     raise SystemExit("Unexpected LÖVE save shutdown")
-source = source.replace(unload, b'if(!Module["zompadoManagedSaves"])' + unload)
+source = source.replace(unload, b'if(!Module["zompaManagedSaves"])' + unload)
 old_eval = b'function _emscripten_run_script(ptr){eval(UTF8ToString(ptr))}'
 if source.count(old_eval) != 1:
     raise SystemExit("Unexpected LÖVE script callback")
@@ -46,20 +46,20 @@ connect = b'gain.connect(ac.destination);var ctx='
 if source.count(context) != 1 or source.count(connect) != 1:
     raise SystemExit("Unexpected LÖVE audio context")
 source = source.replace(context, b"""
-var zompadoVolume=1;
-Module["setZompadoVolume"]=function(level){
+var zompaVolume=1;
+Module["setZompaVolume"]=function(level){
   if (!Number.isFinite(level) || level<0 || level>1) return;
-  zompadoVolume=level;
-  Object.values(AL.contexts).forEach(function(ctx){ctx.zompadoOutput.gain.value=level;});
+  zompaVolume=level;
+  Object.values(AL.contexts).forEach(function(ctx){ctx.zompaOutput.gain.value=level;});
 };
 """ + context)
 source = source.replace(connect,
-  b'var zompadoOutput=ac.createGain();zompadoOutput.gain.value=zompadoVolume;'
-  b'gain.connect(zompadoOutput);zompadoOutput.connect(ac.destination);var ctx=')
+  b'var zompaOutput=ac.createGain();zompaOutput.gain.value=zompaVolume;'
+  b'gain.connect(zompaOutput);zompaOutput.connect(ac.destination);var ctx=')
 anchor = b'audioCtx:ac,listener:'
 if source.count(anchor) != 1:
     raise SystemExit("Unexpected LÖVE audio context fields")
-path.write_bytes(source.replace(anchor,b'audioCtx:ac,zompadoOutput:zompadoOutput,listener:'))
+path.write_bytes(source.replace(anchor,b'audioCtx:ac,zompaOutput:zompaOutput,listener:'))
 PY
 mkdir -p "$output/love"
 cp "$scratch/love.js" "$scratch/love.wasm" "$output/love/"

@@ -1,4 +1,4 @@
-"""Use two independent Android installs to verify Zompado friends and turns."""
+"""Use two independent Android installs to verify Zompa friends and turns."""
 
 import re
 import shlex
@@ -47,8 +47,8 @@ class Phone:
 
     def find(self, label):
         try:
-            self.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
-            layout = self.shell("cat", "/sdcard/zompado-friends.xml")
+            self.shell("uiautomator", "dump", "/sdcard/zompa-friends.xml")
+            layout = self.shell("cat", "/sdcard/zompa-friends.xml")
             editable = []
             for node in ET.fromstring(layout).iter("node"):
                 x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
@@ -66,8 +66,8 @@ class Phone:
         return None
 
     def labels(self):
-        self.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
-        layout = self.shell("cat", "/sdcard/zompado-friends.xml")
+        self.shell("uiautomator", "dump", "/sdcard/zompa-friends.xml")
+        layout = self.shell("cat", "/sdcard/zompa-friends.xml")
         values = [node.get("content-desc") or node.get("text") for node in ET.fromstring(layout).iter("node")]
         return [label for label in values if label and len(label) <= 60]
 
@@ -87,7 +87,7 @@ class Phone:
     def start(self):
         result = self.shell("am", "start", "-W", "-n", ACTIVITY).decode()
         if "Error" in result or "Exception" in result:
-            raise RuntimeError(f"{self.name}: could not launch Zompado: {result}")
+            raise RuntimeError(f"{self.name}: could not launch Zompa: {result}")
 
     def stop_background_process(self):
         self.shell("input", "keyevent", 3)
@@ -111,7 +111,7 @@ class Phone:
         self.shell("pm", "grant", APP, "android.permission.POST_NOTIFICATIONS")
         self.shell("pm", "grant", APP, "android.permission.RECORD_AUDIO")
         self.start()
-        self.see("Welcome to Zompado", 85)
+        self.see("Welcome to Zompa", 85)
         for _ in range(4):
             if self.find("Finish setup"):
                 break
@@ -229,7 +229,7 @@ def check_voice(alice, bob):
     bob.see("Video call with Alice", 30)
     alice.see("Video call with Bob", 30)
     wait("Alice to render Bob’s camera", lambda:
-         b"Remote camera frame rendered" in alice.adb("logcat", "-d", "-s", "ZompadoCall:I"), 30)
+         b"Remote camera frame rendered" in alice.adb("logcat", "-d", "-s", "ZompaCall:I"), 30)
     bob.press("Hide preview")
     alice.see("Video call with Bob")
     bob.press("Show preview")
@@ -358,7 +358,7 @@ def check_app_log(phone):
     phone.see("Copy Log")
     log = phone.shell("run-as", APP, "cat", "files/app-log.txt")
     if startup not in log or log.count(b"App process started") < 2:
-        raise RuntimeError("App Log did not keep the first startup after reopening Zompado")
+        raise RuntimeError("App Log did not keep the first startup after reopening Zompa")
     phone.press("Clear Log")
     wait("App Log to clear", lambda: startup not in phone.shell(
         f"run-as {APP} cat files/app-log.txt 2>/dev/null || true"
@@ -420,7 +420,7 @@ def main():
         voice_error = voice_error or error
         for phone in (alice, bob):
             print(f"{phone.name} while waiting for the call:", phone.labels(), flush=True)
-            logs = phone.adb("logcat", "-d", "-t", "800", "-s", "flutter:E", "ZompadoCall:I").decode(errors="replace")
+            logs = phone.adb("logcat", "-d", "-t", "800", "-s", "flutter:E", "ZompaCall:I").decode(errors="replace")
             if logs.strip():
                 print(logs, flush=True)
             for action in ("End call", "Decline", "Dismiss call message"):

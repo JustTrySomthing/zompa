@@ -408,7 +408,7 @@ class _FilePreview extends StatelessWidget {
 
   Future<void> _open(BuildContext context) async {
     try {
-      final opened = await const MethodChannel('io.zompado.host')
+      final opened = await const MethodChannel('io.zompa.host')
           .invokeMethod<bool>('openChatAttachment', {
             'path': message.file,
             'mime': message.mime,

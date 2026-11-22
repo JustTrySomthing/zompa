@@ -29,7 +29,7 @@ public final class VoiceAudioService extends Service {
             getSystemService(NotificationManager.class).createNotificationChannel(
                 new NotificationChannel(CHANNEL, "Ongoing calls", NotificationManager.IMPORTANCE_LOW));
         }
-        var notification = ChatAlerts.notification(this, "Zompado call", CHANNEL, NOTICE);
+        var notification = ChatAlerts.notification(this, "Zompa call", CHANNEL, NOTICE);
         notification.flags |= android.app.Notification.FLAG_ONGOING_EVENT;
         notification.flags &= ~android.app.Notification.FLAG_AUTO_CANCEL;
         try {

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const _host = MethodChannel('io.zompado.host');
+const _host = MethodChannel('io.zompa.host');
 
 class ChatFile {
   const ChatFile(

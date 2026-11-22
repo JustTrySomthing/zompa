@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'chat_chrome.dart';
 
-const _host = MethodChannel('io.zompado.host');
+const _host = MethodChannel('io.zompa.host');
 
 void recordAppEvent(String event) {
   unawaited(

@@ -254,7 +254,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
         ),
       );
       if (!mounted || confirmed != true) return;
-      const host = MethodChannel('io.zompado.host');
+      const host = MethodChannel('io.zompa.host');
       await host.invokeMethod<void>('discardLocalGameSave', {
         ...entry.game.playerReference,
         'mode': entry.mode,

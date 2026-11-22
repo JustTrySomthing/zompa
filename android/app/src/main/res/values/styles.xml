@@ -1,10 +1,10 @@
 <resources>
     <style name="LaunchTheme" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/zompado_ink</item>
-        <item name="android:statusBarColor">@color/zompado_ink</item>
-        <item name="android:navigationBarColor">@color/zompado_ink</item>
+        <item name="android:windowBackground">@color/zompa_ink</item>
+        <item name="android:statusBarColor">@color/zompa_ink</item>
+        <item name="android:navigationBarColor">@color/zompa_ink</item>
     </style>
     <style name="NormalTheme" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/zompado_ink</item>
+        <item name="android:windowBackground">@color/zompa_ink</item>
     </style>
 </resources>

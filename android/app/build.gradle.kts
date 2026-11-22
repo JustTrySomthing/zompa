@@ -7,8 +7,8 @@ plugins {
 val chatmailNativeLibraries = layout.buildDirectory.dir("chatmail/jniLibs")
 val chatmailInstaller = rootProject.file("../tools/install_chatmail_core.sh")
 // Test-only x86_64 build for running the app's player on the CI emulator.
-val emulatorSmoke = providers.gradleProperty("zompadoEmulatorSmoke").orNull == "true"
-val emulatorFriends = providers.gradleProperty("zompadoEmulatorFriends").orNull == "true"
+val emulatorSmoke = providers.gradleProperty("zompaEmulatorSmoke").orNull == "true"
+val emulatorFriends = providers.gradleProperty("zompaEmulatorFriends").orNull == "true"
 val testEmulator = emulatorSmoke || emulatorFriends
 val androidAbi = if (testEmulator) "x86_64" else "arm64-v8a"
 val chatmailExecutable = chatmailNativeLibraries.map { it.file("$androidAbi/libchatmail_rpc.so") }

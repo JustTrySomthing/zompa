@@ -36,7 +36,7 @@ enum ThemeColor {
   };
 }
 
-abstract final class ZompadoBrand {
+abstract final class ZompaBrand {
   static const ink = Color(0xff091a20);
   static const wordmarkBlue = Color(0xff5cb3db);
   static const bubbleBlue = Color(0xff5ecffe);
@@ -248,7 +248,7 @@ class _BrandLaunchState extends State<BrandLaunch>
                 return Opacity(
                   opacity: 1 - fade,
                   child: ColoredBox(
-                    color: ZompadoBrand.ink,
+                    color: ZompaBrand.ink,
                     child: Center(
                       child: Stack(
                         alignment: Alignment.center,
@@ -262,7 +262,7 @@ class _BrandLaunchState extends State<BrandLaunch>
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: ZompadoBrand.bubbleBlue.withValues(
+                                    color: ZompaBrand.bubbleBlue.withValues(
                                       alpha: .36 * (1 - ring),
                                     ),
                                   ),
@@ -276,7 +276,7 @@ class _BrandLaunchState extends State<BrandLaunch>
                               child: Transform.scale(
                                 scale: .85 + .15 * settle + .035 * fade,
                                 child: Image.asset(
-                                  ZompadoBrand.markAsset,
+                                  ZompaBrand.markAsset,
                                   width: 110,
                                   height: 110,
                                 ),
@@ -288,7 +288,7 @@ class _BrandLaunchState extends State<BrandLaunch>
                             child: Opacity(
                               opacity: reveal,
                               child: Image.asset(
-                                ZompadoBrand.wordmarkAsset,
+                                ZompaBrand.wordmarkAsset,
                                 width: 216,
                                 fit: BoxFit.contain,
                               ),

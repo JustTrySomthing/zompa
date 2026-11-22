@@ -30,7 +30,7 @@ final class CallVideoView implements PlatformView {
         local.setMirror(true);
         remote.init(egl, new RendererCommon.RendererEvents() {
             @Override public void onFirstFrameRendered() {
-                Log.i("ZompadoCall", "Remote camera frame rendered");
+                Log.i("ZompaCall", "Remote camera frame rendered");
             }
             @Override public void onFrameResolutionChanged(int width, int height, int rotation) {}
         });

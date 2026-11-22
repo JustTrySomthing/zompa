@@ -24,7 +24,7 @@ final class CallCamera {
         this.context = context.getApplicationContext();
         this.onFailure = onFailure;
         source = factory.createVideoSource(false);
-        track = factory.createVideoTrack("zompado_camera", source);
+        track = factory.createVideoTrack("zompa_camera", source);
         track.setEnabled(false);
     }
 
@@ -50,7 +50,7 @@ final class CallCamera {
             @Override public void onCameraClosed() {}
         });
         if (capturer == null) return false;
-        texture = SurfaceTextureHelper.create("ZompadoCamera", egl);
+        texture = SurfaceTextureHelper.create("ZompaCamera", egl);
         if (texture == null) {
             stop();
             return false;

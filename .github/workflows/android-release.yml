@@ -94,13 +94,13 @@ jobs:
           grep -Fxq "const installedBuild = $build;" lib/app_updates.dart
 
           umask 077
-          keystore=$(mktemp "$RUNNER_TEMP/zompado-signing.XXXXXX")
+          keystore=$(mktemp "$RUNNER_TEMP/zompa-signing.XXXXXX")
           trap 'rm -f "$keystore"' EXIT
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
           unset KEYSTORE_BASE64
           build_tools="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0"
           mkdir -p release
-          apk="release/Zompado-ARM64.apk"
+          apk="release/Zompa-ARM64.apk"
           "$build_tools/apksigner" sign --ks "$keystore" --ks-key-alias "$KEY_ALIAS" \
             --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD \
             --v4-signing-enabled false --in input/app-release.apk --out "$apk"
@@ -108,12 +108,12 @@ jobs:
           python3 tools/release_manifest.py "$apk" --version "$version" --build "$build" > release/update.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: zompado-signed-android
+          name: zompa-signed-android
           path: release/
           if-no-files-found: error
 
   publish:
-    if: github.ref == 'refs/heads/main' && github.repository == 'JustTrySomthing/zompado'
+    if: github.ref == 'refs/heads/main' && (github.repository == 'JustTrySomthing/zompa' || github.repository == 'JustTrySomthing/zompado')
     needs: [build, sign]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -128,7 +128,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: zompado-signed-android
+          name: zompa-signed-android
           path: release
       - name: Publish APK and advance the Android update feed
         env:

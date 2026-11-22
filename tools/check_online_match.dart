@@ -4,7 +4,7 @@ import '../lib/online_match.dart';
 
 void main() {
   final game = GameLink.parse(
-    'https://justtrysomthing.github.io/zompado/game/'
+    'https://justtrysomthing.github.io/zompa/game/'
     '?id=drop-four&build=5&sha=${'a' * 64}',
   )!;
   final invite = MatchEvent.invite(game);

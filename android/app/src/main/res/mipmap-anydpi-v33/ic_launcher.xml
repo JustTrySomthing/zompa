@@ -1,5 +1,5 @@
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/zompado_ink"/>
-    <foreground android:drawable="@drawable/zompado_icon_foreground"/>
-    <monochrome android:drawable="@drawable/zompado_icon_monochrome"/>
+    <background android:drawable="@color/zompa_ink"/>
+    <foreground android:drawable="@drawable/zompa_icon_foreground"/>
+    <monochrome android:drawable="@drawable/zompa_icon_monochrome"/>
 </adaptive-icon>

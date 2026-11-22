@@ -213,7 +213,7 @@ final class ChatPlayback {
             if (page.failed) continue;
             if (page.youtube) {
                 page.view.evaluateJavascript(
-                    "window.zompadoYouTubeActive = false; window.zompadoYouTubePlayer?.pauseVideo?.();",
+                    "window.zompaYouTubeActive = false; window.zompaYouTubePlayer?.pauseVideo?.();",
                     null);
             }
             page.view.onPause();
@@ -225,7 +225,7 @@ final class ChatPlayback {
             if (page.failed) continue;
             page.view.onResume();
             if (page.youtube) {
-                page.view.evaluateJavascript("window.zompadoYouTubeActive = true;", null);
+                page.view.evaluateJavascript("window.zompaYouTubeActive = true;", null);
             }
         }
     }
@@ -263,17 +263,17 @@ final class ChatPlayback {
                     allow="autoplay; encrypted-media; picture-in-picture"></iframe>
             <p id="status" role="status" hidden></p>
             <script>
-              window.zompadoYouTubeActive = true;
+              window.zompaYouTubeActive = true;
               const statusLabel = document.getElementById('status');
               function message(text) {
                 statusLabel.textContent = text;
                 statusLabel.hidden = !text;
               }
               function onYouTubeIframeAPIReady() {
-                window.zompadoYouTubePlayer = new YT.Player('player', {
+                window.zompaYouTubePlayer = new YT.Player('player', {
                   events: {
                     onReady: ({target}) => {
-                      if (!window.zompadoYouTubeActive || document.hidden) return;
+                      if (!window.zompaYouTubeActive || document.hidden) return;
                       target.unMute();
                       if (target.getVolume() === 0) target.setVolume(100);
                       target.playVideo();

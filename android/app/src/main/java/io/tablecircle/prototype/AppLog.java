@@ -40,7 +40,7 @@ final class AppLog {
             }
         });
         record(app, "App process started");
-        new Thread(() -> collectExits(app), "zompado-app-log").start();
+        new Thread(() -> collectExits(app), "zompa-app-log").start();
     }
 
     static void failure(Context context, String stage, Throwable error) {
@@ -84,7 +84,7 @@ final class AppLog {
             version = info.versionName + " (build " + build + ")";
         } catch (PackageManager.NameNotFoundException ignored) {}
         String entries = new String(content(file(context)), StandardCharsets.UTF_8);
-        return "Zompado " + version + "\nAndroid " + Build.VERSION.RELEASE + " (API "
+        return "Zompa " + version + "\nAndroid " + Build.VERSION.RELEASE + " (API "
             + Build.VERSION.SDK_INT + ") · " + Build.MANUFACTURER + " " + Build.MODEL
             + "\n\n" + (entries.isEmpty() ? "No activity recorded." : entries);
     }

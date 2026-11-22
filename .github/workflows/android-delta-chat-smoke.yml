@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - name: Select the Zompado emulator build
+      - name: Select the Zompa emulator build
         id: emulator_build
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,7 +45,7 @@ jobs:
               exit 0
             fi
           done
-          echo "No current Zompado emulator build found" >&2
+          echo "No current Zompa emulator build found" >&2
           exit 1
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         if: steps.emulator_build.outputs.id != ''
@@ -77,8 +77,8 @@ jobs:
           avdmanager="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
           adb="$ANDROID_HOME/platform-tools/adb"
           for port in 5554 5556; do
-            echo no | "$avdmanager" create avd --name "zompado$port" --package 'system-images;android-35;google_apis;x86_64'
-            "$ANDROID_HOME/emulator/emulator" -avd "zompado$port" -port "$port" -cores 2 -memory 2048 \
+            echo no | "$avdmanager" create avd --name "zompa$port" --package 'system-images;android-35;google_apis;x86_64'
+            "$ANDROID_HOME/emulator/emulator" -avd "zompa$port" -port "$port" -cores 2 -memory 2048 \
               -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect \
               -camera-front none -camera-back emulated > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
           done

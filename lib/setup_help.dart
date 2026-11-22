@@ -87,7 +87,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
     ];
     return off.isEmpty
         ? 'Message, call, and game invite alerts are on.'
-        : 'Alerts are off for ${off.join(', ')}. Check Android notification settings and Settings → Notifications in Zompado.';
+        : 'Alerts are off for ${off.join(', ')}. Check Android notification settings and Settings → Notifications in Zompa.';
   }
 
   @override
@@ -105,8 +105,8 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
         children: [
           _GuideHeader(
             icon: Icons.tune_rounded,
-            title: widget.firstRun ? 'Welcome to Zompado' : 'Set up Zompado',
-            text: 'Choose what Zompado can access.',
+            title: widget.firstRun ? 'Welcome to Zompa' : 'Set up Zompa',
+            text: 'Choose what Zompa can access.',
           ),
           const SizedBox(height: 16),
           const _SetupCard(
@@ -127,7 +127,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           _SetupCard(
             icon: Icons.lock_outline,
             title: 'Lock-screen alerts',
-            text: 'Allow Zompado notifications on the lock screen in Android settings.',
+            text: 'Allow Zompa notifications on the lock screen in Android settings.',
             action: !_working ? () => _open('openNotificationSettings') : null,
             button: 'Open notification settings',
           ),
@@ -144,8 +144,8 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
             icon: Icons.battery_charging_full_outlined,
             title: 'Alerts while your phone is asleep',
             text: _status?['backgroundListener'] == true
-                ? 'The background listener is on. Set Zompado’s battery use to Unrestricted so Android can keep its connection available while your phone is asleep.'
-                : 'Zompado starts a background listener after you set up Chats and enable alerts. Set its battery use to Unrestricted to help keep it connected while your phone is asleep.',
+                ? 'The background listener is on. Set Zompa’s battery use to Unrestricted so Android can keep its connection available while your phone is asleep.'
+                : 'Zompa starts a background listener after you set up Chats and enable alerts. Set its battery use to Unrestricted to help keep it connected while your phone is asleep.',
             enabled: _status?['batteryUnrestricted'],
             action: !_working && _status?['batteryUnrestricted'] == false
                 ? () => _open('openCallBatterySettings')
@@ -179,7 +179,7 @@ class _SetupPageState extends State<SetupPage> with WidgetsBindingObserver {
           ),
           _SetupCard(
             icon: Icons.system_update_alt_rounded,
-            title: 'Install updates from Zompado',
+            title: 'Install updates from Zompa',
             text: 'Open Android’s installer when an update is ready.',
             enabled: _status?['updateInstall'],
             action: !_working && _status?['updateInstall'] == false
@@ -316,15 +316,15 @@ const _topics = [
       ),
       (
         'How do I share or open a game?',
-        'Tap Share game on Cats vs Dogs in My Games. Open a game card from the chat, or paste a shared link under Games → Open game link. Zompado checks the exact version before offering to install it.',
+        'Tap Share game on Cats vs Dogs in My Games. Open a game card from the chat, or paste a shared link under Games → Open game link. Zompa checks the exact version before offering to install it.',
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'In a friend chat, tap the gamepad and choose an installed online game. In My Games, tap Play → New Online Match and choose a friend. Tap Invite to send the invitation from either screen. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to open the match or End Game to close it for both players. In a first-to-three series, either player can tap Next round. A draw earns no points. When the series ends, tap Play another match or Quit. Tap the chat icon to message each other while playing. The chat button lights up for unread messages while the chat panel is closed. Unanswered invitations expire after 7 days. Games with no moves for 30 days leave Active Games. If a new game would take you over 12 active games, the least recently played game leaves the list.',
+        'In a friend chat, tap the gamepad and choose an installed online game. In My Games, tap Play → New Online Match and choose a friend. Tap Invite to send the invitation from either screen. Your friend taps Accept on the invite. Zompa downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to open the match or End Game to close it for both players. In a first-to-three series, either player can tap Next round. A draw earns no points. When the series ends, tap Play another match or Quit. Tap the chat icon to message each other while playing. The chat button lights up for unread messages while the chat panel is closed. Unanswered invitations expire after 7 days. Games with no moves for 30 days leave Active Games. If a new game would take you over 12 active games, the least recently played game leaves the list.',
       ),
       (
         'How do I change game sounds?',
-        'Open Settings → Game audio or tap the speaker icon while playing. Game volume starts at 20% until you change it. Tap the circled speaker to mute all game audio without changing your volume levels. Music and sound effects also have separate mute buttons. Zompado lowers game volume during voice calls by default and restores it when the call ends. Separate Music and Sound effects sliders work with games that use the Zompado SDK.',
+        'Open Settings → Game audio or tap the speaker icon while playing. Game volume starts at 20% until you change it. Tap the circled speaker to mute all game audio without changing your volume levels. Music and sound effects also have separate mute buttons. Zompa lowers game volume during voice calls by default and restores it when the call ends. Separate Music and Sound effects sliders work with games that use the Zompa SDK.',
       ),
       (
         'How do I remove a downloaded game?',
@@ -332,7 +332,7 @@ const _topics = [
       ),
       (
         'Can I import a game file?',
-        'Open Games → Import a Game and choose a .zomp or .love file. Then tap Play next to its name. Zompado runs compatible LÖVE 11.5 games. A game that needs a native extension or online access may not run. Official catalog games use .zomp.',
+        'Open Games → Import a Game and choose a .zomp or .love file. Then tap Play next to its name. Zompa runs compatible LÖVE 11.5 games. A game that needs a native extension or online access may not run. Official catalog games use .zomp.',
       ),
       (
         'Can I play with someone next to me?',
@@ -371,11 +371,11 @@ const _topics = [
       ),
       (
         'Where can I get a log if a call is slow or crashes?',
-        'Reopen Zompado and go to Settings → App Log. Tap Copy Log to share the recorded call stages and available Android crash details. Tap Clear Log to erase the entries.',
+        'Reopen Zompa and go to Settings → App Log. Tap Copy Log to share the recorded call stages and available Android crash details. Tap Clear Log to erase the entries.',
       ),
       (
         'How do I call a friend?',
-        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, switch between Video and Audio, or end the call. When your camera is on, Preview shows or hides your own picture. For alerts while the phone is locked, open Settings → Setup → Alerts while your phone is asleep. Set Zompado’s Android battery use to Unrestricted and allow Incoming calls on the lock screen. The background listener uses a silent status notification. If you force-stop Zompado, open it again to resume listening.',
+        'Open a friend’s conversation and tap the phone icon. Check their name, then tap Call. Allow microphone access to speak. The bottom controls let you mute the microphone, switch between handset and speaker, switch between Video and Audio, or end the call. When your camera is on, Preview shows or hides your own picture. For alerts while the phone is locked, open Settings → Setup → Alerts while your phone is asleep. Set Zompa’s Android battery use to Unrestricted and allow Incoming calls on the lock screen. The background listener uses a silent status notification. If you force-stop Zompa, open it again to resume listening.',
       ),
       (
         'How do I send files or keep their original quality?',
@@ -399,7 +399,7 @@ const _topics = [
       ),
       (
         'How do I move my chats to a new phone?',
-        'Open Settings → Backup to save your Chatmail profile, messages, and attachments in a password-protected file. On the new phone, complete Zompado Setup and choose Restore backup before creating a chat profile.',
+        'Open Settings → Backup to save your Chatmail profile, messages, and attachments in a password-protected file. On the new phone, complete Zompa Setup and choose Restore backup before creating a chat profile.',
       ),
       (
         'Where are my saved messages?',
@@ -421,18 +421,18 @@ const _topics = [
         'Open Settings → Setup. You can turn on notifications or open Android’s installation settings there.',
       ),
       (
-        'Does Zompado need my location?',
+        'Does Zompa need my location?',
         'The current game catalog, games, and link-based chat setup work without location access. Android handles internet access automatically.',
       ),
       (
         'What alerts can I turn on?',
-        'Open Settings → Notifications for alert categories and Android lock screen settings. Use Mute all notifications in Settings → Notifications to silence all Zompado alerts. Choose Quiet Hours to schedule when alerts arrive silently. Tap a message alert to open the chat or a turn alert to open its match. The background listener reconnects when Android can run it. If you use Force stop, open Zompado again to resume listening. If a call appears without sound, open Setup → Incoming call sound and check Android’s sound and Do Not Disturb settings.',
+        'Open Settings → Notifications for alert categories and Android lock screen settings. Use Mute all notifications in Settings → Notifications to silence all Zompa alerts. Choose Quiet Hours to schedule when alerts arrive silently. Tap a message alert to open the chat or a turn alert to open its match. The background listener reconnects when Android can run it. If you use Force stop, open Zompa again to resume listening. If a call appears without sound, open Setup → Incoming call sound and check Android’s sound and Do Not Disturb settings.',
       ),
     ],
   ),
   (
     icon: Icons.system_update_alt_rounded,
-    title: 'Keep Zompado up to date',
+    title: 'Keep Zompa up to date',
     description: 'Check for a new version and install it',
     answers: [
       (
@@ -441,7 +441,7 @@ const _topics = [
       ),
       (
         'Why is Android asking about this source?',
-        'Android may ask you to allow Zompado to open the installer. You can change that in Settings → Setup → Install updates from Zompado.',
+        'Android may ask you to allow Zompa to open the installer. You can change that in Settings → Setup → Install updates from Zompa.',
       ),
     ],
   ),
@@ -476,7 +476,7 @@ class _HelpPageState extends State<HelpPage> {
             const _GuideHeader(
               icon: Icons.help_outline_rounded,
               title: 'How can we help?',
-              text: 'Find quick answers about games, friends, and setting up Zompado.',
+              text: 'Find quick answers about games, friends, and setting up Zompa.',
             ),
             const SizedBox(height: 14),
             TextField(

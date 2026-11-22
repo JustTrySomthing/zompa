@@ -22,7 +22,7 @@ def delta_chat_with(phone, contact):
     phone.see("Call")
 
 
-def answer_zompado(phone, caller):
+def answer_zompa(phone, caller):
     # Reuse the independent-peer test's direct accessibility tap and wait for
     # the incoming controls to disappear before checking the media connection.
     phone.see("Incoming call from " + caller, 80)
@@ -30,7 +30,7 @@ def answer_zompado(phone, caller):
         phone.press("Answer")
         if not phone.find("Answer"):
             return
-    raise RuntimeError("Zompado remained on the incoming call screen after tapping Answer")
+    raise RuntimeError("Zompa remained on the incoming call screen after tapping Answer")
 
 
 class DeltaPhone(Phone):
@@ -40,8 +40,8 @@ class DeltaPhone(Phone):
         return super().find(label)
 
     def call_cards(self):
-        self.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
-        layout = self.shell("cat", "/sdcard/zompado-friends.xml")
+        self.shell("uiautomator", "dump", "/sdcard/zompa-friends.xml")
+        layout = self.shell("cat", "/sdcard/zompa-friends.xml")
         cards = []
         for node in ElementTree.fromstring(layout).iter("node"):
             labels = node.get("text", "") + "\n" + node.get("content-desc", "")
@@ -87,51 +87,51 @@ class DeltaPhone(Phone):
 
 
 def main():
-    zompado = Phone(5554, "Zompado Alice")
+    zompa = Phone(5554, "Zompa Alice")
     delta = DeltaPhone(5556, "Delta Bob")
     try:
-        zompado.profile()
+        zompa.profile()
         delta.profile()
         delta.see("New Chat", 150)
-        delta.accept_invite(zompado.invite())
-        zompado.press(delta.name, 140)
+        delta.accept_invite(zompa.invite())
+        zompa.press(delta.name, 140)
 
-        send(zompado, "Test from Zompado", "Send message")
-        delta.see("Test from Zompado", 100)
+        send(zompa, "Test from Zompa", "Send message")
+        delta.see("Test from Zompa", 100)
         send(delta, "Reply from Delta Chat", "Send")
-        zompado.see("Reply from Delta Chat", 100)
-        print("PASS: stock Delta Chat and Zompado exchanged messages in both directions.", flush=True)
+        zompa.see("Reply from Delta Chat", 100)
+        print("PASS: stock Delta Chat and Zompa exchanged messages in both directions.", flush=True)
 
         # Delta Chat is the caller first, exercising its larger audio-call offer.
         delta.press("Call")
         delta.press("Audio Call")
-        answer_zompado(zompado, delta.name)
-        zompado.see("Voice call with " + delta.name, 65)
+        answer_zompa(zompa, delta.name)
+        zompa.see("Voice call with " + delta.name, 65)
         delta.see("Connected", 65)
         delta.press("Camera")
-        zompado.see("Video call with " + delta.name, 35)
-        wait("Zompado to render Delta Chat camera frames", lambda:
-             b"Remote camera frame rendered" in zompado.adb("logcat", "-d", "-s", "ZompadoCall:I"), 30)
-        zompado.press("End call")
+        zompa.see("Video call with " + delta.name, 35)
+        wait("Zompa to render Delta Chat camera frames", lambda:
+             b"Remote camera frame rendered" in zompa.adb("logcat", "-d", "-s", "ZompaCall:I"), 30)
+        zompa.press("End call")
         wait("Delta Chat to close the remote call", lambda: not delta.find("End Call"))
-        print("PASS: Delta Chat called Zompado, both clients connected, and Zompado rendered Delta Chat’s camera.", flush=True)
+        print("PASS: Delta Chat called Zompa, both clients connected, and Zompa rendered Delta Chat’s camera.", flush=True)
 
-        delta_chat_with(delta, zompado.name)
+        delta_chat_with(delta, zompa.name)
         previous_cards = len(delta.call_cards())
-        zompado.press("Voice call")
-        zompado.press("Call")
+        zompa.press("Voice call")
+        zompa.press("Call")
         delta.answer_incoming(previous_cards)
-        zompado.see("Voice call with " + delta.name, 65)
+        zompa.see("Voice call with " + delta.name, 65)
         delta.see("Connected", 65)
         delta.press("End Call")
-        wait("Zompado to close the remote call", lambda: not zompado.find("End call"))
-        print("PASS: Zompado called Delta Chat and both clients connected.", flush=True)
+        wait("Zompa to close the remote call", lambda: not zompa.find("End call"))
+        print("PASS: Zompa called Delta Chat and both clients connected.", flush=True)
     except Exception:
-        for phone in (zompado, delta):
+        for phone in (zompa, delta):
             try:
                 print(f"{phone.name} screen:", phone.labels(), flush=True)
-                phone.shell("uiautomator", "dump", "/sdcard/zompado-friends.xml")
-                layout = phone.shell("cat", "/sdcard/zompado-friends.xml")
+                phone.shell("uiautomator", "dump", "/sdcard/zompa-friends.xml")
+                layout = phone.shell("cat", "/sdcard/zompa-friends.xml")
                 keyboard = phone.shell("dumpsys input_method | grep -E 'mInputShown|mShowRequested' || true")
                 print("Keyboard state:", keyboard.decode(errors="replace").strip(), flush=True)
                 for node in ElementTree.fromstring(layout).iter("node"):
@@ -143,7 +143,7 @@ def main():
                 crash = phone.adb("logcat", "-b", "crash", "-d", "-t", "120")
                 if crash.strip():
                     print(f"{phone.name} Android crash log:\n{crash.decode(errors='replace')}", flush=True)
-                media = phone.adb("logcat", "-d", "-s", "ZompadoCall:I").decode(errors="replace")
+                media = phone.adb("logcat", "-d", "-s", "ZompaCall:I").decode(errors="replace")
                 if media.strip():
                     print(media, flush=True)
             except Exception:

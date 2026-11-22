@@ -173,7 +173,7 @@ final class ChatAlerts {
         PendingIntent open = alertIntent(context, chat, message, false);
         context.getSystemService(NotificationManager.class).notify("reply-reminder", message,
             activityNotification(context, "Reminder to reply", CHANNEL, open)
-                .setContentText("Open the conversation in Zompado.")
+                .setContentText("Open the conversation in Zompa.")
                 .build());
     }
 
@@ -210,9 +210,9 @@ final class ChatAlerts {
         Bundle extras = new Bundle();
         extras.putInt(ALERT_CHAT, chat);
         extras.putLong(CALL_DEADLINE, deadline);
-        var builder = notification(context, "Incoming Zompado call", incomingChannel(context), open)
+        var builder = notification(context, "Incoming Zompa call", incomingChannel(context), open)
             .addExtras(extras)
-            .setContentText("Open Zompado to answer.")
+            .setContentText("Open Zompa to answer.")
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setTimeoutAfter(remaining)
@@ -265,8 +265,8 @@ final class ChatAlerts {
         PendingIntent open = PendingIntent.getActivity(context, 393, openChats(context),
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new NotificationCompat.Builder(context, channel)
-            .setSmallIcon(R.drawable.zompado_icon_monochrome)
-            .setContentTitle("Zompado is listening")
+            .setSmallIcon(R.drawable.zompa_icon_monochrome)
+            .setContentTitle("Zompa is listening")
             .setContentText("Receiving messages, calls, and game invites")
             .setContentIntent(open)
             .setSilent(true)
@@ -289,14 +289,14 @@ final class ChatAlerts {
     private static NotificationCompat.Builder notification(Context context, String title, String channel,
             PendingIntent open) {
         var publicVersion = new NotificationCompat.Builder(context, channel)
-            .setSmallIcon(R.drawable.zompado_icon_monochrome)
+            .setSmallIcon(R.drawable.zompa_icon_monochrome)
             .setContentTitle(title)
             .setContentIntent(open)
             .build();
         return new NotificationCompat.Builder(context, channel)
-            .setSmallIcon(R.drawable.zompado_icon_monochrome)
+            .setSmallIcon(R.drawable.zompa_icon_monochrome)
             .setContentTitle(title)
-            .setContentText("Open Zompado to see what’s new.")
+            .setContentText("Open Zompa to see what’s new.")
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
             .setSilent(QuietHours.active(context))

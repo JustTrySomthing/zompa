@@ -281,7 +281,7 @@ AppBar chatPageBar(
         ? Row(
             children: [
               Image.asset(
-                ZompadoBrand.markAsset,
+                ZompaBrand.markAsset,
                 width: 25,
                 height: 25,
                 excludeFromSemantics: true,

@@ -54,7 +54,7 @@ final class ChatMedia {
                 try { metadata.release(); } catch (Exception ignored) {}
             }
             MAIN.post(() -> export(context, source, video, saver, duration, height, receive));
-        }, "zompado-media-metadata").start();
+        }, "zompa-media-metadata").start();
     }
 
     private static void export(Context context, File source, boolean video, boolean saver,

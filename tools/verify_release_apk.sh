@@ -11,7 +11,7 @@ fingerprint=d55fa5cc439bc4abfbf914e32675728de84c3267d2a86ec59c91781ff1bb39b8
 certificates=$("$build_tools/apksigner" verify --print-certs "$apk")
 signers=$(sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: (.*)$/\1/p' <<<"$certificates")
 if [[ "$signers" != "$fingerprint" ]]; then
-  echo 'APK signing certificate does not match the published Zompado certificate.' >&2
+  echo 'APK signing certificate does not match the published Zompa certificate.' >&2
   exit 1
 fi
 
@@ -24,4 +24,4 @@ fi
 
 python3 "$(dirname "$0")/verify_webrtc_apk.py" "$apk"
 
-printf 'Verified Zompado %s (build %s), ARM64, signer SHA-256 %s\n' "$version" "$build" "$fingerprint"
+printf 'Verified Zompa %s (build %s), ARM64, signer SHA-256 %s\n' "$version" "$build" "$fingerprint"

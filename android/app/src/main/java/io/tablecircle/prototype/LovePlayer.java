@@ -63,7 +63,7 @@ final class LovePlayer implements PlatformView {
         @Override public void run() {
             var view = web;
             if (view == null || paused || !moveAllowed) return;
-            view.evaluateJavascript("window.zompadoGame?.takeMove()", value -> {
+            view.evaluateJavascript("window.zompaGame?.takeMove()", value -> {
                 if (web == view && !paused && moveAllowed && value != null && value.matches("[0-6]")) {
                     channel.invokeMethod("move", Integer.parseInt(value));
                 }
@@ -81,7 +81,7 @@ final class LovePlayer implements PlatformView {
         }
 
         @Override public PlatformView create(Context context, int id, Object args) {
-            return new LovePlayer(context, new MethodChannel(messenger, "io.zompado.love/" + id),
+            return new LovePlayer(context, new MethodChannel(messenger, "io.zompa.love/" + id),
                 args instanceof Map ? (Map<?, ?>) args : Collections.emptyMap());
         }
     }
@@ -155,7 +155,7 @@ final class LovePlayer implements PlatformView {
             } catch (Exception ignored) {
                 main.post(() -> showMessage("Couldn’t open this game. Reinstall it and try again."));
             }
-        }, "zompado-love-verify").start();
+        }, "zompa-love-verify").start();
     }
 
     private static String gameHost(String identity) {
@@ -279,7 +279,8 @@ final class LovePlayer implements PlatformView {
         LoveImport.validate(file);
         if (build != null) {
             try (var zip = new ZipFile(file)) {
-                ZipEntry manifest = zip.getEntry("zompado.json");
+                ZipEntry manifest = zip.getEntry("zompa.json");
+                if (manifest == null) manifest = zip.getEntry("zompado.json");
                 if (manifest == null || manifest.getSize() < 1 || manifest.getSize() > 4096) {
                     throw new IOException("Missing game manifest");
                 }
@@ -331,8 +332,8 @@ final class LovePlayer implements PlatformView {
 
             @Override public void onReceivedTitle(WebView view, String title) {
                 if (web != view || leaving == null) return;
-                if ("zompado-save:ok".equals(title)) finishLeave(true);
-                else if ("zompado-save:error".equals(title)) finishLeave(false);
+                if ("zompa-save:ok".equals(title)) finishLeave(true);
+                else if ("zompa-save:error".equals(title)) finishLeave(false);
             }
         });
         view.setDownloadListener((url, agent, disposition, mime, length) -> {});
@@ -380,7 +381,7 @@ final class LovePlayer implements PlatformView {
                 allowPackage = true;
                 sendAudio();
                 sendPause();
-                view.evaluateJavascript("window.zompadoGame?.start()", null);
+                view.evaluateJavascript("window.zompaGame?.start()", null);
             }
 
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
@@ -418,7 +419,7 @@ final class LovePlayer implements PlatformView {
         }
         leaving = result;
         web.onResume();
-        web.evaluateJavascript("Boolean(window.zompadoGame && (window.zompadoGame.leave("
+        web.evaluateJavascript("Boolean(window.zompaGame && (window.zompaGame.leave("
             + quit + "), true))", accepted -> {
                 if (leaving == result && !"true".equals(accepted)) finishLeave(!quit);
             });
@@ -460,19 +461,19 @@ final class LovePlayer implements PlatformView {
 
     private void sendPause() {
         if (web != null) {
-            web.evaluateJavascript("window.zompadoGame?.setPaused(" + paused + ")", null);
+            web.evaluateJavascript("window.zompaGame?.setPaused(" + paused + ")", null);
         }
     }
 
     private void sendAudio() {
         if (web != null) {
-            web.evaluateJavascript("window.zompadoGame?.setAudio(" + JSONObject.quote(audio) + ")", null);
+            web.evaluateJavascript("window.zompaGame?.setAudio(" + JSONObject.quote(audio) + ")", null);
         }
     }
 
     private void sendMatch() {
         if (web == null || match == null) return;
-        web.evaluateJavascript("window.zompadoGame?.setMatch(" + JSONObject.quote(match) + ")", null);
+        web.evaluateJavascript("window.zompaGame?.setMatch(" + JSONObject.quote(match) + ")", null);
         updatePolling();
     }
 
@@ -503,7 +504,7 @@ final class LovePlayer implements PlatformView {
         web = null;
         container.removeAllViews();
         if (view != null) {
-            view.evaluateJavascript("window.zompadoGame?.flushSaves()", null);
+            view.evaluateJavascript("window.zompaGame?.flushSaves()", null);
             view.onPause();
             main.postDelayed(view::destroy, 400);
         }

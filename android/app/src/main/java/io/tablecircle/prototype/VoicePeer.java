@@ -37,7 +37,7 @@ final class VoicePeer {
     private CallVideoView videoView;
     private Map<String, String> lastCallConnection = Collections.emptyMap();
     private boolean visible;
-    private static final String TAG = "ZompadoCall";
+    private static final String TAG = "ZompaCall";
     private Session session;
     private static boolean initialized;
 
@@ -70,7 +70,7 @@ final class VoicePeer {
                     .createAudioDeviceModule();
                 try {
                     AppLog.record(activity, "Creating WebRTC peer factory");
-                    // Keep the software codecs used by existing Zompado releases.
+                    // Keep the software codecs used by existing Zompa releases.
                     // Camera and rendering also use the call's own EGL context.
                     factory = PeerConnectionFactory.builder().setAudioDeviceModule(device)
                         .setVideoEncoderFactory(new SoftwareVideoEncoderFactory())
@@ -99,7 +99,7 @@ final class VoicePeer {
             active.peer.setAudioPlayout(false);
             AppLog.record(activity, "Creating WebRTC audio input");
             active.source = factory.createAudioSource(new MediaConstraints());
-            active.track = factory.createAudioTrack("zompado_voice", active.source);
+            active.track = factory.createAudioTrack("zompa_voice", active.source);
             VoiceAudioService.begin(activity);
             AppLog.record(activity, offer == null ? "Preparing outgoing call offer" : "Preparing incoming call answer");
             active.start(offer);
@@ -331,7 +331,7 @@ final class VoicePeer {
         }
 
         void addLocalTracks(boolean answering, boolean withVideo) {
-            var streams = Collections.singletonList("zompado");
+            var streams = Collections.singletonList("zompa");
             if (peer.addTrack(track, streams) == null) {
                 throw new IllegalStateException("No audio sender");
             }

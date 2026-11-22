@@ -8,7 +8,7 @@ import 'chat_files.dart';
 import 'chatmail.dart';
 import 'dialog_actions.dart';
 
-const _host = MethodChannel('io.zompado.host');
+const _host = MethodChannel('io.zompa.host');
 
 class QuietHoursPage extends StatefulWidget {
   const QuietHoursPage({super.key});
@@ -205,7 +205,7 @@ class _BackupPageState extends State<BackupPage> {
       if (password == null || !mounted) return;
       final cache = await _host.invokeMethod<String>('backupCache');
       if (cache == null) throw const FileSystemException('No backup storage');
-      staging = await Directory(cache).createTemp('zompado-backup-');
+      staging = await Directory(cache).createTemp('zompa-backup-');
       if (export) {
         await widget.chatmail.exportBackup(staging.path);
         final archive = await staging.list().firstWhere(

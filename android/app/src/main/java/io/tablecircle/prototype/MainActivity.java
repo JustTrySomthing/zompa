@@ -66,18 +66,18 @@ public final class MainActivity extends FlutterActivity {
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
-            "io.zompado.love", new LovePlayer.Factory(flutterEngine.getDartExecutor().getBinaryMessenger()));
+            "io.zompa.love", new LovePlayer.Factory(flutterEngine.getDartExecutor().getBinaryMessenger()));
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
-            "io.zompado.chatVideo", playback.factory(false));
+            "io.zompa.chatVideo", playback.factory(false));
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
-            "io.zompado.previewBrowser", playback.factory(true));
+            "io.zompa.previewBrowser", playback.factory(true));
         ChatAlerts.setup(this);
         ChatSyncJob.schedule(this);
         readChatIntent(getIntent());
-        host = new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompado.host");
+        host = new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "io.zompa.host");
         voice = new VoicePeer(this, host);
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
-            "io.zompado.callVideo", new io.flutter.plugin.platform.PlatformViewFactory(
+            "io.zompa.callVideo", new io.flutter.plugin.platform.PlatformViewFactory(
                 io.flutter.plugin.common.StandardMessageCodec.INSTANCE) {
                 @Override public io.flutter.plugin.platform.PlatformView create(
                         android.content.Context context, int viewId, Object args) {
@@ -118,7 +118,7 @@ public final class MainActivity extends FlutterActivity {
                             } catch (IOException | RuntimeException failure) {
                                 runOnUiThread(() -> result.error("APP_LOG", "Couldn’t read App Log.", null));
                             }
-                        }, "zompado-read-app-log").start();
+                        }, "zompa-read-app-log").start();
                         break;
                     case "clearAppLog":
                         AppLog.clear(MainActivity.this);
@@ -159,7 +159,7 @@ public final class MainActivity extends FlutterActivity {
                             } catch (Exception error) {
                                 runOnUiThread(() -> result.error("LOVE_IMPORT", error.getMessage(), null));
                             }
-                        }, "zompado-love-check").start();
+                        }, "zompa-love-check").start();
                         break;
                     case "openChatAttachment":
                         result.success(playback.openAttachment(call.argument("path"), call.argument("mime")));
@@ -512,7 +512,7 @@ public final class MainActivity extends FlutterActivity {
                     result.error("LOVE_IMPORT", "Couldn’t read this game.", null);
                 });
             }
-        }, "zompado-love-import").start();
+        }, "zompa-love-import").start();
     }
 
     private boolean cameraAvailable() {
@@ -692,7 +692,7 @@ public final class MainActivity extends FlutterActivity {
                 Thread.currentThread().interrupt();
                 runOnUiThread(() -> result.success(null));
             }
-        }, "zompado-chat-handoff").start();
+        }, "zompa-chat-handoff").start();
     }
 
     @Override

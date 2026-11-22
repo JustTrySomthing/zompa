@@ -1,24 +1,24 @@
-# Resume Zompado from GitHub
+# Resume Zompa from GitHub
 
 Clone the Android app and, if the task touches games or the catalog, clone the games repository beside it.
 
 ```sh
-git clone https://github.com/JustTrySomthing/zompado.git
-git clone https://github.com/JustTrySomthing/zompado-games.git
-cd zompado
+git clone https://github.com/JustTrySomthing/zompa.git
+git clone https://github.com/JustTrySomthing/zompa-games.git
+cd zompa
 ```
 
 Both repositories use `main`. Check the latest GitHub Release and its `update.json` asset before selecting a release version. The prototype was previously called Table Circle. Its Android package remains `io.tablecircle.prototype`.
 
 | What you need | Where to look |
 |---|---|
-| Android source at the tag for a shipped version | [Android releases](https://github.com/JustTrySomthing/zompado/releases) |
+| Android source at the tag for a shipped version | [Android releases](https://github.com/JustTrySomthing/zompa/releases) |
 | App updater feed, native Android bridge, and download validation | [update.json](../update.json), [Android sources](../android/app/src/main/java/io/tablecircle/prototype), [install controller](../lib/app_updates.dart), [GitHub distribution code](../lib/github_distribution.dart) |
-| Official .zomp catalog, versioned LÖVE sources, and release assets | [zompado-games](https://github.com/JustTrySomthing/zompado-games) |
+| Official .zomp catalog, versioned LÖVE sources, and release assets | [zompa-games](https://github.com/JustTrySomthing/zompa-games) |
 | Voice calls and scheduled Android chat alerts | [Call state and UI](../lib/voice_calls.dart), [Android WebRTC bridge](../android/app/src/main/java/io/tablecircle/prototype/VoicePeer.java), [Chat sync job](../android/app/src/main/java/io/tablecircle/prototype/ChatSyncJob.java), [relay verification workflow](../.github/workflows/verify-chatmail-relay.yml) |
 | Manual `.zomp` and `.love` imports and Lua template | [Android archive validation](../android/app/src/main/java/io/tablecircle/prototype/LoveImport.java), [Lua SDK](../sdk/README.md) |
 | Embedded LÖVE and online match validation | [Runtime pin and hashes](../tools/install_love_runtime.sh), [Android player](../android/app/src/main/java/io/tablecircle/prototype/LovePlayer.java), [Flutter view](../lib/love_player.dart), [match validation](../lib/online_match.dart) |
-| Game audio and Android test workflow | [Flutter settings](../lib/game_audio.dart), [Lua mixer](../sdk/zompado.lua), [Android emulator workflow](../.github/workflows/android-game-smoke.yml) |
+| Game audio and Android test workflow | [Flutter settings](../lib/game_audio.dart), [Lua mixer](../sdk/zompa.lua), [Android emulator workflow](../.github/workflows/android-game-smoke.yml) |
 | Contacts, self profile, and chat composer | [Contact list](../lib/contacts_page.dart), [Chatmail profile editor](../lib/profile_page.dart), [composer and invites](../lib/friends.dart) |
 | Two-device Android verification | [Emulator workflow](../.github/workflows/android-friends-smoke.yml), [verification script](../tools/check_android_friends.py) |
 | Implemented features and next milestones | [README](../README.md), [build plan](BUILD-PLAN.md) |
@@ -33,23 +33,23 @@ The match invitation opens a waiting screen for the sender. The recipient’s Ac
 
 ## Previous builds
 
-The [signed 0.5.19 preview, build 28](https://github.com/JustTrySomthing/zompado/actions/runs/44803403814/artifacts/14663605112) was built from `d8ad902`. The game toolbar provides pause, resume, quit, and audio. During online matches it adds message and phone controls, a slide-down chat panel, and brief previews for incoming messages. Resume Game in My Games opens the active board directly. See the [Android game-flow check](https://github.com/JustTrySomthing/zompado/actions/runs/44803404116) and [two-device check](https://github.com/JustTrySomthing/zompado/actions/runs/44803403829). The APK SHA-256 is `3491d7b9e037cfeba4c66608775de1c741aaf3aa5fa3bca02331aeb524444672`.
+The [signed 0.5.19 preview, build 28](https://github.com/JustTrySomthing/zompa/actions/runs/44803403814/artifacts/14663605112) was built from `d8ad902`. The game toolbar provides pause, resume, quit, and audio. During online matches it adds message and phone controls, a slide-down chat panel, and brief previews for incoming messages. Resume Game in My Games opens the active board directly. See the [Android game-flow check](https://github.com/JustTrySomthing/zompa/actions/runs/44803404116) and [two-device check](https://github.com/JustTrySomthing/zompa/actions/runs/44803403829). The APK SHA-256 is `3491d7b9e037cfeba4c66608775de1c741aaf3aa5fa3bca02331aeb524444672`.
 
-The [signed 0.5.18 preview, build 27](https://github.com/JustTrySomthing/zompado/actions/runs/44799254514/artifacts/14660753403) was built from `88a30bf`. It adds video call self-view, Quiet Hours, encrypted Chatmail backups, connection details, chat media previews and inline audio, reply reminders, and Inbox, Archive, and Trash. Restore a backup on a phone before creating a Chatmail profile. The [two-device Android check](https://github.com/JustTrySomthing/zompado/actions/runs/44799254494) uses the same source. The APK SHA-256 is `3f72a20f5427603b052042abf9f5191856f1b086e55451f897bc96c61194726e`.
+The [signed 0.5.18 preview, build 27](https://github.com/JustTrySomthing/zompa/actions/runs/44799254514/artifacts/14660753403) was built from `88a30bf`. It adds video call self-view, Quiet Hours, encrypted Chatmail backups, connection details, chat media previews and inline audio, reply reminders, and Inbox, Archive, and Trash. Restore a backup on a phone before creating a Chatmail profile. The [two-device Android check](https://github.com/JustTrySomthing/zompa/actions/runs/44799254494) uses the same source. The APK SHA-256 is `3f72a20f5427603b052042abf9f5191856f1b086e55451f897bc96c61194726e`.
 
-The [signed 0.5.17 preview, build 26](https://github.com/JustTrySomthing/zompado/actions/runs/44793737081/artifacts/14657163426) was built from `a01b68b`. **Settings → Appearance** includes a live preview for message text size. The call receiver can send an answer after a short relay-gathering grace period when the caller offers a UDP relay and the receiver has a local UDP candidate. **Settings → App Log** records the answer tap, Chatmail signaling, and WebRTC connection separately. See the [two-device Android check](https://github.com/JustTrySomthing/zompado/actions/runs/44793737065). The APK SHA-256 is `06dfe14be15954067f34f5ac1e3bcdfcb6af41feb0d66177f61aae817d2b4cc7`.
+The [signed 0.5.17 preview, build 26](https://github.com/JustTrySomthing/zompa/actions/runs/44793737081/artifacts/14657163426) was built from `a01b68b`. **Settings → Appearance** includes a live preview for message text size. The call receiver can send an answer after a short relay-gathering grace period when the caller offers a UDP relay and the receiver has a local UDP candidate. **Settings → App Log** records the answer tap, Chatmail signaling, and WebRTC connection separately. See the [two-device Android check](https://github.com/JustTrySomthing/zompa/actions/runs/44793737065). The APK SHA-256 is `06dfe14be15954067f34f5ac1e3bcdfcb6af41feb0d66177f61aae817d2b4cc7`.
 
-The [signed 0.5.16 preview, build 25](https://github.com/JustTrySomthing/zompado/actions/runs/44780613871/artifacts/14652623501) was built from `925766d`. The release APK now retains WebRTC’s Java bindings used by JNI. The [APK verifier](../tools/verify_webrtc_apk.py) rejected the previous signed preview’s DEX and passed on this signed APK. **Settings → App Log** captures call startup, Android and Flutter error types, and available historical native backtraces. Its Copy Log and Clear Log controls work on the app’s local log. See the [emulator App Log check](https://github.com/JustTrySomthing/zompado/actions/runs/44785312955) and [Delta Chat interoperability check](https://github.com/JustTrySomthing/zompado/actions/runs/44782843024). The APK SHA-256 is `baf60cd56b822ce946fe7ad89839c63f04e02653d665ae030126344b0b4bbd1f`.
+The [signed 0.5.16 preview, build 25](https://github.com/JustTrySomthing/zompa/actions/runs/44780613871/artifacts/14652623501) was built from `925766d`. The release APK now retains WebRTC’s Java bindings used by JNI. The [APK verifier](../tools/verify_webrtc_apk.py) rejected the previous signed preview’s DEX and passed on this signed APK. **Settings → App Log** captures call startup, Android and Flutter error types, and available historical native backtraces. Its Copy Log and Clear Log controls work on the app’s local log. See the [emulator App Log check](https://github.com/JustTrySomthing/zompa/actions/runs/44785312955) and [Delta Chat interoperability check](https://github.com/JustTrySomthing/zompa/actions/runs/44782843024). The APK SHA-256 is `baf60cd56b822ce946fe7ad89839c63f04e02653d665ae030126344b0b4bbd1f`.
 
-The [signed 0.5.15 preview, build 24](https://github.com/JustTrySomthing/zompado/actions/runs/44774718338/artifacts/14649262708) was built from `4db3304`. It adds the global Saved collection, Chatmail reactions, chat list actions, contact pins, and per-category notifications. The paperclip uses Core image quality and Android AAC/H.264 preparation for audio and video. Attach Original File bypasses those media changes. Setup links to Android lock-screen notification controls. See [the Android friends check](https://github.com/JustTrySomthing/zompado/actions/runs/44777572888) and [the Delta Chat check](https://github.com/JustTrySomthing/zompado/actions/runs/44777300379). The preview APK’s SHA-256 is `fc47177b8d14c4bd35df5dd9a7543e2c048961b849d78d63b240d50d756476cf`.
+The [signed 0.5.15 preview, build 24](https://github.com/JustTrySomthing/zompa/actions/runs/44774718338/artifacts/14649262708) was built from `4db3304`. It adds the global Saved collection, Chatmail reactions, chat list actions, contact pins, and per-category notifications. The paperclip uses Core image quality and Android AAC/H.264 preparation for audio and video. Attach Original File bypasses those media changes. Setup links to Android lock-screen notification controls. See [the Android friends check](https://github.com/JustTrySomthing/zompa/actions/runs/44777572888) and [the Delta Chat check](https://github.com/JustTrySomthing/zompa/actions/runs/44777300379). The preview APK’s SHA-256 is `fc47177b8d14c4bd35df5dd9a7543e2c048961b849d78d63b240d50d756476cf`.
 
-The [signed 0.5.14 preview, build 23](https://github.com/JustTrySomthing/zompado/actions/runs/44756954682/artifacts/14639242713) adds Contacts, the Chatmail self-profile editor, attachments and emoji, and the match readiness and pause flow. The APK was built from commit `4ada3df`. Its SHA-256 is `e18090bf0d08e70d14725f4e0448d10966c1c8c465b91776154c3739410ae389`. The [Android game smoke test](https://github.com/JustTrySomthing/zompado/actions/runs/44756955086) passed on that build. The [two-device Android check](https://github.com/JustTrySomthing/zompado/actions/runs/44759755448) passed invitations, turn exchange, synchronized pause and resume, quitting, and reopening the board from a background alert. The [stock Delta Chat check](https://github.com/JustTrySomthing/zompado/actions/runs/44759483369) passed messages and calls in both directions, including Delta Chat video displayed by Zompado.
+The [signed 0.5.14 preview, build 23](https://github.com/JustTrySomthing/zompa/actions/runs/44756954682/artifacts/14639242713) adds Contacts, the Chatmail self-profile editor, attachments and emoji, and the match readiness and pause flow. The APK was built from commit `4ada3df`. Its SHA-256 is `e18090bf0d08e70d14725f4e0448d10966c1c8c465b91776154c3739410ae389`. The [Android game smoke test](https://github.com/JustTrySomthing/zompa/actions/runs/44756955086) passed on that build. The [two-device Android check](https://github.com/JustTrySomthing/zompa/actions/runs/44759755448) passed invitations, turn exchange, synchronized pause and resume, quitting, and reopening the board from a background alert. The [stock Delta Chat check](https://github.com/JustTrySomthing/zompa/actions/runs/44759483369) passed messages and calls in both directions, including Delta Chat video displayed by Zompa.
 
-The [signed 0.5.13 calling preview, build 20](https://github.com/JustTrySomthing/zompado/actions/runs/44734662303/artifacts/14628706186) uses Chatmail Core signaling, Relay Lab’s UDP/TCP fallback for Chatmail TURN URLs, and the negotiated Delta Chat ICE and mute-state channels. See the [two-Zompado test](../.github/workflows/android-friends-smoke.yml) and [stock Delta Chat test](../.github/workflows/android-delta-chat-smoke.yml) for device coverage. The camera starts on user action and stops when the activity leaves the foreground. The [build 20 Android test](https://github.com/JustTrySomthing/zompado/actions/runs/44734662285) verified answering with the chat composer focused, video frames, controls, hangup, and the online game flow.
+The [signed 0.5.13 calling preview, build 20](https://github.com/JustTrySomthing/zompa/actions/runs/44734662303/artifacts/14628706186) uses Chatmail Core signaling, Relay Lab’s UDP/TCP fallback for Chatmail TURN URLs, and the negotiated Delta Chat ICE and mute-state channels. See the [two-Zompa test](../.github/workflows/android-friends-smoke.yml) and [stock Delta Chat test](../.github/workflows/android-delta-chat-smoke.yml) for device coverage. The camera starts on user action and stops when the activity leaves the foreground. The [build 20 Android test](https://github.com/JustTrySomthing/zompa/actions/runs/44734662285) verified answering with the chat composer focused, video frames, controls, hangup, and the online game flow.
 
 The Android friend invite scanner uses the bundled ZXing decoder and the Android Camera permission. Setup offers this permission, and the scanner also requests access when first used. Paste remains available on devices without a camera.
 
-Zompado keeps a Chatmail connection open through a foreground service with a silent Android status notification. The app owns the Chatmail Core process while its Flutter engine is present. The service takes over after the engine is removed, and Android can restart the service after process loss or after reboot and unlock. The periodic job remains a fallback. For lock-screen delivery, enable the alert categories and allow unrestricted battery use in **Settings → Setup**. Force-stopping the app interrupts the connection until the next launch. A separate push transport would require an Android app registration and a compatible Chatmail notifier.
+Zompa keeps a Chatmail connection open through a foreground service with a silent Android status notification. The app owns the Chatmail Core process while its Flutter engine is present. The service takes over after the engine is removed, and Android can restart the service after process loss or after reboot and unlock. The periodic job remains a fallback. For lock-screen delivery, enable the alert categories and allow unrestricted battery use in **Settings → Setup**. Force-stopping the app interrupts the connection until the next launch. A separate push transport would require an Android app registration and a compatible Chatmail notifier.
 
 ## Toolchain and fresh checkout
 
@@ -73,11 +73,11 @@ Flutter creates `android/local.properties` for the local SDK paths. Gradle needs
 | Distribution ABI | `arm64-v8a` |
 | Certificate subject | `CN=Table Circle Prototype` |
 | Certificate SHA-256 | `d55fa5cc439bc4abfbf914e32675728de84c3267d2a86ec59c91781ff1bb39b8` |
-| Public reference APK | [Zompado 0.5.14, build 23](https://github.com/JustTrySomthing/zompado/releases/tag/v0.5.14) |
+| Public reference APK | [Zompa 0.5.14, build 23](https://github.com/JustTrySomthing/zompa/releases/tag/v0.5.14) |
 
 The public APK contains the certificate. Signing future updates requires the original private key and its credentials. Never put the private material in commits, issues, logs, or release assets. The verified certificate also matches the Table Circle 0.2.0 APK.
 
-The original signing key is stored in the `android-release` GitHub Actions environment with the other three signing secrets. The environment accepts deployments from the `main` branch only. The [signed Android build](../.github/workflows/android-release.yml) uses the key on GitHub and verifies its fingerprint before producing an APK. A fresh session can start this workflow from GitHub without recovering a local keystore. To publish through the connected GitHub account without a CLI sign-in, follow the explicit release request in [RELEASE.md](RELEASE.md). [Verified 0.5.12 release](https://github.com/JustTrySomthing/zompado/actions/runs/44725039586).
+The original signing key is stored in the `android-release` GitHub Actions environment with the other three signing secrets. The environment accepts deployments from the `main` branch only. The [signed Android build](../.github/workflows/android-release.yml) uses the key on GitHub and verifies its fingerprint before producing an APK. A fresh session can start this workflow from GitHub without recovering a local keystore. To publish through the connected GitHub account without a CLI sign-in, follow the explicit release request in [RELEASE.md](RELEASE.md). [Verified 0.5.12 release](https://github.com/JustTrySomthing/zompa/actions/runs/44725039586).
 
 The environment uses these secrets. If a repository administrator has to restore it from a backup, configure the environment under **Settings → Environments** with a `main` branch restriction before loading the original signing credentials.
 
@@ -91,13 +91,17 @@ The environment uses these secrets. If a repository administrator has to restore
 With authenticated GitHub CLI admin access, the binary secret can be loaded without putting its contents on screen, then the other three supplied at the hidden prompts.
 
 ```sh
-base64 -w 0 /secure/path/zompado.keystore |
-  gh secret set ZOMPADO_KEYSTORE_BASE64 -R JustTrySomthing/zompado -e android-release
+base64 -w 0 /secure/path/zompa.keystore |
+  gh secret set ZOMPADO_KEYSTORE_BASE64 -R JustTrySomthing/zompa -e android-release
 for name in ZOMPADO_KEYSTORE_PASSWORD ZOMPADO_KEY_ALIAS ZOMPADO_KEY_PASSWORD; do
-  gh secret set "$name" -R JustTrySomthing/zompado -e android-release
+  gh secret set "$name" -R JustTrySomthing/zompa -e android-release
 done
 ```
 
 To build and publish the next signed APK from GitHub, update the release request on `main` as described in [RELEASE.md](RELEASE.md). Keep an owner-controlled encrypted backup of the same key and credentials to recover if the repository or Actions secrets are lost.
 
 For local signing, set the same three credentials and set `ZOMPADO_KEYSTORE` to the secure local keystore path before building. See [RELEASE.md](RELEASE.md) for verification. A fresh debug or release key changes the APK signature and breaks updates over the existing install.
+
+## Rebrand compatibility
+
+Zompa uses the existing Android application ID and signing key so the APK can upgrade earlier installations. Keep the original signing secret names in the protected release environment. Keep the legacy Android preferences, saved-game origins and paths, and match wire marker so earlier data is readable. The app recognizes old and new game share links and package manifests. The release feed retains the original repository segment for earlier APKs that validate it.

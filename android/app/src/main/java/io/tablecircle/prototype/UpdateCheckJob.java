@@ -32,7 +32,7 @@ public final class UpdateCheckJob extends JobService {
     private static final String NOTIFIED = "notified_update_build";
     private static final String CACHE_KEY = "background_update_build";
     private static final String FEED =
-        "https://github.com/JustTrySomthing/zompado/releases/latest/download/update.json";
+        "https://github.com/JustTrySomthing/zompa/releases/latest/download/update.json";
     private volatile Thread worker;
 
     static int cachedBuild(Context context) {
@@ -70,7 +70,7 @@ public final class UpdateCheckJob extends JobService {
                 if (!Thread.currentThread().isInterrupted()) jobFinished(parameters, false);
             }
             }
-        }, "zompado-update-check");
+        }, "zompa-update-check");
         worker = thread;
         thread.start();
         return true;
@@ -108,8 +108,8 @@ public final class UpdateCheckJob extends JobService {
         var notification = new NotificationCompat.Builder(this, CHANNEL)
             .setSilent(quiet)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Zompado update available")
-            .setContentText("Open Zompado to see the new version.")
+            .setContentTitle("Zompa update available")
+            .setContentText("Open Zompa to see the new version.")
             .setContentIntent(target)
             .setAutoCancel(true);
         if (Build.VERSION.SDK_INT < 26 && !quiet) notification.setDefaults(Notification.DEFAULT_SOUND);

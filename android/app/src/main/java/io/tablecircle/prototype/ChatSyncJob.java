@@ -114,7 +114,7 @@ public final class ChatSyncJob extends JobService {
         final Context context;
         final boolean live;
         final java.util.function.Consumer<Worker> finished;
-        final Thread worker = new Thread(this, "zompado-chat-sync");
+        final Thread worker = new Thread(this, "zompa-chat-sync");
         Process core;
         volatile boolean stopped;
 
@@ -156,7 +156,7 @@ public final class ChatSyncJob extends JobService {
                         } catch (IOException ignored) {
                             // The process has closed the error pipe.
                         }
-                    }, "zompado-chat-errors").start();
+                    }, "zompa-chat-errors").start();
                 }
                 try (Rpc rpc = new Rpc(core)) {
                     JSONArray accounts = (JSONArray) rpc.call("get_all_account_ids");
@@ -284,7 +284,7 @@ public final class ChatSyncJob extends JobService {
                 if (stopped || appOwnsCore) return;
                 String text = msg.optString("text");
                 String kind = call ? "calls" : text.startsWith("ZOMPADO_MATCH_V1 ") ? "invites" : "messages";
-                String title = call ? "Missed Zompado call" : "New message";
+                String title = call ? "Missed Zompa call" : "New message";
                 if ("invites".equals(kind)) {
                     try {
                         JSONObject event = new JSONObject(text.substring("ZOMPADO_MATCH_V1 ".length()));
