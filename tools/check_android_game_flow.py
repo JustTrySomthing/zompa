@@ -141,11 +141,16 @@ def main():
     press("Pass & Play")
     wait("a fresh board after quitting", lambda: board() and not has_center_token())
     adb("shell", "input", "keyevent", 4)
+    press("Active Games")
+    press("Quit Pass & Play")
+    press("Quit game")
+    wait("the saved game to disappear from Active Games", lambda: find("No active games"))
+    press("Close active games")
     press("Game options")
     press("Remove")
     press("Remove")
     wait("the empty library after removal", lambda: find("Your library is empty"))
-    print("PASS: fresh empty library, catalog download, native LÖVE view, touch input, explicit save restore after restart, fresh rounds, quit cleanup, and removal.")
+    print("PASS: fresh empty library, catalog download, native LÖVE view, touch input, explicit save restore after restart, fresh rounds, quit cleanup from the board and Active Games, and removal.")
 
 
 try:

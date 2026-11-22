@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
 import 'dialog_actions.dart';
@@ -221,7 +222,59 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     }
   }
 
+  String _localModeLabel(LocalGameEntry entry) =>
+      entry.mode == 'local' ? 'Pass & Play' : 'Single Player';
+
+  Future<void> _quitLocal(LocalGameEntry entry) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _actionError = null;
+    });
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          scrollable: true,
+          title: const Text('Quit this game?'),
+          content: Text(
+            'Your ${_localModeLabel(entry)} progress in ${entry.game.title} will be lost.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Keep game'),
+            ),
+            FilledButton(
+              style: destructiveDialogAction(dialog),
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Quit game'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+      const host = MethodChannel('io.zompado.host');
+      await host.invokeMethod<void>('discardLocalGameSave', {
+        ...entry.game.playerReference,
+        'mode': entry.mode,
+        'passAndPlay': entry.game.modes.contains('local'),
+      });
+      if (!mounted) return;
+      setState(() => _local = _local.where((saved) => saved != entry).toList());
+      _refreshLocal = true;
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _actionError = 'Couldn’t quit this game. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _resumeLocal(LocalGameEntry entry) async {
+    if (_busy) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => GamePlayPage.official(
@@ -338,13 +391,38 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
                       Card(
                         child: ListTile(
                           title: Text(entry.game.title),
-                          subtitle: Text(
-                            entry.mode == 'local'
-                                ? 'Pass & Play'
-                                : 'Single Player',
+                          subtitle: Text(_localModeLabel(entry)),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton.outlined(
+                                tooltip: 'Quit ${_localModeLabel(entry)}',
+                                style: IconButton.styleFrom(
+                                  shape: const CircleBorder(),
+                                  foregroundColor: colors.error,
+                                ),
+                                icon: const Icon(Icons.close),
+                                onPressed: _busy
+                                    ? null
+                                    : () => _quitLocal(entry),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton.filledTonal(
+                                tooltip: 'Resume ${_localModeLabel(entry)}',
+                                style: IconButton.styleFrom(
+                                  shape: const CircleBorder(),
+                                ),
+                                icon: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  size: 30,
+                                ),
+                                onPressed: _busy
+                                    ? null
+                                    : () => _resumeLocal(entry),
+                              ),
+                            ],
                           ),
-                          trailing: const Icon(Icons.play_circle_outline),
-                          onTap: () => _resumeLocal(entry),
+                          onTap: _busy ? null : () => _resumeLocal(entry),
                         ),
                       ),
                     if (_localFailed)

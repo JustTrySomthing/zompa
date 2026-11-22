@@ -155,7 +155,7 @@ final class LovePlayer implements PlatformView {
             identity.getBytes(StandardCharsets.UTF_8))).substring(0, 40) + ".games.zompado.invalid";
     }
 
-    static void readLocalSaves(Context context, Map<?, ?> args, MethodChannel.Result result) {
+    static void manageLocalSaves(Context context, Map<?, ?> args, boolean discard, MethodChannel.Result result) {
         Object id = args.get("id");
         Object build = args.get("build");
         if (!(id instanceof String) || !((String) id).matches("[a-z0-9][a-z0-9-]{0,63}")
@@ -166,10 +166,20 @@ final class LovePlayer implements PlatformView {
         int legacyBuild = "drop-four".equals(id) ? (Integer) build : 0;
         String modes = Boolean.TRUE.equals(args.get("passAndPlay"))
             ? "['solo','local']" : "['solo']";
-        if (Build.VERSION.SDK_INT < 29) {
-            result.success(Collections.emptyList());
+        Object mode = args.get("mode");
+        if (discard && !"solo".equals(mode) && !("local".equals(mode) && Boolean.TRUE.equals(args.get("passAndPlay")))) {
+            result.error("LOVE_SAVE", "Invalid game mode.", null);
             return;
         }
+        if (Build.VERSION.SDK_INT < 29) {
+            if (discard) result.error("LOVE_SAVE", "Saved games require Android 10 or later.", null);
+            else result.success(Collections.emptyList());
+            return;
+        }
+        String failure = discard ? "Couldn’t quit the saved game." : "Couldn’t check the saved games.";
+        String operation = discard
+            ? "discardLocalSave(" + JSONObject.quote((String) mode) + ", " + legacyBuild + ").then(() => [])"
+            : "readLocalSaves(" + legacyBuild + ", " + modes + ")";
         final String script;
         final WebView probe;
         try (var input = context.getAssets().open("love/local-saves.js")) {
@@ -179,7 +189,7 @@ final class LovePlayer implements PlatformView {
             script = new String(bytes.toByteArray(), StandardCharsets.UTF_8);
             probe = new WebView(context);
         } catch (IOException | RuntimeException error) {
-            result.error("LOVE_SAVE", "Couldn’t check the saved games.", null);
+            result.error("LOVE_SAVE", failure, null);
             return;
         }
         var handler = new Handler(Looper.getMainLooper());
@@ -190,8 +200,8 @@ final class LovePlayer implements PlatformView {
                 if (done) return;
                 done = true;
                 handler.post(probe::destroy);
-                if (modes == null) result.error("LOVE_SAVE", "Couldn’t check the saved games.", null);
-                else result.success(modes);
+                if (modes == null) result.error("LOVE_SAVE", failure, null);
+                else result.success(discard ? null : modes);
             }
         }
         var request = new Probe();
@@ -226,7 +236,7 @@ final class LovePlayer implements PlatformView {
         handler.postDelayed(() -> request.finish(null), 8000);
         probe.loadDataWithBaseURL("https://" + gameHost("official/" + id) + "/",
             "<!doctype html><meta charset=utf-8><script>" + script
-            + "\nreadLocalSaves(" + legacyBuild + ", " + modes + ").then(modes => {"
+            + "\n" + operation + ".then(modes => {"
             + "document.title = 'zompado-saves:' + JSON.stringify(modes);"
             + "}, () => {document.title = 'zompado-saves:error';});</script>",
             "text/html", "UTF-8", null);

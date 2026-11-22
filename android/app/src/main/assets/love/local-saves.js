@@ -104,21 +104,49 @@ function readLocalSaves(build, modes) {
   });
 }
 
-function clearLocalSave(fs, mode, build) {
-  const session = sessionFile(mode);
-  if (fs.analyzePath(session).exists) fs.unlink(session);
-  if (build === 0) return;
-  // Resolve the same identity regardless of which LÖVE data-directory layout is mounted.
-  if (mode === 'local' && fs.analyzePath(dropFourLocalStarted).exists) {
-    fs.unlink(dropFourLocalStarted);
-  }
+function localSavePaths(mode, build) {
+  const paths = [sessionFile(mode)];
+  if (build === 0) return paths;
+  if (mode === 'local') paths.push(dropFourLocalStarted);
   for (const directory of [dropFourSaveRoot, dropFourSaveRoot + '/love']) {
     const game = directory + '/zompado-drop-four';
-    for (const path of [
-      game + '/zompado-saves/cats-' + mode,
-      game + '/' + mode + '.save',
-    ]) {
-      if (fs.analyzePath(path).exists) fs.unlink(path);
-    }
+    paths.push(game + '/zompado-saves/cats-' + mode, game + '/' + mode + '.save');
   }
+  return paths;
+}
+
+function clearLocalSave(fs, mode, build) {
+  for (const path of localSavePaths(mode, build)) {
+    if (fs.analyzePath(path).exists) fs.unlink(path);
+  }
+}
+
+function discardLocalSave(mode, build) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(dropFourSaveRoot);
+    open.onupgradeneeded = () => open.transaction.abort();
+    open.onerror = () => {
+      if (open.error?.name === 'AbortError') resolve();
+      else reject(open.error);
+    };
+    open.onsuccess = () => {
+      const db = open.result;
+      if (!db.objectStoreNames.contains('FILE_DATA')) {
+        db.close();
+        resolve();
+        return;
+      }
+      const transaction = db.transaction('FILE_DATA', 'readwrite');
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onabort = () => {
+        db.close();
+        reject(transaction.error);
+      };
+      const store = transaction.objectStore('FILE_DATA');
+      for (const path of localSavePaths(mode, build)) store.delete(path);
+    };
+  });
 }

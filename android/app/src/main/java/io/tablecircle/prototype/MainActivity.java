@@ -131,8 +131,10 @@ public final class MainActivity extends FlutterActivity {
                         openChatmail(result);
                         break;
                     case "readLocalGameSaves":
+                    case "discardLocalGameSave":
                         if (call.arguments instanceof Map) {
-                            LovePlayer.readLocalSaves(MainActivity.this, (Map<?, ?>) call.arguments, result);
+                            LovePlayer.manageLocalSaves(MainActivity.this, (Map<?, ?>) call.arguments,
+                                "discardLocalGameSave".equals(call.method), result);
                         } else {
                             result.error("LOVE_SAVE", "Invalid game reference.", null);
                         }
