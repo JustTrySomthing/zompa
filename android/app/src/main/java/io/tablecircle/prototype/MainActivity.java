@@ -100,7 +100,7 @@ public final class MainActivity extends FlutterActivity {
                             call.argument("end"), call.argument("days"));
                         if (saved && QuietHours.active(MainActivity.this)) {
                             if (ringing != null) ringing.stop();
-                            ChatAlerts.quietIncoming(this);
+                            ChatAlerts.quietIncoming(MainActivity.this);
                         }
                         result.success(saved);
                         break;
@@ -277,7 +277,7 @@ public final class MainActivity extends FlutterActivity {
                             if (Build.VERSION.SDK_INT >= 26) {
                                 startActivity(new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                                     .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
-                                    .putExtra(Settings.EXTRA_CHANNEL_ID, ChatAlerts.incomingChannel(this)));
+                                    .putExtra(Settings.EXTRA_CHANNEL_ID, ChatAlerts.incomingChannel(MainActivity.this)));
                             } else {
                                 openNotificationSettings();
                             }
@@ -326,7 +326,7 @@ public final class MainActivity extends FlutterActivity {
                         Integer ended = call.argument("message");
                         if (ended != null) {
                             if (ringingId == ended) stopRinging();
-                            ChatAlerts.dismissIncoming(this, ended);
+                            ChatAlerts.dismissIncoming(MainActivity.this, ended);
                         }
                         result.success(null);
                         break;
@@ -386,10 +386,10 @@ public final class MainActivity extends FlutterActivity {
                     case "setupStatus":
                         HashMap<String, Boolean> statuses = new HashMap<>();
                         statuses.put("notifications", updateAlertsEnabled());
-                        statuses.put("messageAlerts", ChatAlerts.enabled(this, "messages"));
-                        statuses.put("gameAlerts", ChatAlerts.enabled(this, "invites"));
-                        statuses.put("callAlerts", ChatAlerts.callsEnabled(this));
-                        statuses.put("incomingCallSound", ChatAlerts.incomingSound(this) != null);
+                        statuses.put("messageAlerts", ChatAlerts.enabled(MainActivity.this, "messages"));
+                        statuses.put("gameAlerts", ChatAlerts.enabled(MainActivity.this, "invites"));
+                        statuses.put("callAlerts", ChatAlerts.callsEnabled(MainActivity.this));
+                        statuses.put("incomingCallSound", ChatAlerts.incomingSound(MainActivity.this) != null);
                         statuses.put("backgroundListener", ChatListenerService.isRunning());
                         statuses.put("batteryUnrestricted", getSystemService(PowerManager.class)
                             .isIgnoringBatteryOptimizations(getPackageName()));

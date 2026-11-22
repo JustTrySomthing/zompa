@@ -1,5 +1,5 @@
 {
   "version": "0.5.37",
   "build": 46,
-  "notes": "- Zompado is now Zompa, with an updated wordmark, app label, and game SDK.\n- Includes chat and game presentation fixes and improvements to background alerts and incoming call recovery."
+  "notes": "- New Zompa app name, wordmark, and game SDK.\n- Background listening improves chat, incoming call, and game invitation delivery. Quiet Hours silences ringing and notification sounds.\n- Older chat messages load as you scroll. Online matches show your own team token and more clearly labeled actions."
 }

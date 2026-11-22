@@ -6,7 +6,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/android-friends-smoke.yml"
+      - ".github/workflows/android-delta-chat-smoke.yml"
       - "tools/check_android_friends.py"
+      - "tools/check_delta_chat_android.py"
       - "tools/check_voice_sdp.dart"
       - "lib/voice_calls.dart"
       - "lib/friends.dart"
