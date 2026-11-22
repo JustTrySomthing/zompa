@@ -1,5 +1,5 @@
 {
-  "version": "0.5.32",
-  "build": 41,
-  "notes": "- Search Inbox, Archive, and Trash, or search messages and attachments from inside a conversation.\n- Pin or mute individual chats directly from the chat list. Global mute is in Settings → Notifications.\n- Active Games shows a count and uses the same Resume Game and End Game controls for solo, pass-and-play, and online games.\n- Larger save stars make attachments easier to save in the Media gallery.\n- Incoming calls can still be missed while the recipient’s screen is off."
+  "version": "0.5.33",
+  "build": 42,
+  "notes": "- Play another match or quit after a win or draw. The other player can accept the rematch from the completed match.\n- The online board stays in place as turn and connection statuses change. Short chat previews appear while the chat panel is closed.\n- Online invitations from My Games and chats use the same bottom sheet with an explicit Invite button.\n- Incoming calls can still be missed while the recipient’s screen is off."
 }
