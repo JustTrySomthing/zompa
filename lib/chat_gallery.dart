@@ -362,7 +362,8 @@ class _MediaCard extends StatelessWidget {
             child: IconButton.filledTonal(
               tooltip: saved ? 'Unsave attachment' : 'Save attachment',
               onPressed: saving ? null : onSave,
-              iconSize: 19,
+              iconSize: 25,
+              style: IconButton.styleFrom(padding: const EdgeInsets.all(7)),
               icon: Icon(saved ? Icons.star : Icons.star_border),
             ),
           ),

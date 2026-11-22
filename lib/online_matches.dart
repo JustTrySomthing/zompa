@@ -189,7 +189,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
             FilledButton(
               style: destructiveDialogAction(dialog),
               onPressed: () => Navigator.pop(dialog, true),
-              child: const Text('End game'),
+              child: const Text('End Game'),
             ),
           ],
         ),
@@ -236,7 +236,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
         context: context,
         builder: (dialog) => AlertDialog(
           scrollable: true,
-          title: const Text('Quit this game?'),
+          title: const Text('End this game?'),
           content: Text(
             'Your ${_localModeLabel(entry)} progress in ${entry.game.title} will be lost.',
           ),
@@ -248,7 +248,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
             FilledButton(
               style: destructiveDialogAction(dialog),
               onPressed: () => Navigator.pop(dialog, true),
-              child: const Text('Quit game'),
+              child: const Text('End Game'),
             ),
           ],
         ),
@@ -266,7 +266,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
       await _load();
     } catch (_) {
       if (mounted) {
-        setState(() => _actionError = 'Couldn’t quit this game. Try again.');
+        setState(() => _actionError = 'Couldn’t end this game. Try again.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -289,60 +289,60 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     await _load();
   }
 
-  Widget _matchCard(MatchEntry entry) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+  Widget _onlineGameRow(MatchEntry entry) {
     final (:chat, :match, updated: _) = entry;
     final pendingQuit =
         MatchEvent.parse(match.pending?.text ?? '')?.kind == 'quit';
     final ending = pendingQuit && match.pending?.state == 20;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${widget.game?.title ?? 'Cats vs Dogs'} with ${chat.name}',
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              ending
-                  ? 'Ending game…'
-                  : pendingQuit
-                  ? 'Couldn’t end this game.'
-                  : match.status,
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                children: [
-                  if (!match.finished)
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: colors.error,
-                      ),
-                      onPressed: _busy || ending ? null : () => _end(entry),
-                      child: Text(pendingQuit ? 'Retry end' : 'End game'),
-                    ),
-                  FilledButton.tonal(
-                    onPressed: _busy ? null : () => _open(entry),
-                    child: Text(
-                      match.started && !match.conflict
-                          ? 'Resume Game'
-                          : 'Open game',
-                    ),
-                  ),
-                ],
+    return _gameRow(
+      title: '${widget.game?.title ?? 'Cats vs Dogs'} with ${chat.name}',
+      mode: 'Online',
+      status: ending
+          ? 'Ending game…'
+          : pendingQuit
+          ? 'Couldn’t end this game. Tap End Game to retry.'
+          : match.status,
+      end: ending || match.finished ? null : () => _end(entry),
+      resume: () => _open(entry),
+    );
+  }
+
+  Widget _gameRow({
+    required String title,
+    required String mode,
+    String? status,
+    required VoidCallback? end,
+    required VoidCallback resume,
+  }) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final detailStyle = TextStyle(color: colors.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(mode, style: detailStyle),
+          if (status != null) Text(status, style: detailStyle),
+          OverflowBar(
+            alignment: MainAxisAlignment.end,
+            overflowAlignment: OverflowBarAlignment.end,
+            spacing: 8,
+            children: [
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: colors.error),
+                onPressed: _busy ? null : end,
+                child: const Text('End Game'),
               ),
-            ),
-          ],
-        ),
+              FilledButton.tonal(
+                onPressed: _busy ? null : resume,
+                child: const Text('Resume Game'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -371,100 +371,58 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
             ),
           ),
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: _matches.length + 1,
-              itemBuilder: (context, index) {
-                if (index > 0) return _matchCard(_matches[index - 1]);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (widget.game case final game?)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                        child: Text(
-                          game.title,
-                          style: theme.textTheme.titleMedium,
-                        ),
-                      ),
-                    for (final entry in _local)
-                      Card(
-                        child: ListTile(
-                          title: Text(entry.game.title),
-                          subtitle: Text(_localModeLabel(entry)),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton.outlined(
-                                tooltip: 'Quit ${_localModeLabel(entry)}',
-                                style: IconButton.styleFrom(
-                                  shape: const CircleBorder(),
-                                  foregroundColor: colors.error,
-                                ),
-                                icon: const Icon(Icons.close),
-                                onPressed: _busy
-                                    ? null
-                                    : () => _quitLocal(entry),
-                              ),
-                              const SizedBox(width: 6),
-                              IconButton.filledTonal(
-                                tooltip: 'Resume ${_localModeLabel(entry)}',
-                                style: IconButton.styleFrom(
-                                  shape: const CircleBorder(),
-                                ),
-                                icon: const Icon(
-                                  Icons.play_arrow_rounded,
-                                  size: 30,
-                                ),
-                                onPressed: _busy
-                                    ? null
-                                    : () => _resumeLocal(entry),
-                              ),
-                            ],
-                          ),
-                          onTap: _busy ? null : () => _resumeLocal(entry),
-                        ),
-                      ),
-                    if (_localFailed)
-                      ListTile(
-                        title: const Text(
-                          'Couldn’t check games on this device.',
-                        ),
-                        trailing: TextButton(
-                          onPressed: _load,
-                          child: const Text('Retry'),
-                        ),
-                      ),
-                    if (_failed)
-                      ListTile(
-                        title: const Text('Couldn’t refresh active games.'),
-                        trailing: TextButton(
-                          onPressed: _load,
-                          child: const Text('Retry'),
-                        ),
-                      )
-                    else if (!_loaded)
-                      const LinearProgressIndicator()
-                    else if (_matches.isEmpty &&
-                        _local.isEmpty &&
-                        !_localFailed)
-                      const ListTile(
-                        title: Text('No active games'),
-                        subtitle: Text(
-                          'Start one from Play or invite a friend from chat.',
-                        ),
-                      ),
-                    if (_actionError case final error?)
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          error,
-                          style: TextStyle(color: colors.error),
-                        ),
-                      ),
-                  ],
-                );
-              },
+              children: [
+                if (widget.game case final game?)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                    child: Text(game.title, style: theme.textTheme.titleMedium),
+                  ),
+                for (final (index, entry) in _local.indexed) ...[
+                  if (index > 0) const Divider(height: 1),
+                  _gameRow(
+                    title: entry.game.title,
+                    mode: _localModeLabel(entry),
+                    end: () => _quitLocal(entry),
+                    resume: () => _resumeLocal(entry),
+                  ),
+                ],
+                for (final (index, entry) in _matches.indexed) ...[
+                  if (index > 0 || _local.isNotEmpty) const Divider(height: 1),
+                  _onlineGameRow(entry),
+                ],
+                if (_localFailed)
+                  ListTile(
+                    title: const Text('Couldn’t check games on this device.'),
+                    trailing: TextButton(
+                      onPressed: _load,
+                      child: const Text('Retry'),
+                    ),
+                  ),
+                if (_failed)
+                  ListTile(
+                    title: const Text('Couldn’t refresh active games.'),
+                    trailing: TextButton(
+                      onPressed: _load,
+                      child: const Text('Retry'),
+                    ),
+                  )
+                else if (!_loaded)
+                  const LinearProgressIndicator()
+                else if (_matches.isEmpty && _local.isEmpty && !_localFailed)
+                  const ListTile(
+                    title: Text('No active games'),
+                    subtitle: Text(
+                      'Start one from Play or invite a friend from chat.',
+                    ),
+                  ),
+                if (_actionError case final error?)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(error, style: TextStyle(color: colors.error)),
+                  ),
+              ],
             ),
           ),
         ],

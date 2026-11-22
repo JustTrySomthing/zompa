@@ -295,7 +295,7 @@ const _topics = [
       ),
       (
         'How do I play Cats vs Dogs with a friend online?',
-        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to return to the board or End game to close a match for both players. Unanswered invitations expire after 7 days. Games with no moves for 30 days leave Active Games. If a new game would take you over 12 active games, the least recently played game leaves the list.',
+        'Tap the gamepad in a friend chat, choose an installed game that supports online matches, then tap Invite. Your friend taps Accept on the invite. Zompado downloads the game if needed. The inviter taps Play Now to start both boards and takes the first turn. Open My Games → Active Games to see who you’re playing and whose turn it is. Tap Resume Game to open the match or End Game to close it for both players. Unanswered invitations expire after 7 days. Games with no moves for 30 days leave Active Games. If a new game would take you over 12 active games, the least recently played game leaves the list.',
       ),
       (
         'How do I change game sounds?',
@@ -315,7 +315,7 @@ const _topics = [
       ),
       (
         'How do I pause or leave a game?',
-        'Tap Pause to take a break and Resume to continue. Tap the Back arrow to leave and return later from Active Games. Choose Quit game to discard the current round, or tap the circled X beside it in Active Games. In an online match, the player who paused can resume, and quitting ends the match for both players.',
+        'Tap Pause to take a break and Resume to continue. Tap the Back arrow to leave and return later from Active Games. Choose Quit game from the pause menu or End Game beside the round in Active Games to discard it. In an online match, the player who paused can resume, and quitting ends the match for both players.',
       ),
       (
         'Can I talk to my friend while playing?',
