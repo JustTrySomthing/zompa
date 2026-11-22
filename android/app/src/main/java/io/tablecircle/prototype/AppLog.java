@@ -15,6 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -22,6 +23,8 @@ import java.util.Comparator;
 
 final class AppLog {
     private static final int MAX_BYTES = 96 * 1024;
+    private static final int MAX_ENTRY_BYTES = 16 * 1024;
+    private static final byte[] TRUNCATED = "\n[Entry truncated]\n\n".getBytes(StandardCharsets.UTF_8);
     private static final String WATERMARK = "last-exit";
     private static boolean installed;
 
@@ -62,13 +65,10 @@ final class AppLog {
         FileOutputStream pending = null;
         try {
             byte[] recent = content(file);
-            byte[] added = (timestamp(System.currentTimeMillis()) + " · " + entry + "\n\n").getBytes(StandardCharsets.UTF_8);
-            int length = Math.min(recent.length, Math.max(0, MAX_BYTES - added.length));
-            if (length < recent.length) {
-                while (length > 0 && recent[length - 1] != '\n') length--;
-            }
+            byte[] added = encodeEntry(timestamp(System.currentTimeMillis()) + " · " + entry);
+            int length = completeLength(recent, Math.min(recent.length, MAX_BYTES - added.length));
             pending = file.startWrite();
-            pending.write(added, 0, Math.min(added.length, MAX_BYTES));
+            pending.write(added);
             pending.write(recent, 0, length);
             file.finishWrite(pending);
         } catch (IOException | RuntimeException ignored) {
@@ -156,9 +156,37 @@ final class AppLog {
         return new AtomicFile(new File(context.getFilesDir(), "app-log.txt"));
     }
 
+    private static byte[] encodeEntry(String entry) {
+        byte[] bytes = (entry + "\n\n").getBytes(StandardCharsets.UTF_8);
+        if (bytes.length <= MAX_ENTRY_BYTES) return bytes;
+        int length = MAX_ENTRY_BYTES - TRUNCATED.length;
+        while ((bytes[length] & 0xc0) == 0x80) length--;
+        while (length > 0 && bytes[length - 1] == '\n') length--;
+        byte[] shortened = Arrays.copyOf(bytes, length + TRUNCATED.length);
+        System.arraycopy(TRUNCATED, 0, shortened, length, TRUNCATED.length);
+        return shortened;
+    }
+
+    private static int completeLength(byte[] entries, int limit) {
+        // Each entry ends in a blank line. Keep a multiline backtrace together.
+        for (int end = limit; end >= 2; end--) {
+            if (entries[end - 2] == '\n' && entries[end - 1] == '\n') return end;
+        }
+        return 0;
+    }
+
     private static byte[] content(AtomicFile file) throws IOException {
-        try {
-            return file.readFully();
+        try (var input = file.openRead()) {
+            // Read only the newest portion even if a previous file is oversized.
+            byte[] entries = new byte[(int) Math.min(MAX_BYTES, input.getChannel().size())];
+            int length = 0;
+            while (length < entries.length) {
+                int count = input.read(entries, length, entries.length - length);
+                if (count < 0) break;
+                length += count;
+            }
+            int complete = completeLength(entries, length);
+            return complete == entries.length ? entries : Arrays.copyOf(entries, complete);
         } catch (FileNotFoundException empty) {
             return new byte[0];
         }
