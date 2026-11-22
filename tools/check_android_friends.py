@@ -45,7 +45,7 @@ class Phone:
         data = self.adb("exec-out", "screencap", "-p")
         return cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
 
-    def find(self, label):
+    def find(self, label, *, checked=None):
         try:
             self.shell("uiautomator", "dump", "/sdcard/zompa-friends.xml")
             layout = self.shell("cat", "/sdcard/zompa-friends.xml")
@@ -57,7 +57,7 @@ class Phone:
                     continue
                 center = ((x1 + x2) // 2, (y1 + y2) // 2)
                 labels = (node.get("text", "") + "\n" + node.get("content-desc", "")).splitlines()
-                if label in labels:
+                if label in labels and (checked is None or node.get("checked") == str(checked).lower()):
                     return center
                 if "Send message" in labels:
                     send_button = center
@@ -268,11 +268,17 @@ def check_message_tools(alice, bob):
     bob.press("grinning face happy smile grin")
     bob.press("Done")
     alice.see("😀", 100)
-    bob.press("Mute all notifications")
-    bob.see("Unmute all notifications")
-    bob.press("Unmute all notifications")
-    bob.see("Mute all notifications")
-    print("PASS: saved an incoming message, opened Saved, reacted across devices, and toggled the global bell.", flush=True)
+    bob.press("Settings")
+    bob.press("Notifications")
+    mute = "Mute all notifications"
+    bob.press(mute)
+    wait("global notifications to be muted", lambda: bob.find(mute, checked=True))
+    bob.press(mute)
+    wait("global notifications to be unmuted", lambda: bob.find(mute, checked=False))
+    bob.back()
+    bob.back()
+    bob.see("Voice call")
+    print("PASS: saved an incoming message, opened Saved, reacted across devices, and toggled global mute in Settings.", flush=True)
 
 
 def check_match(alice, bob):
