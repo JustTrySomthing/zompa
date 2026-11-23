@@ -24,7 +24,7 @@ Official packages use a ZIP archive with a root `zompa.json` and `main.lua`. Use
 
 ## What Zompa provides during play
 
-- The game toolbar has a **Back** arrow and the game title on the left, plus **Game audio** and **Pause/Resume** on the right. **Quit game** appears in the pause panel. Online games also get chat and call controls. Zompa reserves the standard 56 logical-pixel toolbar and Android’s system insets. Put game-specific controls inside the play area and size them to the canvas LÖVE receives.
+- The game toolbar has a **Back** arrow and the game title on the left, plus **How to play**, **Game audio** and **Pause/Resume** on the right. **Quit game** appears in the pause panel. Online games also get chat and call controls. Zompa reserves the standard 56 logical-pixel toolbar and Android’s system insets. Put game-specific controls inside the play area and size them to the canvas LÖVE receives.
 - The Game audio sheet has a circled speaker button that mutes all game sound. The crossed-out speaker shows when mute is on. Zompa remembers master volume, music and effects settings, and whether to lower game audio during a call.
 
 ## Starting, resuming, and ending games
@@ -48,3 +48,7 @@ function love.update(dt)
     mixer:update(dt)
 end
 ```
+
+## Standard game toolbar
+
+Zompa owns the Back button, game title and three right-side actions: How to play, Audio and Pause/Resume. Online communication actions appear before them when available. Leave those controls outside the LÖVE canvas. Include a UTF-8 plain-text file named `how-to-play.txt` at the root of each package (up to 16 KiB). Describe the goal, a typical turn, and how to win. The host reads the instructions from the installed package for official and imported games. Local play suspends while instructions are open. Online help opens for the reader only.

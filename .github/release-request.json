@@ -1,5 +1,5 @@
 {
-  "version": "0.5.44",
-  "build": 53,
-  "notes": "Cats vs Dogs uses the same quit confirmation in single-player, pass-and-play, and online matches."
+  "version": "0.5.45",
+  "build": 54,
+  "notes": "Shared game toolbar with How to play, Audio and Pause. Games can include their own instructions."
 }

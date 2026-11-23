@@ -45,6 +45,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   bool _playing = false;
   bool _triedPreparation = false;
   bool _gameUnavailable = false;
+  var _helpPlayer = GlobalKey<LoveGameViewState>();
+  String? _playerIdentity;
   int _boardGeneration = 0;
   StreamSubscription<void>? _events;
   Timer? _timer;
@@ -706,6 +708,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   }
 
   Widget _arena(BuildContext context, OnlineMatch match, GameRelease game) {
+    final identity = '${widget.id}/${game.build}/$_boardGeneration';
+    if (_playerIdentity != identity) {
+      _playerIdentity = identity;
+      _helpPlayer = GlobalKey<LoveGameViewState>();
+    }
     final themedGame = game.build >= 12;
     const arenaColor = Color(0xff181423);
     return ColoredBox(
@@ -731,10 +738,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               SizedBox(height: topInset),
               Expanded(child: _turnHeading(context, match, game)),
               SizedBox(
+                key: ValueKey('${widget.id}/${game.build}/$_boardGeneration'),
                 width: boardHeight * aspect,
                 height: boardHeight,
                 child: LoveGameView.official(
-                  key: ValueKey('${widget.id}/${game.build}/$_boardGeneration'),
+                  key: _helpPlayer,
                   game: game,
                   mode: 'online',
                   paused: match.paused && !match.boardComplete,
@@ -914,6 +922,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         appBar: _boardOpen
             ? GameToolbar(
                 title: _game!.title,
+                onHelp: () => showGameInstructions(context, _helpPlayer.currentState?.instructions(), fourInARow: _game!.id == 'drop-four'),
                 chat: widget.chat,
                 friendName: widget.friendName,
                 onMessage: _toggleChat,
