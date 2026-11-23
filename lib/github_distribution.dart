@@ -58,7 +58,7 @@ class GameScreenshot {
   final String file, label;
 
   static List<GameScreenshot> parse(Object? value) {
-    if (value is! List || value.length > 3) return const [];
+    if (value is! List || value.length > 8) return const [];
     final images = <GameScreenshot>[];
     final seen = <String>{};
     for (final entry in value) {
@@ -68,7 +68,7 @@ class GameScreenshot {
         continue;
       final file = entry['file'] as String;
       final label = (entry['label'] as String).trim();
-      if (RegExp(r'^shot-[1-3]\.webp$').hasMatch(file) &&
+      if (RegExp(r'^shot-[1-8]\.webp$').hasMatch(file) &&
           label.isNotEmpty &&
           label.length <= 100 &&
           seen.add(file)) {
@@ -77,6 +77,13 @@ class GameScreenshot {
     }
     return List.unmodifiable(images);
   }
+}
+
+String? _catalogDescription(Object? value) {
+  if (value is! String) return null;
+  final description = value.trim();
+  if (description.isEmpty || description.runes.length > 600) return null;
+  return description;
 }
 
 class GameRelease {
@@ -90,6 +97,7 @@ class GameRelease {
       asset = ReleaseAsset.fromJson(json, gamesRepository, '.zomp'),
       hasCover = json['cover'] == 'cover.webp',
       localSaves = json['localSaves'] == true,
+      description = _catalogDescription(json['description']),
       screenshots = GameScreenshot.parse(json['screenshots']) {
     if (id.length > 64 ||
         !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
@@ -105,6 +113,7 @@ class GameRelease {
     }
   }
   final String id, title, version;
+  final String? description;
   final int build;
   final ReleaseAsset asset;
   final Set<String> modes;
@@ -134,6 +143,7 @@ class GameRelease {
     'url': asset.url.toString(),
     'sha256': asset.sha,
     'size': asset.size,
+    if (description != null) 'description': description,
     if (hasCover) 'cover': 'cover.webp',
     if (localSaves) 'localSaves': true,
     if (screenshots.isNotEmpty)

@@ -22,9 +22,15 @@ Official packages use a ZIP archive with a root `zompa.json` and `main.lua`. Use
 | `zompa.clearSession()` | Remove the unfinished round when the game finishes. |
 | `zompa.audio()` | Create a mixer for one game. Register sources on the `music` or `effects` bus, then call `mixer:update(dt)` from `love.update(dt)` to apply Zompa settings. `setGain` and `setMuted` apply game-level controls on top of the host settings. |
 
+## Get Games requirements
+
+New official games need working Single Player, Pass & Play, and Online modes. Zompa owns mode selection, the toolbar, invitations, save storage, and Active Games. Supply gameplay rules, game state serialization and restoration, and the input and rendering for each mode. The current host implements online replay for Cats vs Dogs. New game types need compatible online support in the app before publication.
+
+Include a short store description, one 1280 × 720 WebP cover, and three to eight gameplay screenshots in the catalog submission. See the [submission requirements](https://github.com/JustTrySomthing/zompa-games#submit-a-game).
+
 ## What Zompa provides during play
 
-- The game toolbar has a **Back** arrow and the game title on the left, plus **How to play**, **Game audio** and **Pause/Resume** on the right. **Quit game** appears in the pause panel. Online games also get chat and call controls. Zompa reserves the standard 56 logical-pixel toolbar and Android’s system insets. Put game-specific controls inside the play area and size them to the canvas LÖVE receives.
+- The game toolbar has a **Back** arrow and the game title on the left, plus **How to play**, **Game audio** and **Pause/Resume** on the right. **Quit game** appears in the pause panel. Online games also get chat and call controls. Zompa reserves the standard 56 logical-pixel toolbar and Android’s system insets. Put game-specific controls inside the play area. Read the play area's size with `love.graphics.getDimensions()` when laying out the game, and update the layout when the dimensions change. Size the board, text, and touch targets to this area using the same layout for rendering and hit testing.
 - The Game audio sheet has a circled speaker button that mutes all game sound. The crossed-out speaker shows when mute is on. Zompa remembers master volume, music and effects settings, and whether to lower game audio during a call.
 
 ## Starting, resuming, and ending games
