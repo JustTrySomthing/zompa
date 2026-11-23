@@ -1,0 +1,1 @@
+Tap the screen or press Space to increase the counter. Your count is saved after each tap.

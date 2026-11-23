@@ -83,6 +83,16 @@ class LoveGameViewState extends State<LoveGameView>
     _send('pause', widget.paused || state != AppLifecycleState.resumed);
   }
 
+  Future<String?> instructions() async {
+    try {
+      return await _channel?.invokeMethod<String>('instructions');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   Future<void> leave({required bool quit}) async {
     await _channel?.invokeMethod<void>('leave', quit);
   }

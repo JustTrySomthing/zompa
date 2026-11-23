@@ -14,6 +14,7 @@ class GameToolbar extends StatefulWidget implements PreferredSizeWidget {
     this.unread = false,
     this.paused = false,
     this.onPause,
+    required this.onHelp,
   });
 
   final String title;
@@ -21,6 +22,7 @@ class GameToolbar extends StatefulWidget implements PreferredSizeWidget {
   final String? friendName;
   final bool chatOpen, unread, paused;
   final VoidCallback? onMessage, onPause;
+  final VoidCallback onHelp;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -80,6 +82,11 @@ class _GameToolbarState extends State<GameToolbar> {
                 : () => calls.dial(chat, widget.friendName ?? 'Your friend'),
             icon: Icon(calls.busy ? Icons.phone_in_talk : Icons.call_outlined),
           ),
+        IconButton(
+          tooltip: 'How to play',
+          onPressed: widget.onHelp,
+          icon: const Icon(Icons.help_outline),
+        ),
         const GameAudioButton(),
         IconButton(
           tooltip: widget.paused ? 'Resume' : 'Pause',
@@ -155,3 +162,20 @@ Future<bool?> confirmQuitMatch(
     ],
   ),
 );
+
+Future<void> showGameInstructions(BuildContext context, Future<String?>? rules, {bool fourInARow = false}) async {
+  final text = await rules;
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: const Text('How to play'),
+      content: SingleChildScrollView(child: Text(
+        text != null && text.isNotEmpty ? text :
+        fourInARow ? 'Take turns dropping a piece into a column. Connect four of your pieces horizontally, vertically, or diagonally to win the round. A full board with no line of four is a draw.' :
+        'This package does not include written instructions. Use Audio to adjust game sound and Pause to suspend play.',
+      )),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Back to game'))],
+    ),
+  );
+}

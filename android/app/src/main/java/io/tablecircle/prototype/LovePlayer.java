@@ -54,6 +54,7 @@ final class LovePlayer implements PlatformView {
     private volatile boolean allowPackage;
     private boolean disposed;
     private boolean paused;
+    private String instructions;
     private boolean online;
     private MethodChannel.Result leaving;
     private String match;
@@ -112,6 +113,9 @@ final class LovePlayer implements PlatformView {
                     }
                     result.success(null);
                     break;
+                case "instructions":
+                    result.success(instructions);
+                    break;
                 case "audio":
                     setAudio(call.arguments());
                     result.success(null);
@@ -143,12 +147,14 @@ final class LovePlayer implements PlatformView {
         new Thread(() -> {
             try {
                 File verified = verify(context, args);
+                String help = readInstructions(verified);
                 String identity = args.get("build") == null ? "import/" + args.get("id")
                     : "official/" + args.get("id");
                 String host = gameHost(identity);
                 main.post(() -> {
                     if (disposed) return;
                     archive = verified;
+                    instructions = help;
                     originHost = host;
                     start(context, mode, save, build);
                 });
@@ -156,6 +162,20 @@ final class LovePlayer implements PlatformView {
                 main.post(() -> showMessage("Couldn’t open this game. Reinstall it and try again."));
             }
         }, "zompa-love-verify").start();
+    }
+
+    private static String readInstructions(File file) {
+        try (ZipFile zip = new ZipFile(file)) {
+            ZipEntry entry = zip.getEntry("how-to-play.txt");
+            if (entry == null || entry.getSize() < 1 || entry.getSize() > 16384) return null;
+            byte[] bytes = new byte[(int) entry.getSize()];
+            try (var in = new java.io.DataInputStream(zip.getInputStream(entry))) {
+                in.readFully(bytes);
+            }
+            return new String(bytes, StandardCharsets.UTF_8).trim();
+        } catch (IOException ignored) {
+            return null;
+        }
     }
 
     private static String gameHost(String identity) {

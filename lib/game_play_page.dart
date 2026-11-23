@@ -35,6 +35,7 @@ class _GamePlayPageState extends State<GamePlayPage> {
   final _player = GlobalKey<LoveGameViewState>();
   bool _paused = false;
   bool _leaving = false;
+  bool _reading = false;
 
   bool get _isCatsVsDogs => widget.game?.id == 'drop-four';
 
@@ -115,6 +116,15 @@ class _GamePlayPageState extends State<GamePlayPage> {
       child: Scaffold(
         appBar: GameToolbar(
           title: widget.title,
+          onHelp: () async {
+            if (_reading || _leaving) return;
+            setState(() => _reading = true);
+            try {
+              await showGameInstructions(context, _player.currentState?.instructions(), fourInARow: _isCatsVsDogs);
+            } finally {
+              if (mounted) setState(() => _reading = false);
+            }
+          },
           paused: _paused,
           onPause: _leaving ? null : () => setState(() => _paused = !_paused),
         ),
@@ -130,11 +140,12 @@ class _GamePlayPageState extends State<GamePlayPage> {
                         fresh: widget.fresh,
                         game: widget.game!,
                         mode: widget.mode,
-                        paused: _paused,
+                        paused: _paused || _reading,
                       )
                     : LoveGameView.imported(
+                        key: _player,
                         id: widget.importedId!,
-                        paused: _paused,
+                        paused: _paused || _reading,
                       ),
               ),
               if (_paused) ...[
