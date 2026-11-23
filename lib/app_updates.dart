@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 
 import 'github_distribution.dart';
 
-const installedVersion = '0.5.46';
-const installedBuild = 55;
+const installedVersion = '0.5.47';
+const installedBuild = 56;
 
 class AppUpdates extends ChangeNotifier {
   AppUpdates(this.distribution, this.host, this.data, this.write);
