@@ -89,6 +89,12 @@ function sdk.submitTurn(payload, outcome)
     return true
 end
 
+-- Local display metadata, independent of the synchronized turn history.
+function sdk.opponentName()
+    local name = readHost("opponent", 512)
+    if name and name ~= "" then return name end
+end
+
 local function sessionPath(mode)
     return "/home/web_user/love/.zompado-session-" .. mode
 end

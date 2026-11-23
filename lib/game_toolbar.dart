@@ -163,19 +163,104 @@ Future<bool?> confirmQuitMatch(
   ),
 );
 
-Future<void> showGameInstructions(BuildContext context, Future<String?>? rules, {bool fourInARow = false}) async {
+Future<void> showGameInstructions(
+  BuildContext context,
+  Future<String?>? rules, {
+  bool fourInARow = false,
+}) async {
   final text = await rules;
   if (!context.mounted) return;
   await showDialog<void>(
     context: context,
     builder: (dialog) => AlertDialog(
       title: const Text('How to play'),
-      content: SingleChildScrollView(child: Text(
-        text != null && text.isNotEmpty ? text :
-        fourInARow ? 'Take turns dropping a piece into a column. Connect four of your pieces horizontally, vertically, or diagonally to win the round. A full board with no line of four is a draw.' :
-        'This package does not include written instructions. Use Audio to adjust game sound and Pause to suspend play.',
-      )),
-      actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Back to game'))],
+      content: SingleChildScrollView(
+        child: Text(
+          text != null && text.isNotEmpty
+              ? text
+              : fourInARow
+              ? 'Take turns dropping a piece into a column. Connect four of your pieces horizontally, vertically, or diagonally to win the round. A full board with no line of four is a draw.'
+              : 'This package does not include written instructions. Use Audio to adjust game sound and Pause to suspend play.',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialog),
+          child: const Text('Back to game'),
+        ),
+      ],
     ),
   );
+}
+
+/// The game stays visible behind the same pause controls in every play mode.
+class GamePausePanel extends StatelessWidget {
+  const GamePausePanel({
+    super.key,
+    this.detail,
+    this.onResume,
+    this.onQuit,
+    this.quitLabel = 'Quit match',
+    this.extraActions = const [],
+  });
+
+  final String? detail;
+  final VoidCallback? onResume, onQuit;
+  final String quitLabel;
+  final List<Widget> extraActions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const ModalBarrier(dismissible: false, color: Colors.black54),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 340),
+              child: Card(
+                elevation: 12,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(
+                        Icons.pause_circle_outline,
+                        size: 36,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Game paused',
+                        style: theme.textTheme.headlineSmall,
+                        textAlign: TextAlign.center,
+                      ),
+                      if (detail case final message?) ...[
+                        const SizedBox(height: 8),
+                        Text(message, textAlign: TextAlign.center),
+                      ],
+                      const SizedBox(height: 18),
+                      if (onResume != null)
+                        FilledButton(
+                          onPressed: onResume,
+                          child: const Text('Resume'),
+                        ),
+                      if (onQuit != null)
+                        TextButton(onPressed: onQuit, child: Text(quitLabel)),
+                      ...extraActions,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

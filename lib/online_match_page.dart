@@ -56,6 +56,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   String? _error;
   bool _chatOpen = false;
   bool _chatUnread = false;
+  String? _threadName;
+  String? get _friendName => widget.friendName ?? _threadName;
   StreamSubscription<(int, int)>? _messages;
   String? _incomingRematch;
   int _rematchMessage = 0;
@@ -263,8 +265,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
           final unread = thread.messages.any(
             (message) => message.isUnreadChatMessage,
           );
-          if (mounted && !_chatOpen && _chatUnread != unread) {
-            setState(() => _chatUnread = unread);
+          if (mounted &&
+              !_chatOpen &&
+              (_chatUnread != unread || _threadName != thread.name)) {
+            setState(() {
+              _chatUnread = unread;
+              _threadName = thread.name;
+            });
           }
         } catch (_) {
           // The board remains available when the conversation refresh fails.
@@ -520,14 +527,14 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     OnlineMatch match,
     GameRelease game,
   ) {
+    if (match.paused) return const SizedBox.shrink();
     final boardSettled = match.boardComplete && _displayTurn == null;
     final winner = boardSettled ? match.winner : 0;
     final side = winner != 0 ? winner : _displayTurn ?? match.turn;
     final yours = (side == 1) == match.mine;
     final friend = widget.friendName?.trim();
     final name = friend == null || friend.isEmpty ? 'Your friend' : friend;
-    final statusOnly =
-        (boardSettled && winner == 0) || match.paused || match.conflict;
+    final statusOnly = (boardSettled && winner == 0) || match.conflict;
     final label = statusOnly
         ? match.status
         : winner != 0
@@ -737,6 +744,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     );
   }
 
+  bool _usesGameFeedback(GameRelease game) =>
+      game.id == 'drop-four' && game.build >= 21;
+
   Widget _arena(BuildContext context, OnlineMatch match, GameRelease game) {
     final identity = '${widget.id}/${game.build}/$_boardGeneration';
     if (_playerIdentity != identity) {
@@ -744,22 +754,31 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _helpPlayer = GlobalKey<LoveGameViewState>();
     }
     if (match.invite.turnProtocol) {
+      final inGameFeedback = _usesGameFeedback(game);
+      final status = match.paused ? '' : match.status;
+      final name = _friendName?.replaceAll(RegExp(r'[\r\n\t]'), ' ').trim();
+      final opponent = name == null || name.isEmpty
+          ? null
+          : String.fromCharCodes(name.runes.take(80));
+      final player = LoveGameView.official(
+        key: _helpPlayer,
+        game: game,
+        mode: 'online',
+        paused: match.paused && !match.boardComplete,
+        match: match.sdkSnapshot(
+          canMove: match.myTurn && !_sending && !_chatOpen && _error == null,
+        ),
+        opponentName: opponent,
+        onTurn: _submitTurn,
+      );
+      if (inGameFeedback) {
+        return Semantics(container: true, label: status, child: player);
+      }
       return Column(
         children: [
-          Padding(padding: const EdgeInsets.all(8), child: Text(match.status)),
-          Expanded(
-            child: LoveGameView.official(
-              key: _helpPlayer,
-              game: game,
-              mode: 'online',
-              paused: match.paused && !match.boardComplete,
-              match: match.sdkSnapshot(
-                canMove:
-                    match.myTurn && !_sending && !_chatOpen && _error == null,
-              ),
-              onTurn: _submitTurn,
-            ),
-          ),
+          if (status.isNotEmpty)
+            Padding(padding: const EdgeInsets.all(8), child: Text(status)),
+          Expanded(child: player),
         ],
       );
     }
@@ -1039,58 +1058,85 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                               if (showResult)
                                 if (!match.finished ||
                                     !_celebration.isAnimating)
-                                  _finishedActions(match)
+                                  if (_usesGameFeedback(_game!))
+                                    Align(
+                                      alignment: Alignment.bottomCenter,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        child: _resultActions(
+                                          match,
+                                          scrollDetails: true,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    _finishedActions(match)
                                 else
                                   const SizedBox.shrink()
                               else if (match.paused ||
                                   pendingControl ||
                                   _error != null ||
                                   (match.pending?.state == 24 && !_sending))
-                                Center(
-                                  child: Card(
-                                    child: SingleChildScrollView(
-                                      padding: const EdgeInsets.all(18),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            _error ??
-                                                (pendingControl
-                                                    ? match.status
-                                                    : match.pausedByMe
-                                                    ? 'You paused the game.'
-                                                    : match.pausedByFriend
-                                                    ? '${widget.friendName ?? 'Your friend'} paused the game.'
-                                                    : match.status),
-                                          ),
-                                          if (_error != null)
-                                            TextButton(
-                                              onPressed: _load,
-                                              child: const Text('Refresh'),
-                                            ),
-                                          if (match.pending case final pending?
-                                              when pending.state == 24)
-                                            TextButton(
-                                              onPressed: () =>
-                                                  _send(pending.text),
-                                              child: const Text('Retry send'),
-                                            ),
-                                          if ((match.paused ||
-                                                  pendingAction?.kind ==
-                                                      'pause') &&
-                                              !match.finished &&
-                                              !pendingQuit)
-                                            TextButton(
-                                              onPressed: _sending
-                                                  ? null
-                                                  : _quit,
-                                              child: const Text('Quit match'),
-                                            ),
-                                        ],
+                                if (match.paused || pendingControl)
+                                  GamePausePanel(
+                                    detail:
+                                        _error ??
+                                        (pendingControl
+                                            ? match.status
+                                            : match.pausedByFriend &&
+                                                  !match.pausedByMe
+                                            ? '${_friendName ?? 'Your friend'} paused the game.'
+                                            : null),
+                                    onResume:
+                                        !_sending &&
+                                            !pendingControl &&
+                                            match.pausedByMe
+                                        ? () => _togglePause(match)
+                                        : null,
+                                    onQuit:
+                                        !_sending &&
+                                            !match.finished &&
+                                            !pendingQuit
+                                        ? _quit
+                                        : null,
+                                    extraActions: [
+                                      if (match.pending case final pending?
+                                          when pending.state == 24)
+                                        TextButton(
+                                          onPressed: () => _send(pending.text),
+                                          child: const Text('Retry send'),
+                                        ),
+                                    ],
+                                  )
+                                else
+                                  Center(
+                                    child: Card(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(18),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(_error ?? match.status),
+                                            if (_error != null)
+                                              TextButton(
+                                                onPressed: _load,
+                                                child: const Text('Refresh'),
+                                              ),
+                                            if (match.pending
+                                                case final pending?
+                                                when pending.state == 24)
+                                              TextButton(
+                                                onPressed: () =>
+                                                    _send(pending.text),
+                                                child: const Text('Retry send'),
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
                             ],
                           )
                         : Center(

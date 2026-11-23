@@ -18,6 +18,7 @@ class LoveGameView extends StatefulWidget {
     this.match,
     this.onMove,
     this.onTurn,
+    this.opponentName,
     this.paused = false,
   }) : reference = {
          ...game.playerReference,
@@ -30,12 +31,13 @@ class LoveGameView extends StatefulWidget {
       fresh = false,
       match = null,
       onMove = null,
-      onTurn = null;
+      onTurn = null,
+      opponentName = null;
 
   final Map<String, Object> reference;
   final String mode;
   final bool fresh;
-  final String? match;
+  final String? match, opponentName;
   final ValueChanged<int>? onMove;
   final ValueChanged<String>? onTurn;
   final bool paused;
@@ -72,6 +74,9 @@ class LoveGameViewState extends State<LoveGameView>
   void didUpdateWidget(LoveGameView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.match != oldWidget.match) _syncMatch();
+    if (widget.opponentName != oldWidget.opponentName) {
+      _send('opponentName', widget.opponentName ?? '');
+    }
     if (widget.paused != oldWidget.paused) {
       _send(
         'pause',
@@ -136,6 +141,7 @@ class LoveGameViewState extends State<LoveGameView>
         'mode': widget.mode,
         'fresh': widget.fresh,
         'audio': _audio,
+        if (widget.opponentName case final name?) 'opponentName': name,
       },
       creationParamsCodec: const StandardMessageCodec(),
       gestureRecognizers: {

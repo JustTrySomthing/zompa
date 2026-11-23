@@ -6,6 +6,7 @@ const status = document.getElementById('status');
 const bridgeDirectory = '/zompado';
 let runtime;
 let pendingMatch;
+let opponentName = '';
 let genericTurns = false;
 let isPaused = false;
 let gameRunning = false;
@@ -51,10 +52,14 @@ function autosave() {
 }
 
 window.zompaGame = Object.freeze({
-  setMatch(state, turns) {
+  setMatch(state, turns, name) {
+    opponentName = typeof name === 'string' ? name : '';
     genericTurns = turns === true;
     pendingMatch = state;
-    if (runtime) runtime.ZompaFS.writeFile(`${bridgeDirectory}/match`, state);
+    if (runtime) {
+      runtime.ZompaFS.writeFile(`${bridgeDirectory}/match`, state);
+      runtime.ZompaFS.writeFile(`${bridgeDirectory}/opponent`, opponentName);
+    }
   },
   setAudio(settings) {
     if (typeof settings !== 'string' || !/^(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])$/.test(settings)) return;
@@ -137,7 +142,10 @@ async function start() {
       fs.writeFile('/game.love', bytes);
       fs.mkdir(bridgeDirectory);
       fs.writeFile(`${bridgeDirectory}/mode`, mode);
-      if (pendingMatch !== undefined) fs.writeFile(`${bridgeDirectory}/match`, pendingMatch);
+      if (pendingMatch !== undefined) {
+        fs.writeFile(`${bridgeDirectory}/match`, pendingMatch);
+        fs.writeFile(`${bridgeDirectory}/opponent`, opponentName);
+      }
       saveMounted = mode !== 'online' && Boolean(fs.filesystems.IDBFS);
       runtime = module;
       applyAudio();
