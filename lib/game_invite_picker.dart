@@ -118,10 +118,6 @@ class _GameInvitePickerState<T> extends State<_GameInvitePicker<T>> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xff1b663c),
-                      foregroundColor: Colors.white,
-                    ),
                     onPressed: _selected == null
                         ? null
                         : () => Navigator.pop(context, _selected!.value),

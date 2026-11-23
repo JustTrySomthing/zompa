@@ -1,5 +1,5 @@
 {
-  "version": "0.5.38",
-  "build": 47,
-  "notes": "- Fixes installed games getting stuck on Loading game after the Zompa rename. Previously shared games and saved rounds continue to use the original game folder.\n- New Zompa app name, wordmark, and game SDK.\n- Background listening improves chat, incoming call, and game invitation delivery. Quiet Hours silences ringing and notification sounds.\n- Older chat messages load as you scroll. Online matches show your own team token and more clearly labeled actions."
+  "version": "0.5.39",
+  "build": 48,
+  "notes": "- Adds stylized round and match winner announcements in online Cats vs Dogs.\n- Uses theme colors for dialog and invitation actions, including buttons on accent-colored bubbles.\n- Restores game screenshot galleries and lowers the header logo slightly."
 }

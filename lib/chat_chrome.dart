@@ -280,11 +280,14 @@ AppBar chatPageBar(
     title: showBrand
         ? Row(
             children: [
-              Image.asset(
-                ZompaBrand.markAsset,
-                width: 25,
-                height: 25,
-                excludeFromSemantics: true,
+              Transform.translate(
+                offset: const Offset(0, 2),
+                child: Image.asset(
+                  ZompaBrand.markAsset,
+                  width: 25,
+                  height: 25,
+                  excludeFromSemantics: true,
+                ),
               ),
               SizedBox(width: compact ? 6 : 10),
               Flexible(

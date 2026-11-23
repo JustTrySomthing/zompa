@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'chatmail.dart';
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
-import 'dialog_actions.dart';
 
 class ContactsPage extends StatefulWidget {
   const ContactsPage({
@@ -108,7 +107,6 @@ class _ContactsPageState extends State<ContactsPage> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              style: deleting ? destructiveDialogAction(dialog) : null,
               onPressed: () => Navigator.pop(dialog, true),
               child: Text(deleting ? 'Delete contact' : 'Block contact'),
             ),

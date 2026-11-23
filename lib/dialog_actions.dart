@@ -1,14 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-ButtonStyle destructiveDialogAction(BuildContext context) {
-  final colors = Theme.of(context).colorScheme;
-  return FilledButton.styleFrom(
-    backgroundColor: colors.error,
-    foregroundColor: colors.onError,
-  );
-}
-
 Future<String> readPastedLink(int maxLength) async {
   final ClipboardData? data;
   try {

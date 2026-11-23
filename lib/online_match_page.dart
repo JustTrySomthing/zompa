@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import 'chat_chrome.dart';
 import 'chatmail.dart';
-import 'dialog_actions.dart';
 import 'game_link.dart';
 import 'github_distribution.dart';
 import 'online_match.dart';
@@ -293,7 +292,6 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             child: const Text('Keep playing'),
           ),
           FilledButton(
-            style: destructiveDialogAction(dialog),
             onPressed: () => Navigator.pop(dialog, true),
             child: const Text('Quit match'),
           ),
@@ -474,8 +472,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         ? match.status
         : winner != 0
         ? (yours
-              ? (match.finished ? 'You win!' : 'You win the round!')
-              : (match.finished ? '$name wins!' : '$name wins the round!'))
+              ? 'You win Round ${match.round}!'
+              : '$name wins Round ${match.round}!')
         : (yours ? 'Your turn' : '$name’s turn');
 
     final cats = match.mine;
@@ -510,24 +508,98 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                     ),
                   ),
                 const SizedBox(height: 5),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: const Color(0xfffff4fc),
-                      fontWeight: FontWeight.w700,
+                if (winner != 0 && !statusOnly)
+                  _winBanner(label, winner)
+                else
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: const Color(0xfffff4fc),
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _winBanner(String label, int winner, {bool finale = false}) {
+    final accent = winner == 1
+        ? const Color(0xffff9abb)
+        : const Color(0xffa6ddff);
+    final banner = Semantics(
+      liveRegion: true,
+      header: true,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: finale ? 400 : 420),
+        padding: EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: finale ? 24 : 7,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xff201a31),
+              Color.alphaBlend(
+                accent.withValues(alpha: .20),
+                const Color(0xff201a31),
+              ),
+              const Color(0xff201a31),
+            ],
+          ),
+          border: Border.all(color: accent),
+          borderRadius: BorderRadius.circular(finale ? 24 : 12),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: .35),
+              blurRadius: finale ? 28 : 12,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (finale) ...[
+              Icon(Icons.emoji_events_rounded, color: accent, size: 50),
+              const SizedBox(height: 8),
+            ],
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: const Color(0xfffff4fc),
+                fontSize: finale ? 42 : 24,
+                height: 1.08,
+                letterSpacing: .5,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w900,
+                shadows: [
+                  Shadow(color: accent.withValues(alpha: .65), blurRadius: 16),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return banner;
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(label),
+      tween: Tween(begin: .86, end: 1),
+      duration: const Duration(milliseconds: 480),
+      curve: Curves.easeOutBack,
+      child: banner,
+      builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
     );
   }
 
@@ -593,7 +665,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'First to 3 round wins takes the match',
+                                  'First Player to win 3 Rounds, Wins the Game',
                                   style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(
                                         color: const Color(0xffdbd1eb),
@@ -626,63 +698,79 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     ),
   );
 
-  Widget _resultActions(OnlineMatch match) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      if (_error case final error?)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text(
-            error,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+  Widget _resultActions(OnlineMatch match) {
+    final winner = match.board.winner;
+    final friend = widget.friendName?.trim();
+    final name = friend == null || friend.isEmpty ? 'Your friend' : friend;
+    final youWon = (winner == 1) == match.mine;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (match.finished && winner != 0) ...[
+          _winBanner(
+            youWon ? 'You win the game!' : '$name wins the game!',
+            winner,
+            finale: true,
           ),
-        ),
-      if (match.finished && _incomingRematch != null)
-        const Text(
-          'Your friend invited you to play again.',
-          textAlign: TextAlign.center,
-        ),
-      Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        children: [
-          TextButton(
-            onPressed: _sending
-                ? null
-                : match.finished
-                ? () => Navigator.pop(context)
-                : _quit,
-            child: const Text('Quit'),
-          ),
-          FilledButton(
-            onPressed: _sending
-                ? null
-                : () {
-                    if (!match.finished) {
-                      unawaited(
-                        _send(
-                          match.invite.nextRound(match.round, match.moves).wire,
-                        ),
-                      );
-                    } else if (_incomingRematch case final id?) {
-                      _openRematch(id, accept: true);
-                    } else {
-                      _rematch(match);
-                    }
-                  },
+          const SizedBox(height: 16),
+        ],
+        if (_error case final error?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              !match.finished
-                  ? 'Next round'
-                  : _incomingRematch == null
-                  ? 'Play another match'
-                  : 'Accept rematch',
+              error,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
-        ],
-      ),
-    ],
-  );
+        if (match.finished && _incomingRematch != null)
+          const Text(
+            'Your friend invited you to play again.',
+            textAlign: TextAlign.center,
+          ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: _sending
+                  ? null
+                  : match.finished
+                  ? () => Navigator.pop(context)
+                  : _quit,
+              child: const Text('Quit'),
+            ),
+            FilledButton(
+              onPressed: _sending
+                  ? null
+                  : () {
+                      if (!match.finished) {
+                        unawaited(
+                          _send(
+                            match.invite
+                                .nextRound(match.round, match.moves)
+                                .wire,
+                          ),
+                        );
+                      } else if (_incomingRematch case final id?) {
+                        _openRematch(id, accept: true);
+                      } else {
+                        _rematch(match);
+                      }
+                    },
+              child: Text(
+                !match.finished
+                    ? 'Next round'
+                    : _incomingRematch == null
+                    ? 'Play another match'
+                    : 'Accept rematch',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -879,13 +967,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                                               .decline()
                                                               .wire,
                                                         ),
-                                                  style:
-                                                      OutlinedButton.styleFrom(
-                                                        foregroundColor:
-                                                            Theme.of(context)
-                                                                .colorScheme
-                                                                .error,
-                                                      ),
+
                                                   child: const Text('Decline'),
                                                 ),
                                                 FilledButton(
@@ -893,12 +975,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                                       _sending || _preparing
                                                       ? null
                                                       : () => _accept(match),
-                                                  style: FilledButton.styleFrom(
-                                                    backgroundColor:
-                                                        const Color(0xff1b663c),
-                                                    foregroundColor:
-                                                        Colors.white,
-                                                  ),
+
                                                   child: const Text('Accept'),
                                                 ),
                                               ],

@@ -233,7 +233,6 @@ class _FriendsPaneState extends State<FriendsPane> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: destructiveDialogAction(dialog),
             onPressed: () => Navigator.pop(dialog, true),
             child: const Text('Empty trash'),
           ),
@@ -529,11 +528,6 @@ class _FriendsPaneState extends State<FriendsPane> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.brightness == Brightness.dark
-                            ? Colors.greenAccent.shade100
-                            : Colors.green.shade800,
-                      ),
                       onPressed: _busy || _chats.isEmpty
                           ? null
                           : () async {
@@ -550,9 +544,6 @@ class _FriendsPaneState extends State<FriendsPane> {
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.colorScheme.error,
-                      ),
                       onPressed: _busy || _chats.isEmpty ? null : _emptyTrash,
                       child: const Text(
                         'Empty trash',
@@ -1766,11 +1757,6 @@ class _FriendConversationState extends State<FriendConversation>
                                               spacing: 8,
                                               children: [
                                                 OutlinedButton(
-                                                  style:
-                                                      OutlinedButton.styleFrom(
-                                                        foregroundColor:
-                                                            bubbleColors.error,
-                                                      ),
                                                   onPressed: _sending
                                                       ? null
                                                       : () => _send(
@@ -1782,12 +1768,6 @@ class _FriendConversationState extends State<FriendConversation>
                                                   child: const Text('Decline'),
                                                 ),
                                                 FilledButton(
-                                                  style: FilledButton.styleFrom(
-                                                    backgroundColor:
-                                                        const Color(0xff1b663c),
-                                                    foregroundColor:
-                                                        Colors.white,
-                                                  ),
                                                   onPressed: _sending
                                                       ? null
                                                       : () => _openMatch(

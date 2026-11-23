@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'chatmail.dart';
-import 'dialog_actions.dart';
 import 'friends.dart';
 import 'game_link.dart';
 import 'game_play_page.dart';
@@ -187,7 +186,6 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
               child: const Text('Keep game'),
             ),
             FilledButton(
-              style: destructiveDialogAction(dialog),
               onPressed: () => Navigator.pop(dialog, true),
               child: const Text('End Game'),
             ),
@@ -246,7 +244,6 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
               child: const Text('Keep game'),
             ),
             FilledButton(
-              style: destructiveDialogAction(dialog),
               onPressed: () => Navigator.pop(dialog, true),
               child: const Text('End Game'),
             ),
@@ -315,8 +312,7 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
     required VoidCallback resume,
   }) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final detailStyle = TextStyle(color: colors.onSurfaceVariant);
+    final detailStyle = TextStyle(color: theme.colorScheme.onSurfaceVariant);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
       child: Column(
@@ -332,11 +328,10 @@ class _ActiveGamesSheetState extends State<_ActiveGamesSheet>
             spacing: 8,
             children: [
               OutlinedButton(
-                style: OutlinedButton.styleFrom(foregroundColor: colors.error),
                 onPressed: _busy ? null : end,
                 child: const Text('End Game'),
               ),
-              FilledButton.tonal(
+              FilledButton(
                 onPressed: _busy ? null : resume,
                 child: const Text('Resume Game'),
               ),

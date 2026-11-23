@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 
 import 'chat_avatar.dart';
 import 'chat_chrome.dart';
-import 'dialog_actions.dart';
 import 'chat_files.dart';
 import 'chat_links.dart';
 import 'chat_preview.dart';
@@ -355,7 +354,6 @@ Future<void> showMessageActions(
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: saved ? null : destructiveDialogAction(dialog),
             onPressed: () => Navigator.pop(dialog, true),
             child: Text(saved ? 'Remove' : 'Delete'),
           ),

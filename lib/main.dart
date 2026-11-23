@@ -617,13 +617,18 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   String? catalogError;
   List<GameRelease> releases = [];
   List<GameRelease> _libraryArtwork = const [];
+  bool _loadingArtwork = false;
 
   Future<void> _loadLibraryArtwork() async {
+    if (_loadingArtwork) return;
+    _loadingArtwork = true;
     try {
       final games = await widget.distribution?.catalog(includeArchive: true);
       if (mounted && games != null) setState(() => _libraryArtwork = games);
     } catch (_) {
       // Playback stays available when the preview catalog is offline.
+    } finally {
+      _loadingArtwork = false;
     }
   }
 
@@ -677,7 +682,12 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     });
     try {
       final games = await distribution.catalog();
-      if (mounted) setState(() => releases = games);
+      if (mounted) {
+        setState(() => releases = games);
+        if (games.any((game) => game.screenshots.isEmpty)) {
+          unawaited(_loadLibraryArtwork());
+        }
+      }
     } catch (_) {
       if (mounted)
         setState(() => catalogError = 'Couldn’t load the GitHub catalog.');
@@ -703,6 +713,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         catalog = false;
       });
       _refreshActiveGames();
+      if (release.screenshots.isEmpty) unawaited(_loadLibraryArtwork());
       return true;
     } catch (_) {
       if (mounted)
@@ -1529,12 +1540,17 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
               .where(
                 (candidate) =>
                     candidate.id == game.id &&
-                    candidate.version == game.version &&
-                    candidate.build == game.build &&
-                    candidate.asset.sha == game.asset.sha &&
+                    candidate.title == game.title &&
+                    candidate.build <= game.build &&
                     candidate.screenshots.isNotEmpty,
               )
-              .firstOrNull;
+              .fold<GameRelease?>(
+                null,
+                (latest, candidate) =>
+                    latest == null || candidate.build > latest.build
+                    ? candidate
+                    : latest,
+              );
     final bytes = game.asset.size;
     final size = bytes < 1024
         ? '$bytes B'

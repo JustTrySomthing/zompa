@@ -112,6 +112,11 @@ abstract final class ZompaBrand {
           surfaceTint: Colors.transparent,
         );
     final action = actionInk(scheme);
+    final accentNeedsOutline = [
+      background,
+      panel,
+      variant,
+    ].any((surface) => contrastRatio(accent, surface) < 3);
 
     return ThemeData(
       useMaterial3: true,
@@ -128,11 +133,12 @@ abstract final class ZompaBrand {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
+      // Secondary actions use the same ink as the dialog text.
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: action),
+        style: TextButton.styleFrom(foregroundColor: scheme.onSurface),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(foregroundColor: action),
+        style: OutlinedButton.styleFrom(foregroundColor: scheme.onSurface),
       ),
       inputDecorationTheme: InputDecorationThemeData(
         floatingLabelStyle: WidgetStateTextStyle.resolveWith(
@@ -146,10 +152,18 @@ abstract final class ZompaBrand {
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: scheme.primary,
-          foregroundColor: scheme.onPrimary,
-        ),
+        style:
+            FilledButton.styleFrom(
+              backgroundColor: scheme.primary,
+              foregroundColor: scheme.onPrimary,
+            ).copyWith(
+              side: WidgetStateProperty.resolveWith(
+                (states) =>
+                    accentNeedsOutline && !states.contains(WidgetState.disabled)
+                    ? BorderSide(color: scheme.onSurface)
+                    : BorderSide.none,
+              ),
+            ),
       ),
     );
   }

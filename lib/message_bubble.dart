@@ -32,16 +32,21 @@ class MessageBubble extends StatelessWidget {
       foreground.withValues(alpha: .78),
       background,
     );
-    final secondary = ZompaBrand.readableAccent(
-      detail,
-      background,
-      foreground,
-    );
+    final secondary = ZompaBrand.readableAccent(detail, background, foreground);
     final action = ZompaBrand.readableAccent(
       colors.primary,
       background,
       foreground,
     );
+
+    // Use the accent on neutral bubbles. Invert the bubble’s ink and
+    // background when the accent would blend into the bubble itself.
+    final fill = ZompaBrand.contrastRatio(colors.primary, background) >= 3
+        ? colors.primary
+        : foreground;
+    final fillInk = fill == foreground
+        ? background
+        : ZompaBrand.inkOnAccent(fill);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -59,12 +64,18 @@ class MessageBubble extends StatelessWidget {
               // Outlined controls use this border over the bubble.
               outline: secondary,
             ),
+            filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                backgroundColor: fill,
+                foregroundColor: fillInk,
+              ),
+            ),
             iconTheme: theme.iconTheme.copyWith(color: secondary),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: action),
+              style: TextButton.styleFrom(foregroundColor: foreground),
             ),
             outlinedButtonTheme: OutlinedButtonThemeData(
-              style: OutlinedButton.styleFrom(foregroundColor: action),
+              style: OutlinedButton.styleFrom(foregroundColor: foreground),
             ),
           ),
           child: DefaultTextStyle.merge(

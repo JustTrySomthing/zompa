@@ -587,21 +587,15 @@ class _CallAction extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onPressed,
-    this.destructive = false,
   });
 
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
-  final bool destructive;
 
   @override
   Widget build(BuildContext context) => FilledButton.icon(
     style: FilledButton.styleFrom(
-      backgroundColor: destructive
-          ? const Color(0xffb83243)
-          : const Color(0xff1b663c),
-      foregroundColor: Colors.white,
       minimumSize: const Size(152, 52),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
@@ -886,7 +880,7 @@ class VoicePanel extends StatelessWidget {
                                             tooltip: 'Decline',
                                             label: 'Decline',
                                             onPressed: controller.hangUp,
-                                            color: colors.error,
+                                            outlined: true,
                                             icon: Icons.call_end,
                                           ),
                                         if (incoming)
@@ -895,7 +889,7 @@ class VoicePanel extends StatelessWidget {
                                             tooltip: 'Answer',
                                             label: 'Answer',
                                             onPressed: controller.accept,
-                                            color: const Color(0xff43b981),
+                                            primary: true,
                                             icon: Icons.call,
                                           ),
                                       ],
@@ -944,7 +938,6 @@ class VoicePanel extends StatelessWidget {
     label: 'End call',
     icon: Icons.call_end,
     onPressed: calls.hangUp,
-    destructive: true,
   );
 }
 
@@ -1023,7 +1016,8 @@ class _VoiceButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onPressed,
-    this.color,
+    this.outlined = false,
+    this.primary = false,
     this.selected = false,
   });
 
@@ -1031,8 +1025,7 @@ class _VoiceButton extends StatelessWidget {
   final String tooltip, label;
   final IconData icon;
   final VoidCallback? onPressed;
-  final Color? color;
-  final bool selected;
+  final bool outlined, primary, selected;
 
   @override
   Widget build(BuildContext context) {
@@ -1056,9 +1049,12 @@ class _VoiceButton extends StatelessWidget {
                 children: [
                   DecoratedBox(
                     decoration: BoxDecoration(
-                      color: selected
-                          ? colors.secondaryContainer
+                      color: primary || selected
+                          ? colors.primary
                           : Colors.transparent,
+                      border: outlined
+                          ? Border.all(color: colors.onSurface)
+                          : null,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Padding(
@@ -1069,7 +1065,7 @@ class _VoiceButton extends StatelessWidget {
                       child: Icon(
                         icon,
                         size: 26,
-                        color: selected ? colors.onSecondaryContainer : color,
+                        color: primary || selected ? colors.onPrimary : null,
                       ),
                     ),
                   ),
@@ -1079,11 +1075,7 @@ class _VoiceButton extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
