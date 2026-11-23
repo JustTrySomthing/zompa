@@ -1,5 +1,5 @@
 {
   "version": "0.5.45",
   "build": 54,
-  "notes": "Shared game toolbar with How to play, Audio and Pause. Games can include their own instructions."
+  "notes": "How to play, Audio and Pause now share the game toolbar. Open How to play for instructions specific to your game."
 }
