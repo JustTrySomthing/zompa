@@ -276,11 +276,15 @@ class _ZompaState extends State<Zompa> with WidgetsBindingObserver {
               return;
             }
             label = 'Your game is ready';
+          case 'turn':
           case 'move':
           case 'next':
             final history = await chatmail.matchHistory(chat, event.id);
-            if (OnlineMatch.replay(event.id, history)?.myTurn != true) return;
-            label = 'Your turn in Cats vs Dogs';
+            final match = OnlineMatch.replay(event.id, history);
+            if (match?.myTurn != true) return;
+            label = match?.invite.game?.id == 'drop-four'
+                ? 'Your turn in Cats vs Dogs'
+                : 'Your turn in a game';
           default:
             return;
         }
@@ -681,7 +685,9 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       catalogError = null;
     });
     try {
-      final games = await distribution.catalog();
+      final games = (await distribution.catalog())
+          .where((game) => (gamePreviewEnabled || game.minZompaBuild <= installedBuild))
+          .toList();
       if (mounted) {
         setState(() => releases = games);
         if (games.any((game) => game.screenshots.isEmpty)) {
@@ -700,6 +706,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     final distribution = widget.distribution;
     if (downloadingGame ||
         distribution == null ||
+        (!gamePreviewEnabled && release.minZompaBuild > installedBuild) ||
         release.build < (installedGames[release.id]?.build ?? 0))
       return false;
     setState(() => downloadingGame = true);
@@ -765,12 +772,14 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       final installed = installedGames[link.id];
       if (installed != null &&
           link.matches(installed) &&
-          installed.modes.contains('online') &&
+          MatchEvent.supportsGame(installed) &&
+          (gamePreviewEnabled || installed.minZompaBuild <= installedBuild) &&
           await distribution.verifyGame(installed)) {
         return installed;
       }
       final releases = await distribution.catalog(includeArchive: true);
-      final exact = releases.where(link.matches).firstOrNull;
+      final exact = releases.where((game) =>
+          link.matches(game) && (gamePreviewEnabled || game.minZompaBuild <= installedBuild)).firstOrNull;
       if (!mounted) return null;
       if (exact == null) {
         _gameNotice('This exact game version isn’t in the official catalog.');
@@ -778,12 +787,16 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       }
       // The first Drop Four release ran online in the host. Its match rules
       // are unchanged, so the current cartridge can render legacy matches.
-      final playable = exact.modes.contains('online')
+      final playable = MatchEvent.supportsGame(exact)
           ? exact
           : releases
                 .where(
                   (game) =>
-                      game.id == exact.id && game.modes.contains('online'),
+                      exact.id == 'drop-four' &&
+                      game.id == exact.id &&
+                      game.onlineProtocol == null &&
+                      (gamePreviewEnabled || game.minZompaBuild <= installedBuild) &&
+                      MatchEvent.supportsGame(game),
                 )
                 .firstOrNull;
       if (playable == null) {
@@ -883,6 +896,10 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       if (!mounted) return;
       if (game == null) {
         _gameNotice('This exact game version isn’t available in Get Games.');
+        return;
+      }
+      if (!gamePreviewEnabled && game.minZompaBuild > installedBuild) {
+        _gameNotice('Update Zompa before installing this game.');
         return;
       }
       final installed = installedGames[game.id];
@@ -1083,7 +1100,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       if (link == null) return;
       final chat = await chatmail.openContact(contact.id);
       if (!mounted) return;
-      final invite = MatchEvent.invite(link);
+      final invite = MatchEvent.invite(link, turnProtocol: game.onlineProtocol == 'turns-v1');
       final moved = await chatmail.sendMatchOpening(chat, invite);
       if (!mounted) return;
       if (moved != null) _gameNotice(matchMovedNotice(moved));

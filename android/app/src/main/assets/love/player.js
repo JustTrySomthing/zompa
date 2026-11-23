@@ -6,6 +6,7 @@ const status = document.getElementById('status');
 const bridgeDirectory = '/zompado';
 let runtime;
 let pendingMatch;
+let genericTurns = false;
 let isPaused = false;
 let gameRunning = false;
 let audio = [100, 100, 100];
@@ -50,7 +51,8 @@ function autosave() {
 }
 
 window.zompaGame = Object.freeze({
-  setMatch(state) {
+  setMatch(state, turns) {
+    genericTurns = turns === true;
     pendingMatch = state;
     if (runtime) runtime.ZompaFS.writeFile(`${bridgeDirectory}/match`, state);
   },
@@ -74,8 +76,10 @@ window.zompaGame = Object.freeze({
     const fs = runtime.ZompaFS;
     if (!fs.analyzePath(`${bridgeDirectory}/move`).exists) return null;
     try {
-      if (fs.stat(`${bridgeDirectory}/move`).size !== 1) return null;
+      const size = fs.stat(`${bridgeDirectory}/move`).size;
+      if (genericTurns ? size < 3 || size > 258 : size !== 1) return null;
       const value = fs.readFile(`${bridgeDirectory}/move`, {encoding: 'utf8'});
+      if (genericTurns) return /^[-012]:[A-Za-z0-9_-]{1,256}$/.test(value) ? value : null;
       return /^[0-6]$/.test(value) ? Number(value) : null;
     } finally {
       fs.unlink(`${bridgeDirectory}/move`);

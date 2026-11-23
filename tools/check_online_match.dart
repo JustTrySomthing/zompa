@@ -213,4 +213,67 @@ void main() {
   print(
     'PASS: match readiness, start and quit delivery, retry, and legacy replay.',
   );
+
+  final secondGame = GameLink.parse(
+    'https://justtrysomthing.github.io/zompa/game/'
+    '?id=sample-rules&build=1&sha=${'b' * 64}',
+  )!;
+  final generic = MatchEvent.invite(secondGame, turnProtocol: true);
+  final initial = generic.control('resume', 1);
+  final ready = [
+    message(generic, outgoing: true),
+    message(generic.accept(), outgoing: false),
+    message(initial, outgoing: true),
+  ];
+  OnlineMatch genericReplay(List<FriendMessage> events) =>
+      OnlineMatch.replay(generic.id, [...ready, ...events])!;
+  final first = generic.turn('0' * 64, 'piece7_square3');
+  final firstSent = message(first, outgoing: true);
+  final genericPending = genericReplay([
+    message(first, outgoing: true, state: 20),
+  ]);
+  check(
+    genericPending.started &&
+        !genericPending.myTurn &&
+        genericPending.turnHistory.isEmpty &&
+        genericPending.pending != null,
+    'Generic play waits for a pending first turn',
+  );
+  final genericBoard = genericReplay([firstSent, firstSent]);
+  check(
+    genericBoard.turnHistory.single == 'piece7_square3' && !genericBoard.myTurn,
+    'Generic replay uses game-specific tokens and deduplicates delivery',
+  );
+  final response = generic.turn(
+    genericBoard.turnHead,
+    'piece2_square4',
+    outcome: 2,
+  );
+  final finished = genericReplay([
+    message(response, outgoing: false),
+    firstSent,
+  ]);
+  check(
+    finished.finished &&
+        finished.winner == 2 &&
+        finished.turnHistory.length == 2,
+    'Out-of-order delivery reconstructs the generic match and its result',
+  );
+  check(
+    genericReplay([message(response, outgoing: true), firstSent])
+            .turnHistory
+            .length ==
+        1,
+    'A turn from the wrong player is ignored',
+  );
+  check(
+    genericReplay([
+      firstSent,
+      message(generic.turn('0' * 64, 'different'), outgoing: true),
+    ]).conflict,
+    'Divergent turns stop a generic match',
+  );
+  print(
+    'PASS: game-specific turn tokens, delivery, ordering, conflict, and result.',
+  );
 }

@@ -1,5 +1,6 @@
 """Use two independent Android installs to verify Zompa friends and turns."""
 
+import os
 import re
 import shlex
 import subprocess
@@ -9,6 +10,11 @@ import xml.etree.ElementTree as ET
 
 import cv2
 import numpy as np
+
+try:
+    import zxingcpp
+except ModuleNotFoundError:
+    zxingcpp = None
 
 APP = "io.tablecircle.prototype"
 ACTIVITY = APP + "/.MainActivity"
@@ -82,6 +88,11 @@ class Phone:
     def see(self, label, seconds=55):
         return wait(f"{self.name} to show {label}", lambda: self.find(label), seconds)
 
+    def see_friend_turn(self, name, seconds=100):
+        return wait(f"{self.name} to show the other player's turn",
+                    lambda: self.find(f"{name}’s turn") or self.find("Your friend’s turn"),
+                    seconds)
+
     def press(self, label, seconds=55):
         self.shell("input", "tap", *self.see(label, seconds))
 
@@ -136,7 +147,17 @@ class Phone:
         self.press("Share my invite")
         self.see("Share my invite")
         detector = cv2.QRCodeDetector()
-        link = wait("a decodable invite QR", lambda: detector.detectAndDecode(self.image())[0], 30)
+        def decode_invite():
+            image = self.image()
+            if image is None:
+                return None
+            if zxingcpp is not None:
+                code = zxingcpp.read_barcode(image, formats=zxingcpp.BarcodeFormat.QRCode)
+                if code:
+                    return code.text
+            return detector.detectAndDecode(image)[0]
+
+        link = wait("a decodable invite QR", decode_invite, 45)
         self.press("Done")
         self.back()
         return link
@@ -300,7 +321,7 @@ def check_message_tools(alice, bob):
     print("PASS: saved an incoming message, opened Saved, reacted across devices, and toggled global mute in Settings.", flush=True)
 
 
-def check_match(alice, bob):
+def check_match(alice, bob, *, game_release=False):
     alice.press("Invite to play a game")
     alice.see("Choose a game")
     alice.see("Play with Bob")
@@ -327,15 +348,29 @@ def check_match(alice, bob):
     bob.press("Accept", 100)
     bob.see("Waiting for Alice to start the game.", 100)
     alice.press("Play Now", 100)
-    bob.see("Alice’s turn", 100)
+    bob.see_friend_turn("Alice")
     alice.see("Your turn", 100)
     # This match must include the score fields that follow the move flag.
-    alice.see("ROUND 1")
-    bob.see("ROUND 1")
+    if not (game_release and os.environ.get("ZOMPA_GENERIC_TURNS") == "1"):
+        alice.see("ROUND 1")
+        bob.see("ROUND 1")
     alice.back()
     alice.press("Resume Game")
     alice.see("Your turn", 100)
     print("PASS: Resume Game opened the board directly.", flush=True)
+    if game_release:
+        alice.turn()
+        alice.see_friend_turn("Bob")
+        bob.see("Your turn", 100)
+        bob.turn()
+        bob.see_friend_turn("Alice")
+        alice.see("Your turn", 100)
+        bob.press("Pause")
+        bob.press("Quit match")
+        bob.press("Quit match")
+        alice.see("Match ended.", 100)
+        print("PASS: Online 2 Player used two Android installs and exchanged Chatmail moves.", flush=True)
+        return
     bob.press("Open match chat")
     bob.type("Game chat check")
     bob.back()
@@ -406,29 +441,32 @@ def check_app_log(phone):
 
 
 def main():
+    game_release = "--game-release" in sys.argv[2:]
     alice, bob = Phone(5554, "Alice"), Phone(5556, "Bob")
     alice.profile()
-    check_app_log(alice)
+    if not game_release:
+        check_app_log(alice)
     bob.profile()
     bob.press("Contacts")
     bob.press("Accept an invite")
-    bob.press("Scan QR code")
-    bob.shell("input", "tap", *wait("the camera permission denial button",
-        lambda: bob.find("Don’t allow") or bob.find("Don't allow")))
-    bob.see("Open camera settings")
-    bob.press("Scan QR code")
-    bob.press("While using the app")
-    bob.see("Point the camera at your friend’s invite QR code", 40)
-    bob.back()
-    bob.see("Scan QR code")
-    print("PASS: Android requested camera access, handled denial, and opened the built-in QR scanner.", flush=True)
+    if not game_release:
+        bob.press("Scan QR code")
+        bob.shell("input", "tap", *wait("the camera permission denial button",
+            lambda: bob.find("Don’t allow") or bob.find("Don't allow")))
+        bob.see("Open camera settings")
+        bob.press("Scan QR code")
+        bob.press("While using the app")
+        bob.see("Point the camera at your friend’s invite QR code", 40)
+        bob.back()
+        bob.see("Scan QR code")
+        print("PASS: Android requested camera access, handled denial, and opened the built-in QR scanner.", flush=True)
 
-    bob.type("https://example.org/not-an-invite")
-    bob.back()
-    bob.press("Accept")
-    bob.see("Use a link from your friend’s Share my invite screen.")
-    bob.press("Cancel")
-    bob.press("Accept an invite")
+        bob.type("https://example.org/not-an-invite")
+        bob.back()
+        bob.press("Accept")
+        bob.see("Use a link from your friend’s Share my invite screen.")
+        bob.press("Cancel")
+        bob.press("Accept an invite")
 
     link = alice.invite()
     bob.type(link)
@@ -437,6 +475,15 @@ def main():
     alice.press("Bob", 120)
     bob.see("Alice", 120)
     print("PASS: paired two independent Android installs using the app’s friend invite.", flush=True)
+
+    if game_release:
+        alice.back()
+        alice.press("Games")
+        alice.install_game()
+        alice.press("Chats")
+        alice.press("Bob")
+        check_match(alice, bob, game_release=True)
+        return
 
     check_message_tools(alice, bob)
 

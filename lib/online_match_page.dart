@@ -68,8 +68,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   void _updateCelebration() {
     final match = _match;
     if (_displayTurn != null ||
+        match?.invite.turnProtocol == true ||
         match == null ||
-        match.board.winner == 0 ||
+        match.winner == 0 ||
         match.pending != null ||
         match.quit ||
         match.conflict) {
@@ -301,9 +302,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       );
       await _load();
       if (mounted && moved != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
       }
     } on MatchInviteExpired {
       await _load();
@@ -354,7 +354,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
           _error = 'Couldn’t send. Refresh the match before trying again.';
           // The Lua player holds the submitted column until its board changes.
           // Reopen it after a send error so an unchanged board can accept a retry.
-          if (MatchEvent.parse(message)?.kind == 'move') _boardGeneration++;
+          final kind = MatchEvent.parse(message)?.kind;
+          if (kind == 'move' || kind == 'turn') _boardGeneration++;
         });
       }
     } finally {
@@ -371,6 +372,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     final invitation = MatchEvent.invite(
       match.invite.game!,
       rematchOf: match.invite.id,
+      turnProtocol: match.invite.turnProtocol,
     );
     try {
       await _sendInvitation(invitation);
@@ -391,9 +393,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       invitation,
     );
     if (mounted && moved != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
     }
   }
 
@@ -421,7 +422,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _gameUnavailable = false;
     });
     try {
-      final game = await widget.prepareGame(link);
+      final candidate = await widget.prepareGame(link);
+      final game =
+          candidate != null &&
+              (candidate.onlineProtocol == 'turns-v1') ==
+                  (_match?.invite.turnProtocol == true)
+          ? candidate
+          : null;
       if (mounted) {
         setState(() {
           _game = game;
@@ -433,6 +440,26 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     } finally {
       if (mounted) setState(() => _preparing = false);
     }
+  }
+
+  void _submitTurn(String value) {
+    final match = _match;
+    if (match == null ||
+        !match.invite.turnProtocol ||
+        !match.myTurn ||
+        _sending ||
+        _chatOpen ||
+        !_playing ||
+        _error != null)
+      return;
+    final parts = value.split(':');
+    if (parts.length != 2 || !MatchEvent.validPayload(parts[1])) return;
+    final outcome = parts[0] == '-' ? null : int.tryParse(parts[0]);
+    if (parts[0] != '-' && (outcome == null || outcome < 0 || outcome > 2))
+      return;
+    unawaited(
+      _send(match.invite.turn(match.turnHead, parts[1], outcome: outcome).wire),
+    );
   }
 
   void _move(int column) {
@@ -470,7 +497,10 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
           : 'Waiting for $friend to start the game.';
     }
     if (!match.accepted && !match.mine) {
-      return '$friend invited you to play Cats vs Dogs.';
+      final title =
+          _game?.title ??
+          (match.invite.game?.id == 'drop-four' ? 'Cats vs Dogs' : 'a game');
+      return '$friend invited you to play $title.';
     }
     if (!match.accepted && match.preparing) {
       return 'Getting the game ready for ${widget.friendName ?? 'your friend'}…';
@@ -480,7 +510,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   String _gameWinner(OnlineMatch match) {
     final name = widget.friendName?.trim();
-    return (match.board.winner == 1) == match.mine
+    return (match.winner == 1) == match.mine
         ? 'You win the game!'
         : "${name == null || name.isEmpty ? 'Your friend' : name} wins the game!";
   }
@@ -491,8 +521,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     GameRelease game,
   ) {
     final boardSettled = match.boardComplete && _displayTurn == null;
-    final winner = boardSettled ? match.board.winner : 0;
-    final side = winner != 0 ? winner : _displayTurn ?? match.board.turn;
+    final winner = boardSettled ? match.winner : 0;
+    final side = winner != 0 ? winner : _displayTurn ?? match.turn;
     final yours = (side == 1) == match.mine;
     final friend = widget.friendName?.trim();
     final name = friend == null || friend.isEmpty ? 'Your friend' : friend;
@@ -713,6 +743,26 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _playerIdentity = identity;
       _helpPlayer = GlobalKey<LoveGameViewState>();
     }
+    if (match.invite.turnProtocol) {
+      return Column(
+        children: [
+          Padding(padding: const EdgeInsets.all(8), child: Text(match.status)),
+          Expanded(
+            child: LoveGameView.official(
+              key: _helpPlayer,
+              game: game,
+              mode: 'online',
+              paused: match.paused && !match.boardComplete,
+              match: match.sdkSnapshot(
+                canMove:
+                    match.myTurn && !_sending && !_chatOpen && _error == null,
+              ),
+              onTurn: _submitTurn,
+            ),
+          ),
+        ],
+      );
+    }
     final themedGame = game.build >= 12;
     const arenaColor = Color(0xff181423);
     return ColoredBox(
@@ -747,7 +797,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                   mode: 'online',
                   paused: match.paused && !match.boardComplete,
                   match:
-                      '${match.board.cells.join()}:${match.board.turn}:${match.board.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}'
+                      '${match.board.cells.join()}:${match.turn}:${match.winner}:${!_sending && !_chatOpen && _displayTurn == null && _error == null && match.myTurn ? 1 : 0}'
                       '${match.series ? ':${match.scores.join(':')}' : ''}',
                   onMove: _move,
                 ),
@@ -822,7 +872,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   );
 
   Widget _resultActions(OnlineMatch match, {bool scrollDetails = false}) {
-    final winner = match.board.winner;
+    final winner = match.winner;
     final details = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -922,7 +972,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         appBar: _boardOpen
             ? GameToolbar(
                 title: _game!.title,
-                onHelp: () => showGameInstructions(context, _helpPlayer.currentState?.instructions(), fourInARow: _game!.id == 'drop-four'),
+                onHelp: () => showGameInstructions(
+                  context,
+                  _helpPlayer.currentState?.instructions(),
+                  fourInARow: _game!.id == 'drop-four',
+                ),
                 chat: widget.chat,
                 friendName: widget.friendName,
                 onMessage: _toggleChat,
@@ -941,7 +995,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             : chatPageBar(
                 context,
                 widget.friendName == null
-                    ? 'Online Cats vs Dogs'
+                    ? 'Online match'
                     : 'Match with ${widget.friendName}',
                 fitTitle: widget.friendName == null,
                 lastActions: [
@@ -1061,9 +1115,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                         Text(
                                           _lobbyText(match),
                                           textAlign: TextAlign.center,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleLarge,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge,
                                         ),
                                         if (showResult) _resultActions(match),
                                         if (match != null &&

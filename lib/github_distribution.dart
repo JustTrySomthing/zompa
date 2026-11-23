@@ -15,6 +15,11 @@ String? _previousRepository(String repository) => switch (repository) {
   _ => null,
 };
 
+const gamePreviewEnabled =
+    !bool.fromEnvironment('dart.vm.product') &&
+    !bool.fromEnvironment('dart.vm.profile') &&
+    bool.fromEnvironment('ZOMPA_GAME_RELEASE_CHECK');
+
 const transferLimit = 256 * 1024 * 1024;
 
 class ReleaseAsset {
@@ -90,6 +95,8 @@ class GameRelease {
       asset = ReleaseAsset.fromJson(json, gamesRepository, '.zomp'),
       hasCover = json['cover'] == 'cover.webp',
       localSaves = json['localSaves'] == true,
+      minZompaBuild = (json['minZompaBuild'] as int?) ?? 1,
+      onlineProtocol = json['onlineProtocol'] as String?,
       screenshots = GameScreenshot.parse(json['screenshots']) {
     if (id.length > 64 ||
         !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
@@ -100,6 +107,12 @@ class GameRelease {
         build < 1 ||
         build > 2147483647 ||
         asset.size > 64 * 1024 * 1024 ||
+        minZompaBuild < 1 ||
+        minZompaBuild > 2147483647 ||
+        (onlineProtocol != null &&
+            (onlineProtocol != 'turns-v1' ||
+                minZompaBuild < 55 ||
+                !modes.contains('online'))) ||
         !modes.contains('solo')) {
       throw const FormatException('Invalid game catalog entry.');
     }
@@ -110,6 +123,8 @@ class GameRelease {
   final Set<String> modes;
   final bool hasCover;
   final bool localSaves;
+  final int minZompaBuild;
+  final String? onlineProtocol;
   bool get supportsLocalSaves =>
       localSaves || (id == 'drop-four' && build >= 3);
   final List<GameScreenshot> screenshots;
@@ -122,6 +137,7 @@ class GameRelease {
     'id': id,
     'build': build,
     'sha': asset.sha,
+    if (onlineProtocol case final protocol?) 'onlineProtocol': protocol,
   };
 
   Map<String, dynamic> toJson() => {
@@ -136,6 +152,8 @@ class GameRelease {
     'size': asset.size,
     if (hasCover) 'cover': 'cover.webp',
     if (localSaves) 'localSaves': true,
+    if (minZompaBuild > 1) 'minZompaBuild': minZompaBuild,
+    if (onlineProtocol case final protocol?) 'onlineProtocol': protocol,
     if (screenshots.isNotEmpty)
       'screenshots': [
         for (final image in screenshots)
@@ -165,17 +183,33 @@ class GithubDistribution {
   final Directory directory;
 
   Future<List<GameRelease>> catalog({bool includeArchive = false}) async {
-    final json = await _manifest(gamesRepository, 'catalog-v2.json', schema: 2);
+    final Map<String, dynamic> json;
+    if (gamePreviewEnabled) {
+      final file = File('${directory.path}/game-release-check.json');
+      json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      if (json['schema'] != 2) {
+        throw const FormatException('Unsupported release check catalog.');
+      }
+    } else {
+      json = await _manifest(gamesRepository, 'catalog-v2.json', schema: 2);
+    }
     final entries = [
       ...(json['games'] as List),
       if (includeArchive) ...(json['archive'] as List? ?? const []),
     ];
-    return entries
-        .map(
-          (entry) =>
-              GameRelease.fromJson(Map<String, dynamic>.from(entry as Map)),
-        )
-        .toList();
+    final valid = <GameRelease>[];
+    for (final entry in entries) {
+      try {
+        valid.add(
+          GameRelease.fromJson(Map<String, dynamic>.from(entry as Map)),
+        );
+      } on FormatException {
+        continue;
+      } on TypeError {
+        continue;
+      }
+    }
+    return valid;
   }
 
   Future<Uint8List> gameImage(GameRelease game, String file) async {

@@ -17,6 +17,7 @@ class LoveGameView extends StatefulWidget {
     this.fresh = false,
     this.match,
     this.onMove,
+    this.onTurn,
     this.paused = false,
   }) : reference = {
          ...game.playerReference,
@@ -28,13 +29,15 @@ class LoveGameView extends StatefulWidget {
       mode = 'solo',
       fresh = false,
       match = null,
-      onMove = null;
+      onMove = null,
+      onTurn = null;
 
   final Map<String, Object> reference;
   final String mode;
   final bool fresh;
   final String? match;
   final ValueChanged<int>? onMove;
+  final ValueChanged<String>? onTurn;
   final bool paused;
 
   @override
@@ -148,6 +151,12 @@ class LoveGameViewState extends State<LoveGameView>
               call.method == 'move' &&
               call.arguments is int) {
             widget.onMove?.call(call.arguments as int);
+          }
+          if (mounted &&
+              !widget.paused &&
+              call.method == 'turn' &&
+              call.arguments is String) {
+            widget.onTurn?.call(call.arguments as String);
           }
         });
         _syncMatch();

@@ -1,5 +1,5 @@
--- Zompa game SDK v2. This module also runs in desktop LÖVE for development.
-local sdk = {version = 2}
+-- Zompa game SDK v4. This module also runs in desktop LÖVE for development.
+local sdk = {version = 4}
 local slots = "zompado-saves"
 
 local function savePath(slot)
@@ -24,13 +24,69 @@ function sdk.load(slot)
     return love.filesystem.read(path, 262144)
 end
 
-function sdk.mode()
-    local file = io.open("/zompado/mode", "r")
-    if not file then return "solo", false end
-    local mode = file:read(8)
+function sdk.clear(slot)
+    local path = savePath(slot)
+    return not love.filesystem.getInfo(path) or love.filesystem.remove(path)
+end
+
+local function readHost(name, limit)
+    local file = io.open("/zompado/" .. name, "r")
+    if not file then return nil end
+    local value = file:read(limit)
     file:close()
+    return value
+end
+
+function sdk.mode()
+    local mode = readHost("mode", 8)
+    if not mode then return "solo", false end
     if mode == "local" or mode == "online" then return mode, true end
     return "solo", true
+end
+
+function sdk.onlineState()
+    if sdk.mode() == "online" then return readHost("match", 56) end
+end
+
+function sdk.submitOnlineMove(move)
+    if sdk.mode() ~= "online" then return false, "No online match is running." end
+    if type(move) ~= "number" or move % 1 ~= 0 or move < 0 or move > 6 then
+        return false, "This player accepts a Cats vs Dogs column from 0 to 6."
+    end
+    local file, err = io.open("/zompado/move", "wb")
+    if not file then return false, err end
+    local written, writeError = file:write(tostring(move))
+    local closed, closeError = file:close()
+    if not written or not closed then return false, writeError or closeError end
+    return true
+end
+
+-- Read the generic turn log. Player 1 is the inviter and moves first.
+function sdk.readTurns()
+    if sdk.mode() ~= "online" then return nil end
+    local state = readHost("match", 132001)
+    if not state then return nil end
+    local player, allowed, history = state:match("^([12]):([01]):([A-Za-z0-9_,-]*)$")
+    if not player then return nil end
+    local turns = {}
+    for move in history:gmatch("[^,]+") do turns[#turns + 1] = move end
+    return turns, tonumber(player), allowed == "1"
+end
+
+function sdk.submitTurn(payload, outcome)
+    if sdk.mode() ~= "online" then return false, "No online match is running." end
+    if type(payload) ~= "string" or #payload > 256 or not payload:match("^[A-Za-z0-9_-]+$") then
+        return false, "Use a 1 to 256 character move token."
+    end
+    if outcome ~= nil and outcome ~= 0 and outcome ~= 1 and outcome ~= 2 then
+        return false, "Outcome must be nil, 0 (draw), 1 or 2 (winner)."
+    end
+    local file, err = io.open("/zompado/move", "wb")
+    if not file then return false, err end
+    local written, writeError = file:write((outcome or "-") .. ":" .. payload)
+    local closed, closeError = file:close()
+    if not written or not closed then return false, writeError or closeError end
+    return true
 end
 
 local function sessionPath(mode)
@@ -62,18 +118,24 @@ function sdk.loadSession()
     if data and #data > 0 and #data <= 262144 then return data end
 end
 
-function sdk.clearSession()
-    local mode, hosted = sdk.mode()
-    if mode == "online" then return true end
-    if not hosted then
-        local path = savePath("session-solo")
-        return not love.filesystem.getInfo(path) or love.filesystem.remove(path)
-    end
-    local path = sessionPath(mode)
+local function removeHostFile(path)
     local file = io.open(path, "rb")
     if not file then return true end
     file:close()
     return os.remove(path)
+end
+
+function sdk.clearSession()
+    local mode, hosted = sdk.mode()
+    if mode == "online" then return true end
+    if not hosted then return sdk.clear("session-solo") end
+    if mode == "local" then
+        -- Older hosts mark the start of Pass & Play before a game has a save.
+        -- Clear the marker too so finishing a migrated match hides Resume.
+        local ok, err = removeHostFile("/home/web_user/love/.zompado-local-started")
+        if not ok then return false, err end
+    end
+    return removeHostFile(sessionPath(mode))
 end
 
 function sdk.audio()
@@ -92,10 +154,7 @@ function sdk.audio()
         elapsed = elapsed + dt
         if elapsed < 0.2 then return end
         elapsed = 0
-        local file = io.open("/zompado/audio", "r")
-        if not file then return end
-        local settings = file:read(8)
-        file:close()
+        local settings = readHost("audio", 8)
         if not settings or settings == hostSettings then return end
         local music, effects = settings:match("^(%d%d?%d?):(%d%d?%d?)$")
         if not music or tonumber(music) > 100 or tonumber(effects) > 100 then return end

@@ -1,6 +1,7 @@
 """Check the app's library and embedded game view on a fresh Android emulator."""
 
 import io
+import os
 import re
 import subprocess
 import sys
@@ -18,7 +19,9 @@ DIAGNOSTICS.mkdir(exist_ok=True)
 
 
 def adb(*args):
-    return subprocess.check_output([ADB, *map(str, args)], timeout=25)
+    serial = os.environ.get("ANDROID_SERIAL")
+    device = ["-s", serial] if serial else []
+    return subprocess.check_output([ADB, *device, *map(str, args)], timeout=25)
 
 
 def tap(x, y):
@@ -100,6 +103,56 @@ def setup_visible():
     return find("Setup")
 
 
+def solo_start_button():
+    image = screenshot()
+    # The centered Play button on the default Cats side has a solid pink fill.
+    x1, x2 = image.width * 29 // 100, image.width * 71 // 100
+    rows = []
+    for y in range(image.height // 2, image.height * 9 // 10):
+        matches = sum(
+            all(abs(a - b) <= 6 for a, b in zip(image.getpixel((x, y)), (255, 173, 199)))
+            for x in range(x1, x2, 4)
+        )
+        if matches > (x2 - x1) // 8:
+            rows.append(y)
+    if len(rows) >= 12:
+        return image.width // 2, rows[len(rows) // 2]
+
+
+def check_second_piece(empty, played, x, y, bottom, error):
+    cell = round((bottom - y) / 2.5)
+    radius = max(4, cell // 6)
+    points = [(x + col * cell, bottom) for col in (-3, -2, -1, 1, 2, 3)]
+    points.append((x, bottom - cell))
+    for px, py in points:
+        rect = (px - radius, py - radius, px + radius, py + radius)
+        before = empty.crop(rect)
+        after = played.crop(rect)
+        changed = sum(
+            max(abs(a - b) for a, b in zip(first, second)) > 36
+            for first, second in zip(before.getdata(), after.getdata())
+        )
+        if changed > before.width * before.height // 3:
+            return
+    raise RuntimeError(error)
+
+
+def check_single_player():
+    press("Play")
+    press("Single Player")
+    tap(*wait("Cats vs Dogs Single Player start button", solo_start_button, seconds=60))
+    empty, x, y, bottom = wait("the Single Player board", board, seconds=50)
+    tap(x, y)
+    wait("the player’s Single Player move", has_center_token)
+    time.sleep(3)
+    played, _, _, _ = wait("the Single Player board after the computer's turn", board)
+    check_second_piece(empty, played, x, y, bottom, "No computer reply appeared in Single Player")
+    press("Pause")
+    press("Quit match")
+    press("Quit match")
+    print("PASS: Single Player opened in Android and the computer replied.", flush=True)
+
+
 def main():
     adb("shell", "am", "start", "-n", ACTIVITY)
     wait("Setup", setup_visible, seconds=75)
@@ -121,14 +174,28 @@ def main():
     press("Get Games")
     press("Install")
     wait("the downloaded game", lambda: find("Cats vs Dogs"), seconds=50)
+    if os.environ.get("ZOMPA_GAME_RELEASE_CHECK") == "1":
+        check_single_player()
     # Enter the game's own LÖVE scene and place a center token.
     press("Play")
     press("Pass & Play")
-    _, x, y, _ = wait("a rendered LÖVE board", board, seconds=50)
+    empty, x, y, bottom = wait("a rendered LÖVE board", board, seconds=50)
     tap(x, y)
     time.sleep(0.45)
     tap(x, y)
     wait("the placed token", has_center_token)
+    if os.environ.get("ZOMPA_GAME_RELEASE_CHECK") == "1":
+        time.sleep(0.9)
+        tap(x, y)
+        time.sleep(1)
+        played, _, _, _ = wait("the Pass & Play board after the second turn", board)
+        check_second_piece(empty, played, x, y, bottom, "No second move appeared in Pass & Play")
+        press("How to play")
+        wait("the package's mode instructions", lambda: find(
+            "Pass & Play: take turns on the same device."
+        ))
+        press("Back to game")
+        print("PASS: Pass & Play accepted turns from both players and opened packaged help.", flush=True)
     time.sleep(3)
     adb("shell", "am", "force-stop", APP)
     adb("shell", "am", "start", "-n", ACTIVITY)
