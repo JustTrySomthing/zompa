@@ -1558,29 +1558,28 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         ? '${(bytes / 1024).toStringAsFixed(1)} KB'
         : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     final hasOptions = share != null || remove != null;
-    final hasScreenshots = preview != null && distribution != null;
+    final fallbackCover = game.id == 'drop-four' && game.build >= 6
+        ? const CatsVsDogsCover()
+        : const GameCover();
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (game.id == 'drop-four' || (catalog && game.hasCover))
+          if (game.id == 'drop-four' || game.hasCover)
             SizedBox(
               height: 146,
-              child: game.id == 'drop-four'
-                  ? game.build >= 6
-                        ? const CatsVsDogsCover()
-                        : const GameCover()
-                  : catalog && game.hasCover && distribution != null
+              child: distribution != null && game.hasCover
                   ? CatalogGameImage(
                       key: ValueKey(game.imageUrl('cover.webp')),
                       distribution: distribution,
                       game: game,
                       file: 'cover.webp',
                       fit: BoxFit.cover,
-                      fallback: const GameCover(),
+                      fallback: fallbackCover,
                     )
-                  : const GameCover(),
+                  : fallbackCover,
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(17, 14, 17, 12),
@@ -1629,47 +1628,34 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                     ],
                   ],
                 ),
-                if (hasScreenshots || button != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      if (hasScreenshots)
-                        IconButton.filledTonal(
-                          tooltip: 'View screenshots for ${game.title}',
-                          icon: const Icon(
-                            Icons.photo_library_outlined,
-                            size: 26,
-                          ),
-                          onPressed: () => showGameScreenshots(
-                            context,
-                            distribution,
-                            preview,
-                          ),
-                        ),
-                      if (button != null)
-                        Expanded(
-                          child: Align(
-                            alignment: AlignmentDirectional.centerEnd,
-                            child: button == 'Installed'
-                                ? Text(
-                                    'Installed',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelLarge,
-                                    textAlign: TextAlign.end,
-                                  )
-                                : FilledButton(
-                                    onPressed: action,
-                                    child: Text(
-                                      button,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
+                const SizedBox(height: 8),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.secondary,
+                      ),
+                      onPressed: () => showGameDetails(
+                        context,
+                        distribution,
+                        game,
+                        artwork: preview,
+                      ),
+                      child: const Text('More about this game'),
+                    ),
+                    if (button == 'Installed')
+                      Text(
+                        'Installed',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      )
+                    else if (button != null)
+                      FilledButton(onPressed: action, child: Text(button)),
+                  ],
+                ),
               ],
             ),
           ),

@@ -4,26 +4,35 @@ import 'package:flutter/material.dart';
 
 import 'github_distribution.dart';
 
-Future<void> showGameScreenshots(
+Future<void> showGameDetails(
   BuildContext context,
-  GithubDistribution distribution,
-  GameRelease game,
-) => showDialog<void>(
+  GithubDistribution? distribution,
+  GameRelease game, {
+  GameRelease? artwork,
+}) => showDialog<void>(
   context: context,
-  builder: (_) => _GameScreenshots(distribution: distribution, game: game),
+  builder: (_) => _GameDetails(
+    distribution: distribution,
+    game: game,
+    artwork: artwork ?? game,
+  ),
 );
 
-class _GameScreenshots extends StatefulWidget {
-  const _GameScreenshots({required this.distribution, required this.game});
+class _GameDetails extends StatefulWidget {
+  const _GameDetails({
+    required this.distribution,
+    required this.game,
+    required this.artwork,
+  });
 
-  final GithubDistribution distribution;
-  final GameRelease game;
+  final GithubDistribution? distribution;
+  final GameRelease game, artwork;
 
   @override
-  State<_GameScreenshots> createState() => _GameScreenshotsState();
+  State<_GameDetails> createState() => _GameDetailsState();
 }
 
-class _GameScreenshotsState extends State<_GameScreenshots> {
+class _GameDetailsState extends State<_GameDetails> {
   final _pages = PageController();
   int _index = 0;
 
@@ -33,15 +42,31 @@ class _GameScreenshotsState extends State<_GameScreenshots> {
     super.dispose();
   }
 
-  void _turn(int direction) => _pages.animateToPage(
-    _index + direction,
-    duration: const Duration(milliseconds: 230),
-    curve: Curves.easeOut,
-  );
+  void _turn(int direction) {
+    if (!_pages.hasClients) return;
+    _pages.animateToPage(
+      _index + direction,
+      duration: const Duration(milliseconds: 230),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final images = widget.game.screenshots;
+    final distribution = widget.distribution;
+    final images = distribution == null
+        ? const <GameScreenshot>[]
+        : widget.artwork.screenshots;
+    final description = widget.game.description ?? widget.artwork.description;
+    final modeLabels = {
+      'solo': 'Single Player',
+      'local': 'Pass & Play',
+      'online': 'Online',
+    };
+    final modes = modeLabels.entries
+        .where((mode) => widget.game.modes.contains(mode.key))
+        .map((mode) => mode.value)
+        .join(' · ');
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: SizedBox(
@@ -55,48 +80,67 @@ class _GameScreenshotsState extends State<_GameScreenshots> {
                 overflow: TextOverflow.ellipsis,
               ),
               trailing: IconButton(
-                tooltip: 'Close screenshots',
+                tooltip: 'Close game details',
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ),
             Expanded(
-              child: PageView.builder(
-                controller: _pages,
-                itemCount: images.length,
-                onPageChanged: (index) => setState(() => _index = index),
-                itemBuilder: (context, index) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: CatalogGameImage(
-                    distribution: widget.distribution,
-                    game: widget.game,
-                    file: images[index].file,
-                    label: images[index].label,
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (description != null) ...[
+                        Text(description),
+                        const SizedBox(height: 8),
+                      ],
+                      Text(modes, style: Theme.of(context).textTheme.labelLarge),
+                      if (images.isNotEmpty && distribution != null) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: (constraints.maxHeight * 0.8)
+                              .clamp(160.0, 480.0)
+                              .toDouble(),
+                          child: PageView.builder(
+                            controller: _pages,
+                            itemCount: images.length,
+                            onPageChanged: (index) => setState(() => _index = index),
+                            itemBuilder: (context, index) => CatalogGameImage(
+                              distribution: distribution,
+                              game: widget.artwork,
+                              file: images[index].file,
+                              label: images[index].label,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (images.length > 1)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              tooltip: 'Previous screenshot',
+                              onPressed: _index == 0 ? null : () => _turn(-1),
+                              icon: const Icon(Icons.chevron_left),
+                            ),
+                            Text('${_index + 1} / ${images.length}'),
+                            IconButton(
+                              tooltip: 'Next screenshot',
+                              onPressed: _index == images.length - 1
+                                  ? null
+                                  : () => _turn(1),
+                              icon: const Icon(Icons.chevron_right),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
               ),
             ),
-            if (images.length > 1)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: 'Previous screenshot',
-                    onPressed: _index == 0 ? null : () => _turn(-1),
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Text('${_index + 1} / ${images.length}'),
-                  IconButton(
-                    tooltip: 'Next screenshot',
-                    onPressed: _index == images.length - 1
-                        ? null
-                        : () => _turn(1),
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
-              )
-            else
-              const SizedBox(height: 12),
           ],
         ),
       ),
