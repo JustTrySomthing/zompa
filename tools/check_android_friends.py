@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 import cv2
 import numpy as np
+import zxingcpp
 
 APP = "io.tablecircle.prototype"
 ACTIVITY = APP + "/.MainActivity"
@@ -136,7 +137,14 @@ class Phone:
         self.press("Share my invite")
         self.see("Share my invite")
         detector = cv2.QRCodeDetector()
-        link = wait("a decodable invite QR", lambda: detector.detectAndDecode(self.image())[0], 30)
+        def decode_invite():
+            image = self.image()
+            if image is None:
+                return None
+            code = zxingcpp.read_barcode(image, formats=zxingcpp.BarcodeFormat.QRCode)
+            return code.text if code else detector.detectAndDecode(image)[0]
+
+        link = wait("a decodable invite QR", decode_invite, 45)
         self.press("Done")
         self.back()
         return link

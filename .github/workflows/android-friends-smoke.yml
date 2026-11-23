@@ -130,7 +130,7 @@ jobs:
               -camera-front none -camera-back emulated > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
           done
           python3 -m venv "$RUNNER_TEMP/friends-check"
-          "$RUNNER_TEMP/friends-check/bin/pip" install --quiet opencv-python-headless==4.12.0.88 Pillow
+          "$RUNNER_TEMP/friends-check/bin/pip" install --quiet opencv-python-headless==4.12.0.88 Pillow zxing-cpp==2.3.0
           for port in 5554 5556; do
             serial="emulator-$port"
             timeout 240 "$adb" -s "$serial" wait-for-device
