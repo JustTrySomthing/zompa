@@ -133,3 +133,25 @@ class MatchChatButton extends StatelessWidget {
     );
   }
 }
+
+Future<bool?> confirmQuitMatch(
+  BuildContext context, {
+  required String message,
+}) => showDialog<bool>(
+  context: context,
+  builder: (dialog) => AlertDialog(
+    scrollable: true,
+    title: const Text('Quit this match?'),
+    content: Text(message),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(dialog),
+        child: const Text('Keep playing'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(dialog, true),
+        child: const Text('Quit match'),
+      ),
+    ],
+  ),
+);

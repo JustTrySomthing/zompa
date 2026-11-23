@@ -1,5 +1,5 @@
 {
-  "version": "0.5.43",
-  "build": 52,
-  "notes": "Makes the background connection notice silent and defers its appearance when Android allows. The status notice no longer acts as a shortcut."
+  "version": "0.5.44",
+  "build": 53,
+  "notes": "Cats vs Dogs uses the same quit confirmation in single-player, pass-and-play, and online matches."
 }

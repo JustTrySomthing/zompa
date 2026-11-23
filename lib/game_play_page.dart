@@ -36,6 +36,8 @@ class _GamePlayPageState extends State<GamePlayPage> {
   bool _paused = false;
   bool _leaving = false;
 
+  bool get _isCatsVsDogs => widget.game?.id == 'drop-four';
+
   bool get _hasLocalSaves => widget.game?.supportsLocalSaves ?? false;
 
   Future<void> _leave({required bool quit, required bool wasPaused}) async {
@@ -69,26 +71,31 @@ class _GamePlayPageState extends State<GamePlayPage> {
     if (_leaving) return;
     final wasPaused = _paused;
     setState(() => _paused = true);
-    final quit = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        scrollable: true,
-        title: const Text('Quit this game?'),
-        content: _hasLocalSaves
-            ? const Text('This will discard your progress in this game.')
-            : null,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Keep playing'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Quit game'),
-          ),
-        ],
-      ),
-    );
+    final quit = _isCatsVsDogs
+        ? await confirmQuitMatch(
+            context,
+            message: 'This will discard your progress in this match.',
+          )
+        : await showDialog<bool>(
+            context: context,
+            builder: (dialog) => AlertDialog(
+              scrollable: true,
+              title: const Text('Quit this game?'),
+              content: _hasLocalSaves
+                  ? const Text('This will discard your progress in this game.')
+                  : null,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialog),
+                  child: const Text('Keep playing'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialog, true),
+                  child: const Text('Quit game'),
+                ),
+              ],
+            ),
+          );
     if (!mounted) return;
     if (quit == true) {
       await _leave(quit: true, wasPaused: wasPaused);
@@ -149,7 +156,9 @@ class _GamePlayPageState extends State<GamePlayPage> {
                           ),
                           TextButton(
                             onPressed: _leaving ? null : _quit,
-                            child: const Text('Quit game'),
+                            child: Text(
+                              _isCatsVsDogs ? 'Quit match' : 'Quit game',
+                            ),
                           ),
                         ],
                       ),

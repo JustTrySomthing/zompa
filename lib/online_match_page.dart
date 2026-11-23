@@ -314,23 +314,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   }
 
   Future<void> _quit() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        scrollable: true,
-        title: const Text('Quit this match?'),
-        content: const Text('This ends the match for both players.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Keep playing'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Quit match'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmQuitMatch(
+      context,
+      message: 'This ends the match for both players.',
     );
     final current = _match;
     if (!mounted || confirmed != true || current == null || current.finished)
@@ -1035,7 +1021,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                               onPressed: _sending
                                                   ? null
                                                   : _quit,
-                                              child: const Text('Quit game'),
+                                              child: const Text('Quit match'),
                                             ),
                                         ],
                                       ),

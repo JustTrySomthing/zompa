@@ -367,7 +367,7 @@ def check_match(alice, bob):
     bob.see("Alice’s turn")
     alice.see("Your turn", 100)
     bob.press("Pause")
-    bob.press("Quit game")
+    bob.press("Quit match")
     bob.press("Quit match")
     alice.see("Match ended.", 100)
     print("PASS: the online board opened on both phones after acceptance. The inviter took the first turn and the friend replied.", flush=True)
