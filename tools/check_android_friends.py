@@ -300,7 +300,7 @@ def check_message_tools(alice, bob):
     print("PASS: saved an incoming message, opened Saved, reacted across devices, and toggled global mute in Settings.", flush=True)
 
 
-def check_match(alice, bob):
+def check_match(alice, bob, *, game_release=False):
     alice.press("Invite to play a game")
     alice.see("Choose a game")
     alice.see("Play with Bob")
@@ -336,6 +336,19 @@ def check_match(alice, bob):
     alice.press("Resume Game")
     alice.see("Your turn", 100)
     print("PASS: Resume Game opened the board directly.", flush=True)
+    if game_release:
+        alice.turn()
+        alice.see("Bob’s turn", 100)
+        bob.see("Your turn", 100)
+        bob.turn()
+        bob.see("Alice’s turn", 100)
+        alice.see("Your turn", 100)
+        bob.press("Pause")
+        bob.press("Quit match")
+        bob.press("Quit match")
+        alice.see("Match ended.", 100)
+        print("PASS: Online 2 Player used two Android installs and exchanged Chatmail moves.", flush=True)
+        return
     bob.press("Open match chat")
     bob.type("Game chat check")
     bob.back()
@@ -447,8 +460,7 @@ def main():
         alice.install_game()
         alice.press("Chats")
         alice.press("Bob")
-        check_match(alice, bob)
-        print("PASS: Online 2 Player used two Android installs and exchanged Chatmail moves.", flush=True)
+        check_match(alice, bob, game_release=True)
         return
 
     check_message_tools(alice, bob)
