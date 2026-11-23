@@ -112,7 +112,7 @@ def main():
     bob.press("Accept", 120)
     alice.press("Play Now", 120)
     alice.see("Your turn", 120)
-    bob.see("Alice’s turn", 120)
+    bob.see_friend_turn("Alice", 120)
     for phone in (alice, bob):
         phone.see("How to play")
         for location in spec["online"].get("start", []):
@@ -125,7 +125,7 @@ def main():
         old = snapshot(receiver, region)
         tap(sender, move)
         receiver.see("Your turn", 100)
-        sender.see(f"{name}’s turn", 100)
+        sender.see_friend_turn(name)
         still_changes(receiver, region, old, f"delivered move to {name}")
     print("PASS: both Android players rendered a delivered online turn.", flush=True)
 

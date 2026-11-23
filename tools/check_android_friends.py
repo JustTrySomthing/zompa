@@ -88,6 +88,11 @@ class Phone:
     def see(self, label, seconds=55):
         return wait(f"{self.name} to show {label}", lambda: self.find(label), seconds)
 
+    def see_friend_turn(self, name, seconds=100):
+        return wait(f"{self.name} to show the other player's turn",
+                    lambda: self.find(f"{name}’s turn") or self.find("Your friend’s turn"),
+                    seconds)
+
     def press(self, label, seconds=55):
         self.shell("input", "tap", *self.see(label, seconds))
 
@@ -343,7 +348,7 @@ def check_match(alice, bob, *, game_release=False):
     bob.press("Accept", 100)
     bob.see("Waiting for Alice to start the game.", 100)
     alice.press("Play Now", 100)
-    bob.see("Alice’s turn", 100)
+    bob.see_friend_turn("Alice")
     alice.see("Your turn", 100)
     # This match must include the score fields that follow the move flag.
     if not (game_release and os.environ.get("ZOMPA_GENERIC_TURNS") == "1"):
@@ -355,10 +360,10 @@ def check_match(alice, bob, *, game_release=False):
     print("PASS: Resume Game opened the board directly.", flush=True)
     if game_release:
         alice.turn()
-        alice.see("Bob’s turn", 100)
+        alice.see_friend_turn("Bob")
         bob.see("Your turn", 100)
         bob.turn()
-        bob.see("Alice’s turn", 100)
+        bob.see_friend_turn("Alice")
         alice.see("Your turn", 100)
         bob.press("Pause")
         bob.press("Quit match")
