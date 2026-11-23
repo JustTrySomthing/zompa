@@ -454,7 +454,9 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     _watchActiveMatches();
     _refreshActiveGames();
     _routeChatAlert();
-    if (installedGames.values.any((game) => game.screenshots.isEmpty)) {
+    if (installedGames.values.any(
+      (game) => game.description == null || game.screenshots.isEmpty,
+    )) {
       unawaited(_loadLibraryArtwork());
     }
   }
@@ -1527,13 +1529,23 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   }
 
   Widget gameCard(
-    GameRelease game, {
+    GameRelease storedGame, {
     required String? button,
     required VoidCallback? action,
     VoidCallback? share,
     VoidCallback? remove,
   }) {
     final distribution = widget.distribution;
+    final game =
+        [...releases, ..._libraryArtwork]
+            .where(
+              (entry) =>
+                  entry.id == storedGame.id &&
+                  entry.build == storedGame.build &&
+                  entry.asset.sha == storedGame.asset.sha,
+            )
+            .firstOrNull ??
+        storedGame;
     final preview = game.screenshots.isNotEmpty
         ? game
         : [...releases, ..._libraryArtwork]

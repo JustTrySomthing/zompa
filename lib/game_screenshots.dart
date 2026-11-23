@@ -96,7 +96,10 @@ class _GameDetailsState extends State<_GameDetails> {
                         Text(description),
                         const SizedBox(height: 8),
                       ],
-                      Text(modes, style: Theme.of(context).textTheme.labelLarge),
+                      Text(
+                        modes,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
                       if (images.isNotEmpty && distribution != null) ...[
                         const SizedBox(height: 12),
                         SizedBox(
@@ -106,7 +109,8 @@ class _GameDetailsState extends State<_GameDetails> {
                           child: PageView.builder(
                             controller: _pages,
                             itemCount: images.length,
-                            onPageChanged: (index) => setState(() => _index = index),
+                            onPageChanged: (index) =>
+                                setState(() => _index = index),
                             itemBuilder: (context, index) => CatalogGameImage(
                               distribution: distribution,
                               game: widget.artwork,
