@@ -120,7 +120,11 @@ class _GamePlayPageState extends State<GamePlayPage> {
             if (_reading || _leaving) return;
             setState(() => _reading = true);
             try {
-              await showGameInstructions(context, _player.currentState?.instructions(), fourInARow: _isCatsVsDogs);
+              await showGameInstructions(
+                context,
+                _player.currentState?.instructions(),
+                fourInARow: _isCatsVsDogs,
+              );
             } finally {
               if (mounted) setState(() => _reading = false);
             }
@@ -148,35 +152,14 @@ class _GamePlayPageState extends State<GamePlayPage> {
                         paused: _paused || _reading,
                       ),
               ),
-              if (_paused) ...[
-                const ModalBarrier(dismissible: false, color: Colors.black54),
-                Center(
-                  child: Card(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Game paused'),
-                          const SizedBox(height: 10),
-                          FilledButton(
-                            onPressed: _leaving
-                                ? null
-                                : () => setState(() => _paused = false),
-                            child: const Text('Resume'),
-                          ),
-                          TextButton(
-                            onPressed: _leaving ? null : _quit,
-                            child: Text(
-                              _isCatsVsDogs ? 'Quit match' : 'Quit game',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+              if (_paused)
+                GamePausePanel(
+                  onResume: _leaving
+                      ? null
+                      : () => setState(() => _paused = false),
+                  onQuit: _leaving ? null : _quit,
+                  quitLabel: _isCatsVsDogs ? 'Quit match' : 'Quit game',
                 ),
-              ],
             ],
           ),
         ),

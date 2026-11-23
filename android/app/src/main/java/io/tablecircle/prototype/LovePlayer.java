@@ -57,6 +57,7 @@ final class LovePlayer implements PlatformView {
     private String instructions;
     private boolean online;
     private final boolean genericTurns;
+    private String opponentName;
     private MethodChannel.Result leaving;
     private String match;
     private boolean moveAllowed;
@@ -106,6 +107,7 @@ final class LovePlayer implements PlatformView {
             : "local".equals(args.get("mode")) ? "local" : "solo";
         online = mode.equals("online");
         genericTurns = online && "turns-v1".equals(args.get("onlineProtocol"));
+        opponentName = safeOpponentName(args.get("opponentName"));
         int build = "drop-four".equals(args.get("id")) && args.get("build") instanceof Integer
             ? (Integer) args.get("build") : 0;
         String save = Boolean.TRUE.equals(args.get("localSaves")) && !online
@@ -113,6 +115,11 @@ final class LovePlayer implements PlatformView {
         if (args.get("audio") instanceof String) setAudio((String) args.get("audio"));
         channel.setMethodCallHandler((call, result) -> {
             switch (call.method) {
+                case "opponentName":
+                    opponentName = safeOpponentName(call.arguments);
+                    sendMatch();
+                    result.success(null);
+                    break;
                 case "match":
                     String state = call.arguments();
                     if (online && state != null) {
@@ -520,9 +527,14 @@ final class LovePlayer implements PlatformView {
         }
     }
 
+    private String safeOpponentName(Object value) {
+        return genericTurns && value instanceof String name
+            && name.getBytes(StandardCharsets.UTF_8).length <= 512 ? name : "";
+    }
+
     private void sendMatch() {
         if (web == null || match == null) return;
-        web.evaluateJavascript("window.zompaGame?.setMatch(" + JSONObject.quote(match) + ", " + genericTurns + ")", null);
+        web.evaluateJavascript("window.zompaGame?.setMatch(" + JSONObject.quote(match) + ", " + genericTurns + ", " + JSONObject.quote(opponentName) + ")", null);
         updatePolling();
     }
 
