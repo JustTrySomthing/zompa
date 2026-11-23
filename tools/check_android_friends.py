@@ -1,5 +1,6 @@
 """Use two independent Android installs to verify Zompa friends and turns."""
 
+import os
 import re
 import shlex
 import subprocess
@@ -345,8 +346,9 @@ def check_match(alice, bob, *, game_release=False):
     bob.see("Alice’s turn", 100)
     alice.see("Your turn", 100)
     # This match must include the score fields that follow the move flag.
-    alice.see("ROUND 1")
-    bob.see("ROUND 1")
+    if not (game_release and os.environ.get("ZOMPA_GENERIC_TURNS") == "1"):
+        alice.see("ROUND 1")
+        bob.see("ROUND 1")
     alice.back()
     alice.press("Resume Game")
     alice.see("Your turn", 100)

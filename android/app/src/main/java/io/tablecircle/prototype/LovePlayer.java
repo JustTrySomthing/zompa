@@ -56,6 +56,7 @@ final class LovePlayer implements PlatformView {
     private boolean paused;
     private String instructions;
     private boolean online;
+    private final boolean genericTurns;
     private MethodChannel.Result leaving;
     private String match;
     private boolean moveAllowed;
@@ -65,7 +66,17 @@ final class LovePlayer implements PlatformView {
             var view = web;
             if (view == null || paused || !moveAllowed) return;
             view.evaluateJavascript("window.zompaGame?.takeMove()", value -> {
-                if (web == view && !paused && moveAllowed && value != null && value.matches("[0-6]")) {
+                if (web != view || paused || !moveAllowed || value == null) return;
+                if (genericTurns) {
+                    try {
+                        Object move = new org.json.JSONTokener(value).nextValue();
+                        if (move instanceof String text && text.matches("[-012]:[A-Za-z0-9_-]{1,256}")) {
+                            channel.invokeMethod("turn", text);
+                        }
+                    } catch (org.json.JSONException ignored) {
+                        // Ignore invalid player output.
+                    }
+                } else if (value.matches("[0-6]")) {
                     channel.invokeMethod("move", Integer.parseInt(value));
                 }
             });
@@ -94,6 +105,7 @@ final class LovePlayer implements PlatformView {
         String mode = "online".equals(args.get("mode")) ? "online"
             : "local".equals(args.get("mode")) ? "local" : "solo";
         online = mode.equals("online");
+        genericTurns = online && "turns-v1".equals(args.get("onlineProtocol"));
         int build = "drop-four".equals(args.get("id")) && args.get("build") instanceof Integer
             ? (Integer) args.get("build") : 0;
         String save = Boolean.TRUE.equals(args.get("localSaves")) && !online
@@ -105,7 +117,12 @@ final class LovePlayer implements PlatformView {
                     String state = call.arguments();
                     if (online && state != null) {
                         var parsed = MATCH_STATE.matcher(state);
-                        if (parsed.matches()) {
+                        if (genericTurns && state.length() <= 132000
+                                && state.matches("[12]:[01]:[A-Za-z0-9_,-]*")) {
+                            match = state;
+                            moveAllowed = state.charAt(2) == '1';
+                            sendMatch();
+                        } else if (!genericTurns && parsed.matches()) {
                             match = state;
                             moveAllowed = "1".equals(parsed.group(1));
                             sendMatch();
@@ -315,7 +332,9 @@ final class LovePlayer implements PlatformView {
                 var info = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
                 if (info.optInt("schema") != 1 || !id.equals(info.optString("id"))
                         || !build.equals(info.optInt("build")) || !"love-11.5".equals(info.optString("runtime"))
-                        || !"main.lua".equals(info.optString("entry"))) {
+                        || !"main.lua".equals(info.optString("entry"))
+                        || !java.util.Objects.equals(args.get("onlineProtocol"),
+                            info.optString("onlineProtocol", null))) {
                     throw new IOException("Incompatible game manifest");
                 }
             }
@@ -354,6 +373,16 @@ final class LovePlayer implements PlatformView {
                 if (web != view || leaving == null) return;
                 if ("zompa-save:ok".equals(title)) finishLeave(true);
                 else if ("zompa-save:error".equals(title)) finishLeave(false);
+            }
+
+            @Override public boolean onConsoleMessage(android.webkit.ConsoleMessage message) {
+                if ((container.getContext().getApplicationInfo().flags
+                        & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+                        message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
+                    String detail = message.message();
+                    android.util.Log.e("ZompaGame", detail.substring(0, Math.min(detail.length(), 2048)));
+                }
+                return true;
             }
         });
         view.setDownloadListener((url, agent, disposition, mime, length) -> {});
@@ -493,7 +522,7 @@ final class LovePlayer implements PlatformView {
 
     private void sendMatch() {
         if (web == null || match == null) return;
-        web.evaluateJavascript("window.zompaGame?.setMatch(" + JSONObject.quote(match) + ")", null);
+        web.evaluateJavascript("window.zompaGame?.setMatch(" + JSONObject.quote(match) + ", " + genericTurns + ")", null);
         updatePolling();
     }
 

@@ -9,6 +9,9 @@ on:
       game-artifact:
         required: true
         type: string
+      game-folder:
+        required: false
+        type: string
   workflow_dispatch:
   push:
     branches: [main]
@@ -109,13 +112,14 @@ jobs:
           unzip -l build/app/outputs/flutter-apk/app-debug.apk 'lib/x86_64/libchatmail_rpc.so'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: android-friends-test-apk
+          name: android-friends-test-apk${{ inputs.game-folder && format('-{0}', inputs.game-folder) || '' }}
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 3
       - name: Prepare checks and start two emulators
         env:
           GAME_ARTIFACT: ${{ inputs.game-artifact }}
+          GAME_FOLDER: ${{ inputs.game-folder }}
         run: |
           set -euo pipefail
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -147,36 +151,44 @@ jobs:
           checks="$RUNNER_TEMP/friends-check/bin/python"
           if [[ -n "$GAME_ARTIFACT" ]]; then
             fixture="$RUNNER_TEMP/game-release"
+            if [[ -n "$GAME_FOLDER" ]]; then
+              [[ "$GAME_FOLDER" =~ ^game-[a-z0-9-]+-[0-9]+$ ]]
+              fixture="$fixture/$GAME_FOLDER"
+            fi
             build=$(jq -er '.games[0].build' "$fixture/catalog-v2.json")
             name=$(jq -er '.games[0].url | split("/") | last' "$fixture/catalog-v2.json")
             sha=$(jq -er '.games[0].sha256' "$fixture/catalog-v2.json")
             [[ "$build" =~ ^[1-9][0-9]*$ && "$name" =~ ^[A-Za-z0-9.-]+\.zomp$ ]]
             [[ "$sha" =~ ^[a-f0-9]{64}$ ]]
             printf '%s  %s\n' "$sha" "$fixture/$name" | sha256sum --check
-            unzip -p "$fixture/$name" zompa.lua | cmp - sdk/zompa.lua
+            if [[ $(jq -r '.games[0].onlineProtocol // ""' "$fixture/catalog-v2.json") == turns-v1 ]]; then
+              unzip -p "$fixture/$name" zompa.lua | cmp - sdk/zompa.lua
+              export ZOMPA_GENERIC_TURNS=1
+            fi
             stage() {
-              local serial="$1"
-              local app=io.tablecircle.prototype
-              "$adb" -s "$serial" shell "run-as $app mkdir -p files/games/drop-four"
-              "$adb" -s "$serial" shell -T "run-as $app tee files/game-release-check.json >/dev/null" \
-                < "$fixture/catalog-v2.json"
-              "$adb" -s "$serial" shell -T "run-as $app tee files/games/drop-four/$build.zomp >/dev/null" \
-                < "$fixture/$name"
+              python3 sdk/zomp.py preview "$fixture/$name" --adb "$adb" --device "$1"
             }
-            stage emulator-5554
-            ANDROID_SERIAL=emulator-5554 ZOMPA_GAME_RELEASE_CHECK=1 \
-              "$checks" tools/check_android_game_flow.py "$adb" "$RUNNER_TEMP"
-            "$adb" -s emulator-5554 shell pm clear io.tablecircle.prototype
-            stage emulator-5554
-            stage emulator-5556
-            "$checks" tools/check_android_friends.py "$adb" --game-release
+            if [[ -f "$fixture/scenario.json" ]]; then
+              stage emulator-5554
+              stage emulator-5556
+              "$checks" tools/check_android_game_scenario.py "$adb" \
+                "$fixture/scenario.json" "$fixture/catalog-v2.json"
+            else
+              stage emulator-5554
+              ANDROID_SERIAL=emulator-5554 ZOMPA_GAME_RELEASE_CHECK=1 \
+                "$checks" tools/check_android_game_flow.py "$adb" "$RUNNER_TEMP"
+              "$adb" -s emulator-5554 shell pm clear io.tablecircle.prototype
+              stage emulator-5554
+              stage emulator-5556
+              "$checks" tools/check_android_friends.py "$adb" --game-release
+            fi
           else
             "$checks" tools/check_android_friends.py "$adb"
           fi
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
-          name: android-friends-diagnostics
+          name: android-friends-diagnostics${{ inputs.game-folder && format('-{0}', inputs.game-folder) || '' }}
           path: |
             ${{ runner.temp }}/friends-*.log
             ${{ runner.temp }}/game-flow

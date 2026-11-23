@@ -294,7 +294,7 @@ public final class ChatSyncJob extends JobService {
                             case "accept" -> "Your friend is ready to play";
                             case "decline" -> "Game invitation declined";
                             case "quit" -> "Your friend ended the match";
-                            case "move", "next" -> "New game activity";
+                            case "move", "next", "turn" -> "New game activity";
                             case "resume" -> event.optInt("rev") == 1 ? "Your game is ready" : null;
                             default -> null;
                         };

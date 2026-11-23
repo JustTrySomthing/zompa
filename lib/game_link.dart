@@ -42,12 +42,15 @@ class GameLink {
     final id = query['id']?.single ?? '';
     final buildText = query['build']?.single ?? '';
     final sha = query['sha']?.single ?? '';
-    if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
+    if (id.length > 64 ||
+        !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
         !RegExp(r'^[1-9][0-9]{0,9}$').hasMatch(buildText) ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(sha))
       return null;
     final build = int.tryParse(buildText);
-    return build == null ? null : GameLink._(id, build, sha);
+    return build == null || build > 2147483647
+        ? null
+        : GameLink._(id, build, sha);
   }
 
   bool matches(GameRelease game) =>

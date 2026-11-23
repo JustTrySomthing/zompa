@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
+
 import 'board.dart';
 import 'chatmail.dart';
 import 'game_link.dart';
@@ -232,13 +234,20 @@ class MatchEvent {
     this.game,
     this.previous,
     this.column,
+    this.payload,
+    this.turnProtocol = false,
+    this.outcome,
     this.revision,
     this.rematchOf,
     this.series = false,
     this.round = 1,
   });
 
-  factory MatchEvent.invite(GameLink game, {String? rematchOf}) {
+  factory MatchEvent.invite(
+    GameLink game, {
+    String? rematchOf,
+    bool turnProtocol = false,
+  }) {
     final random = Random.secure();
     final id = List.generate(
       16,
@@ -249,7 +258,8 @@ class MatchEvent {
       'invite',
       game: game,
       rematchOf: rematchOf,
-      series: game.build >= 11,
+      series: !turnProtocol && game.build >= 11,
+      turnProtocol: turnProtocol,
     );
   }
 
@@ -257,14 +267,19 @@ class MatchEvent {
   final String kind;
   final GameLink? game;
   final String? previous, rematchOf;
-  final int? column, revision;
+  final int? column, revision, outcome;
+  final String? payload;
+  final bool turnProtocol;
   final bool series;
   final int round;
 
   static bool supportsGame(GameRelease game) =>
-      _supportsGameId(game.id) && game.modes.contains('online');
+      game.modes.contains('online') &&
+      (game.onlineProtocol == 'turns-v1' || game.id == 'drop-four');
 
-  static bool _supportsGameId(String id) => id == 'drop-four';
+  // A bounded ASCII move can encode JSON, text, or a compact game-specific token.
+  static bool validPayload(String value) =>
+      RegExp(r'^[A-Za-z0-9_-]{1,256}$').hasMatch(value);
 
   MatchEvent accept() => MatchEvent._(id, 'accept', series: series);
   MatchEvent decline() => MatchEvent._(id, 'decline');
@@ -278,6 +293,14 @@ class MatchEvent {
     column: column,
     round: round,
   );
+  MatchEvent turn(String previous, String payload, {int? outcome}) =>
+      MatchEvent._(
+        id,
+        'turn',
+        previous: previous,
+        payload: payload,
+        outcome: outcome,
+      );
   MatchEvent nextRound(int completedRound, String moves) =>
       MatchEvent._(id, 'next', round: completedRound, previous: moves);
 
@@ -289,6 +312,9 @@ class MatchEvent {
       if (rematchOf != null) 'rematchOf': rematchOf,
       if (previous != null) 'previous': previous,
       if (column != null) 'column': column,
+      if (payload != null) 'payload': payload,
+      if (outcome != null) 'outcome': outcome,
+      if (turnProtocol) 'protocol': 'turns-v1',
       if (revision != null) 'rev': revision,
       if (series) 'series': true,
       if (kind == 'next' || round > 1) 'round': round,
@@ -308,13 +334,18 @@ class MatchEvent {
           case 'invite':
             if (data['game'] case final String link) {
               final game = GameLink.parse(link);
-              if (game != null && _supportsGameId(game.id)) {
+              final turnProtocol = data['protocol'] == 'turns-v1';
+              if (game != null && (turnProtocol || game.id == 'drop-four')) {
                 final rematchOf = data['rematchOf'];
                 return MatchEvent._(
                   id,
                   'invite',
                   game: game,
-                  series: game.build >= 11 && data['series'] == true,
+                  series:
+                      !turnProtocol &&
+                      game.build >= 11 &&
+                      data['series'] == true,
+                  turnProtocol: turnProtocol,
                   rematchOf:
                       rematchOf is String &&
                           rematchOf != id &&
@@ -348,6 +379,24 @@ class MatchEvent {
                 id,
                 data['type'] as String,
                 revision: revision,
+              );
+            }
+          case 'turn':
+            final previous = data['previous'];
+            final payload = data['payload'];
+            final outcome = data['outcome'];
+            if (previous is String &&
+                RegExp(r'^[a-f0-9]{64}$').hasMatch(previous) &&
+                payload is String &&
+                validPayload(payload) &&
+                (outcome == null ||
+                    (outcome is int && outcome >= 0 && outcome <= 2))) {
+              return MatchEvent._(
+                id,
+                'turn',
+                previous: previous,
+                payload: payload,
+                outcome: outcome as int?,
               );
             }
           case 'move':
@@ -386,6 +435,14 @@ class OnlineMatch {
   final bool mine;
   Board board = Board();
   String moves = '';
+  final turnHistory = <String>[];
+  String turnHead = '0' * 64;
+  int? turnOutcome;
+  int get turn => invite.turnProtocol ? turnHistory.length % 2 + 1 : board.turn;
+  int get winner => invite.turnProtocol ? turnOutcome ?? 0 : board.winner;
+
+  String sdkSnapshot({required bool canMove}) =>
+      '${mine ? 1 : 2}:${canMove ? 1 : 0}:${turnHistory.join(",")}';
   bool series = false;
   int round = 1;
   final scores = [0, 0];
@@ -418,7 +475,9 @@ class OnlineMatch {
   bool conflict = false;
   FriendMessage? pending;
 
-  bool get boardComplete => board.winner != 0 || board.full;
+  bool get boardComplete => invite.turnProtocol
+      ? turnOutcome != null
+      : board.winner != 0 || board.full;
   bool get finished =>
       expired ||
       declined ||
@@ -434,7 +493,7 @@ class OnlineMatch {
       !boardComplete &&
       !paused &&
       pending == null &&
-      (board.turn == 1) == mine;
+      (turn == 1) == mine;
 
   String get status {
     if (quit) return 'Match ended.';
@@ -443,8 +502,8 @@ class OnlineMatch {
     if (pending?.state == 20) return 'Sending match update…';
     if (pending?.state == 24) return 'Couldn’t send this match update.';
     if (declined) return 'Invitation declined.';
-    if (board.winner != 0) {
-      final youWon = (board.winner == 1) == mine;
+    if (winner != 0) {
+      final youWon = (winner == 1) == mine;
       if (series) {
         return finished
             ? (youWon ? 'You won the series!' : 'Your friend won the series.')
@@ -452,7 +511,7 @@ class OnlineMatch {
       }
       return youWon ? 'You won!' : 'Your friend won.';
     }
-    if (board.full) return 'Draw.';
+    if (boardComplete) return 'Draw.';
     if (pausedByMe) return 'You paused the game.';
     if (pausedByFriend) return 'Your friend paused the game.';
     if (!accepted && preparing) return 'Getting the game ready…';
@@ -488,7 +547,8 @@ class OnlineMatch {
           r.message.outgoing != match.mine ||
           r.event.game.toString() != first.event.game.toString() ||
           r.event.rematchOf != first.event.rematchOf ||
-          r.event.series != first.event.series,
+          r.event.series != first.event.series ||
+          r.event.turnProtocol != first.event.turnProtocol,
     )) {
       match.conflict = true;
     }
@@ -543,7 +603,49 @@ class OnlineMatch {
         match.expired = dates.reduce(min) <= cutoff;
       }
     }
-    while (match.accepted && !match.finished && !match.conflict) {
+    if (match.invite.turnProtocol && match.accepted && !match.conflict) {
+      final byHead =
+          <String, List<({MatchEvent event, FriendMessage message})>>{};
+      for (final record in events) {
+        if (record.event.kind == 'turn') {
+          (byHead[record.event.previous!] ??= []).add(record);
+        }
+      }
+      while (!match.boardComplete &&
+          match.pending == null &&
+          match.turnHistory.length < 512) {
+        final outgoing = (match.turn == 1) == match.mine;
+        final candidates = byHead[match.turnHead]
+            ?.where((record) => record.message.outgoing == outgoing)
+            .toList();
+        if (candidates == null || candidates.isEmpty) break;
+        final event = candidates.first.event;
+        if (candidates.any(
+          (record) =>
+              record.event.payload != event.payload ||
+              record.event.outcome != event.outcome,
+        )) {
+          match.conflict = true;
+          break;
+        }
+        match.pending = pendingFor(candidates.map((r) => r.message).toList());
+        if (match.pending != null) break;
+        for (final record in candidates) {
+          if (record.message.delivery == null)
+            match._recordActivity(record.message);
+        }
+        match.turnHistory.add(event.payload!);
+        match.turnOutcome = event.outcome;
+        match.turnHead = sha256.convert(utf8.encode(event.wire)).toString();
+      }
+      if (match.turnHistory.length == 512 && !match.boardComplete) {
+        match.turnOutcome = 0;
+      }
+    }
+    while (!match.invite.turnProtocol &&
+        match.accepted &&
+        !match.finished &&
+        !match.conflict) {
       if (match.boardComplete) {
         if (!match.series || match.pending != null) break;
         final winner = match.board.winner;
@@ -593,7 +695,10 @@ class OnlineMatch {
     }
     // An inviter can send a resume before the first move to start both boards.
     // Older clients also understand resume, and their first move starts the match.
-    match.started = match.round > 1 || match.moves.isNotEmpty;
+    match.started =
+        match.round > 1 ||
+        match.moves.isNotEmpty ||
+        match.turnHistory.isNotEmpty;
     if (match.accepted && !match.started) {
       final starts = [
         for (final record in events)
@@ -602,8 +707,9 @@ class OnlineMatch {
             record.message,
       ];
       if (starts.isNotEmpty) {
-        match.pending = pendingFor(starts);
-        match.started = match.pending == null;
+        final pendingStart = pendingFor(starts);
+        match.pending ??= pendingStart;
+        match.started = pendingStart == null;
         for (final start in starts) {
           if (start.delivery == null) match._recordActivity(start);
         }

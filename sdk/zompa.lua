@@ -1,5 +1,5 @@
--- Zompa game SDK v3. This module also runs in desktop LÖVE for development.
-local sdk = {version = 3}
+-- Zompa game SDK v4. This module also runs in desktop LÖVE for development.
+local sdk = {version = 4}
 local slots = "zompado-saves"
 
 local function savePath(slot)
@@ -56,6 +56,34 @@ function sdk.submitOnlineMove(move)
     local file, err = io.open("/zompado/move", "wb")
     if not file then return false, err end
     local written, writeError = file:write(tostring(move))
+    local closed, closeError = file:close()
+    if not written or not closed then return false, writeError or closeError end
+    return true
+end
+
+-- Read the generic turn log. Player 1 is the inviter and moves first.
+function sdk.readTurns()
+    if sdk.mode() ~= "online" then return nil end
+    local state = readHost("match", 132001)
+    if not state then return nil end
+    local player, allowed, history = state:match("^([12]):([01]):([A-Za-z0-9_,-]*)$")
+    if not player then return nil end
+    local turns = {}
+    for move in history:gmatch("[^,]+") do turns[#turns + 1] = move end
+    return turns, tonumber(player), allowed == "1"
+end
+
+function sdk.submitTurn(payload, outcome)
+    if sdk.mode() ~= "online" then return false, "No online match is running." end
+    if type(payload) ~= "string" or #payload > 256 or not payload:match("^[A-Za-z0-9_-]+$") then
+        return false, "Use a 1 to 256 character move token."
+    end
+    if outcome ~= nil and outcome ~= 0 and outcome ~= 1 and outcome ~= 2 then
+        return false, "Outcome must be nil, 0 (draw), 1 or 2 (winner)."
+    end
+    local file, err = io.open("/zompado/move", "wb")
+    if not file then return false, err end
+    local written, writeError = file:write((outcome or "-") .. ":" .. payload)
     local closed, closeError = file:close()
     if not written or not closed then return false, writeError or closeError end
     return true

@@ -1,6 +1,6 @@
 # Zompa game SDK
 
-The Zompa Lua SDK targets LÖVE 11.5. Put [zompa.lua](zompa.lua) in the game root and load it with `require("zompa")`. Start with [Cats vs Dogs](https://github.com/JustTrySomthing/zompa-games/tree/main/drop-four/1.3.13), the reference game for all three official modes. [Tap Counter](template) is a small desktop example for learning the Lua helpers. Set a unique identity in `conf.lua` when developing locally with LÖVE.
+The Zompa Lua SDK targets LÖVE 11.5. Put [zompa.lua](zompa.lua) in the game root and load it with `require("zompa")`. Start with [Cats vs Dogs](https://github.com/JustTrySomthing/zompa-games/tree/main/drop-four/1.3.14), the reference game for all three official modes. [Tap Counter](template) is a small desktop example for learning the Lua helpers. Set a unique identity in `conf.lua` when developing locally with LÖVE.
 
 Run the sample during development with LÖVE 11.5.
 
@@ -61,8 +61,31 @@ Every official Zompa game is expected to offer **Single Player** (`solo`), **Pas
 
 In Online 2 Player, both Zompa apps handle the invitation, participants, turn order, exact game build, and synchronization. Zompa exchanges moves and match events through hidden encrypted Chatmail messages. Game code receives and sends moves through the host. Keep networking and Chatmail out of the game package.
 
-The current Android online move format serves Cats vs Dogs. Its SDK handoff is `zompa.onlineState()` to read the latest board snapshot and `zompa.submitOnlineMove(column)` to submit a zero-based column (0 to 6). The reference game waits for the host's updated snapshot before applying an online turn. Keep the transport details inside the SDK. Other games need Android support for their own moves before they can offer Online 2 Player.
+For games using `onlineProtocol: "turns-v1"`, call `zompa.readTurns()` to read the delivered move tokens, your player number, and whether the host is ready for your move. The inviter is player 1. Players alternate, including across any rounds your rules define. Replay the same game rules in order on both phones. Use a deterministic move token for any randomness that affects the board. Check incoming moves against your rules before applying them.
+
+Call `zompa.submitTurn(payload, outcome)` to submit a move. Use 1–256 letters, digits, underscores, or hyphens. A token can represent a column, several delimited action parameters, or compact unpadded base64url. Leave `outcome` unset for an ongoing match. Use `0` for a draw or `1` or `2` for the winner on the final move. Zompa waits for delivery and rebuilds the ordered move log when a match reopens. Matches use up to 512 moves. Keep hidden hands and simultaneous-move mechanics outside this protocol. Both players receive the same move history.
+
+The starter uses one column token per turn. Older Cats vs Dogs packages use the legacy column bridge, which stays available for existing matches. New games use `readTurns` and `submitTurn`. Do not use the legacy bridge in a new game.
+
+## Build and preview on Android
+
+Use Python 3.11+ and keep the output outside the game source directory.
+
+```sh
+python3 sdk/zomp.py build /path/to/game /tmp/My-Game.zomp --require-three-modes
+python3 sdk/zomp.py check /tmp/My-Game.zomp --require-three-modes
+```
+
+For `turns-v1`, declare `"minZompaBuild": 55` or higher, along with `"onlineProtocol": "turns-v1"`. Set `"localSaves": true` when using the session API to expose saved rounds in Active Games. Keep the game ID stable across updates, increment its build, and keep the game’s save format versioned.
+
+For private testing use a debug build of Zompa from this source with `--dart-define=ZOMPA_GAME_RELEASE_CHECK=true`. Install it on one or two test devices with Android Debug Bridge, then stage the same package on them:
+
+```sh
+python3 sdk/zomp.py preview /tmp/My-Game.zomp --device SERIAL_A --device SERIAL_B
+```
+
+Reopen Zompa and install your package in **Games → Get Games**. In this debug build the listing comes from the staged package. For Online 2 Player, create separate Chatmail profiles, add the other profile as a contact and send an invitation as usual. Use `adb logcat -s ZompaGame` to read runtime errors from the debug player. Bundle the game's assets and account for the canvas resizing around the Zompa toolbar and Android system bars.
 
 ## Publishing check
 
-For the reference game, the games repository builds the candidate `.zomp` once. The publishing check uses that exact package in the Zompa Android player. It plays a human and computer turn in Single Player, plays both sides and checks resume in Pass & Play, and uses two Android installs to accept an invitation and exchange moves through Chatmail in Online 2 Player. A failed check blocks publishing the package and updating Get Games.
+For the reference game, the games repository builds the candidate `.zomp` once. The publishing check uses that exact package in the Zompa Android player. It plays a human and computer turn in Single Player, plays both sides and checks resume in Pass & Play, and uses two Android installs to accept an invitation and exchange moves through Chatmail in Online 2 Player. A failed check blocks publishing the package and updating Get Games. For a new game, add the adjacent Android scenario described in the [games repository](https://github.com/JustTrySomthing/zompa-games#publish-a-game-to-get-games).
