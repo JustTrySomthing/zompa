@@ -262,13 +262,11 @@ final class ChatAlerts {
     }
 
     static Notification connectionNotification(Context context, String channel) {
-        PendingIntent open = PendingIntent.getActivity(context, 393, openChats(context),
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.zompa_icon_monochrome)
-            .setContentTitle("Zompa is listening")
-            .setContentText("Receiving messages, calls, and game invites")
-            .setContentIntent(open)
+            .setContentTitle("Zompa background connection")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFERRED)
             .setSilent(true)
             .setOnlyAlertOnce(true)
             .setOngoing(true)

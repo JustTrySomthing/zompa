@@ -66,6 +66,8 @@ public final class ChatListenerService extends Service {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL, "Background connection", NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
+            channel.setSound(null, null);
+            channel.enableVibration(false);
             channel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
             getSystemService(NotificationManager.class).createNotificationChannel(channel);
         }

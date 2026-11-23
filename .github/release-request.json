@@ -1,5 +1,5 @@
 {
-  "version": "0.5.42",
-  "build": 51,
-  "notes": "- Cats vs Dogs puts fireworks behind the winner banner, adds three animated victory stars, and reveals Quit and Play another match after the finale.\n- Chat badges count distinct unread messages and keep game and call activity separate. Mark unread displays a dot."
+  "version": "0.5.43",
+  "build": 52,
+  "notes": "Makes the background connection notice silent and defers its appearance when Android allows. The status notice no longer acts as a shortcut."
 }
