@@ -406,29 +406,32 @@ def check_app_log(phone):
 
 
 def main():
+    game_release = "--game-release" in sys.argv[2:]
     alice, bob = Phone(5554, "Alice"), Phone(5556, "Bob")
     alice.profile()
-    check_app_log(alice)
+    if not game_release:
+        check_app_log(alice)
     bob.profile()
     bob.press("Contacts")
     bob.press("Accept an invite")
-    bob.press("Scan QR code")
-    bob.shell("input", "tap", *wait("the camera permission denial button",
-        lambda: bob.find("Don’t allow") or bob.find("Don't allow")))
-    bob.see("Open camera settings")
-    bob.press("Scan QR code")
-    bob.press("While using the app")
-    bob.see("Point the camera at your friend’s invite QR code", 40)
-    bob.back()
-    bob.see("Scan QR code")
-    print("PASS: Android requested camera access, handled denial, and opened the built-in QR scanner.", flush=True)
+    if not game_release:
+        bob.press("Scan QR code")
+        bob.shell("input", "tap", *wait("the camera permission denial button",
+            lambda: bob.find("Don’t allow") or bob.find("Don't allow")))
+        bob.see("Open camera settings")
+        bob.press("Scan QR code")
+        bob.press("While using the app")
+        bob.see("Point the camera at your friend’s invite QR code", 40)
+        bob.back()
+        bob.see("Scan QR code")
+        print("PASS: Android requested camera access, handled denial, and opened the built-in QR scanner.", flush=True)
 
-    bob.type("https://example.org/not-an-invite")
-    bob.back()
-    bob.press("Accept")
-    bob.see("Use a link from your friend’s Share my invite screen.")
-    bob.press("Cancel")
-    bob.press("Accept an invite")
+        bob.type("https://example.org/not-an-invite")
+        bob.back()
+        bob.press("Accept")
+        bob.see("Use a link from your friend’s Share my invite screen.")
+        bob.press("Cancel")
+        bob.press("Accept an invite")
 
     link = alice.invite()
     bob.type(link)
@@ -437,6 +440,16 @@ def main():
     alice.press("Bob", 120)
     bob.see("Alice", 120)
     print("PASS: paired two independent Android installs using the app’s friend invite.", flush=True)
+
+    if game_release:
+        alice.back()
+        alice.press("Games")
+        alice.install_game()
+        alice.press("Chats")
+        alice.press("Bob")
+        check_match(alice, bob)
+        print("PASS: Online 2 Player used two Android installs and exchanged Chatmail moves.", flush=True)
+        return
 
     check_message_tools(alice, bob)
 

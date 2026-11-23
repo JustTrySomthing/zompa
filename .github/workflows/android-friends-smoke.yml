@@ -1,6 +1,14 @@
 name: Verify two Android friends
 
 on:
+  workflow_call:
+    inputs:
+      app-ref:
+        required: true
+        type: string
+      game-artifact:
+        required: true
+        type: string
   workflow_dispatch:
   push:
     branches: [main]
@@ -35,9 +43,17 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          repository: JustTrySomthing/zompa
+          ref: ${{ inputs.app-ref || github.sha }}
           fetch-depth: 0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: inputs.game-artifact != ''
+        with:
+          name: ${{ inputs.game-artifact }}
+          path: ${{ runner.temp }}/game-release
       - name: Reuse an emulator APK for test-only changes
         id: reuse
+        if: inputs.game-artifact == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -80,10 +96,16 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_zompaEmulatorFriends: "true"
           FLUTTER_SUPPRESS_ANALYTICS: "true"
+          GAME_ARTIFACT: ${{ inputs.game-artifact }}
         run: |
           flutter pub get --enforce-lockfile
           dart tools/check_voice_sdp.dart
-          flutter build apk --debug --target-platform android-x64 --no-pub
+          check=false
+          if [[ -n "$GAME_ARTIFACT" ]]; then
+            check=true
+          fi
+          flutter build apk --debug --target-platform android-x64 --no-pub \
+            --dart-define="ZOMPA_GAME_RELEASE_CHECK=$check"
           unzip -l build/app/outputs/flutter-apk/app-debug.apk 'lib/x86_64/libchatmail_rpc.so'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
@@ -92,6 +114,8 @@ jobs:
           if-no-files-found: error
           retention-days: 3
       - name: Prepare checks and start two emulators
+        env:
+          GAME_ARTIFACT: ${{ inputs.game-artifact }}
         run: |
           set -euo pipefail
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -106,7 +130,7 @@ jobs:
               -camera-front none -camera-back emulated > "$RUNNER_TEMP/friends-$port.log" 2>&1 &
           done
           python3 -m venv "$RUNNER_TEMP/friends-check"
-          "$RUNNER_TEMP/friends-check/bin/pip" install --quiet opencv-python-headless==4.12.0.88
+          "$RUNNER_TEMP/friends-check/bin/pip" install --quiet opencv-python-headless==4.12.0.88 Pillow
           for port in 5554 5556; do
             serial="emulator-$port"
             timeout 240 "$adb" -s "$serial" wait-for-device
@@ -120,10 +144,40 @@ jobs:
             "$adb" -s "$serial" shell settings put global animator_duration_scale 0
             "$adb" -s "$serial" install build/app/outputs/flutter-apk/app-debug.apk
           done
-          "$RUNNER_TEMP/friends-check/bin/python" tools/check_android_friends.py "$adb"
+          checks="$RUNNER_TEMP/friends-check/bin/python"
+          if [[ -n "$GAME_ARTIFACT" ]]; then
+            fixture="$RUNNER_TEMP/game-release"
+            build=$(jq -er '.games[0].build' "$fixture/catalog-v2.json")
+            name=$(jq -er '.games[0].url | split("/") | last' "$fixture/catalog-v2.json")
+            sha=$(jq -er '.games[0].sha256' "$fixture/catalog-v2.json")
+            [[ "$build" =~ ^[1-9][0-9]*$ && "$name" =~ ^[A-Za-z0-9.-]+\.zomp$ ]]
+            [[ "$sha" =~ ^[a-f0-9]{64}$ ]]
+            printf '%s  %s\n' "$sha" "$fixture/$name" | sha256sum --check
+            unzip -p "$fixture/$name" zompa.lua | cmp - sdk/zompa.lua
+            stage() {
+              local serial="$1"
+              local app=io.tablecircle.prototype
+              "$adb" -s "$serial" shell "run-as $app mkdir -p files/games/drop-four"
+              "$adb" -s "$serial" shell -T "run-as $app tee files/game-release-check.json >/dev/null" \
+                < "$fixture/catalog-v2.json"
+              "$adb" -s "$serial" shell -T "run-as $app tee files/games/drop-four/$build.zomp >/dev/null" \
+                < "$fixture/$name"
+            }
+            stage emulator-5554
+            ANDROID_SERIAL=emulator-5554 ZOMPA_GAME_RELEASE_CHECK=1 \
+              "$checks" tools/check_android_game_flow.py "$adb" "$RUNNER_TEMP"
+            "$adb" -s emulator-5554 shell pm clear io.tablecircle.prototype
+            stage emulator-5554
+            stage emulator-5556
+            "$checks" tools/check_android_friends.py "$adb" --game-release
+          else
+            "$checks" tools/check_android_friends.py "$adb"
+          fi
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
           name: android-friends-diagnostics
-          path: ${{ runner.temp }}/friends-*.log
+          path: |
+            ${{ runner.temp }}/friends-*.log
+            ${{ runner.temp }}/game-flow
           if-no-files-found: ignore

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 
 const githubOwner = 'JustTrySomthing';
 const appRepository = 'zompa';
@@ -165,7 +166,18 @@ class GithubDistribution {
   final Directory directory;
 
   Future<List<GameRelease>> catalog({bool includeArchive = false}) async {
-    final json = await _manifest(gamesRepository, 'catalog-v2.json', schema: 2);
+    const useFixture =
+        kDebugMode && bool.fromEnvironment('ZOMPA_GAME_RELEASE_CHECK');
+    final Map<String, dynamic> json;
+    if (useFixture) {
+      final file = File('${directory.path}/game-release-check.json');
+      json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      if (json['schema'] != 2) {
+        throw const FormatException('Unsupported release check catalog.');
+      }
+    } else {
+      json = await _manifest(gamesRepository, 'catalog-v2.json', schema: 2);
+    }
     final entries = [
       ...(json['games'] as List),
       if (includeArchive) ...(json['archive'] as List? ?? const []),

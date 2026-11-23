@@ -1,5 +1,5 @@
--- Zompa game SDK v2. This module also runs in desktop LÖVE for development.
-local sdk = {version = 2}
+-- Zompa game SDK v3. This module also runs in desktop LÖVE for development.
+local sdk = {version = 3}
 local slots = "zompado-saves"
 
 local function savePath(slot)
@@ -24,13 +24,41 @@ function sdk.load(slot)
     return love.filesystem.read(path, 262144)
 end
 
-function sdk.mode()
-    local file = io.open("/zompado/mode", "r")
-    if not file then return "solo", false end
-    local mode = file:read(8)
+function sdk.clear(slot)
+    local path = savePath(slot)
+    return not love.filesystem.getInfo(path) or love.filesystem.remove(path)
+end
+
+local function readHost(name, limit)
+    local file = io.open("/zompado/" .. name, "r")
+    if not file then return nil end
+    local value = file:read(limit)
     file:close()
+    return value
+end
+
+function sdk.mode()
+    local mode = readHost("mode", 8)
+    if not mode then return "solo", false end
     if mode == "local" or mode == "online" then return mode, true end
     return "solo", true
+end
+
+function sdk.onlineState()
+    if sdk.mode() == "online" then return readHost("match", 56) end
+end
+
+function sdk.submitOnlineMove(move)
+    if sdk.mode() ~= "online" then return false, "No online match is running." end
+    if type(move) ~= "number" or move % 1 ~= 0 or move < 0 or move > 6 then
+        return false, "This player accepts a Cats vs Dogs column from 0 to 6."
+    end
+    local file, err = io.open("/zompado/move", "wb")
+    if not file then return false, err end
+    local written, writeError = file:write(tostring(move))
+    local closed, closeError = file:close()
+    if not written or not closed then return false, writeError or closeError end
+    return true
 end
 
 local function sessionPath(mode)
@@ -92,10 +120,7 @@ function sdk.audio()
         elapsed = elapsed + dt
         if elapsed < 0.2 then return end
         elapsed = 0
-        local file = io.open("/zompado/audio", "r")
-        if not file then return end
-        local settings = file:read(8)
-        file:close()
+        local settings = readHost("audio", 8)
         if not settings or settings == hostSettings then return end
         local music, effects = settings:match("^(%d%d?%d?):(%d%d?%d?)$")
         if not music or tonumber(music) > 100 or tonumber(effects) > 100 then return end
