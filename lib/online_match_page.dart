@@ -266,8 +266,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       );
       await _load();
       if (mounted && moved != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
       }
     } on MatchInviteExpired {
       await _load();
@@ -369,8 +370,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       invitation,
     );
     if (mounted && moved != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(matchMovedNotice(moved))));
     }
   }
 
@@ -592,13 +594,22 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         ),
       ),
     );
-    if (MediaQuery.disableAnimationsOf(context)) return banner;
+    final fitted = finale
+        ? ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 168),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(width: 368, child: banner),
+            ),
+          )
+        : banner;
+    if (MediaQuery.disableAnimationsOf(context)) return fitted;
     return TweenAnimationBuilder<double>(
       key: ValueKey(label),
       tween: Tween(begin: .86, end: 1),
       duration: const Duration(milliseconds: 480),
       curve: Curves.easeOutBack,
-      child: banner,
+      child: fitted,
       builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
     );
   }
@@ -690,20 +701,20 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       constraints: const BoxConstraints(maxWidth: 400),
       child: Card(
         margin: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: _resultActions(match),
+          child: _resultActions(match, scrollDetails: true),
         ),
       ),
     ),
   );
 
-  Widget _resultActions(OnlineMatch match) {
+  Widget _resultActions(OnlineMatch match, {bool scrollDetails = false}) {
     final winner = match.board.winner;
     final friend = widget.friendName?.trim();
     final name = friend == null || friend.isEmpty ? 'Your friend' : friend;
     final youWon = (winner == 1) == match.mine;
-    return Column(
+    final details = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (match.finished && winner != 0) ...[
@@ -728,6 +739,15 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             'Your friend invited you to play again.',
             textAlign: TextAlign.center,
           ),
+      ],
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (scrollDetails)
+          Flexible(child: SingleChildScrollView(child: details))
+        else
+          details,
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 8,
@@ -926,9 +946,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                                         Text(
                                           _lobbyText(match),
                                           textAlign: TextAlign.center,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleLarge,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleLarge,
                                         ),
                                         if (showResult) _resultActions(match),
                                         if (match != null &&
