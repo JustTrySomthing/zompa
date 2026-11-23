@@ -261,8 +261,8 @@ class _FriendsPaneState extends State<FriendsPane> {
                         Icons.archive_outlined,
                       ),
                       (
-                        chat.unread > 0 ? 'read' : 'unread',
-                        chat.unread > 0 ? 'Mark read' : 'Mark unread',
+                        chat.hasUnread ? 'read' : 'unread',
+                        chat.hasUnread ? 'Mark read' : 'Mark unread',
                         Icons.mark_email_unread_outlined,
                       ),
                       ('remind', 'Remind me later', Icons.schedule),
@@ -431,8 +431,15 @@ class _FriendsPaneState extends State<FriendsPane> {
                 horizontalTitleGap: 10,
                 leading: chat.unread > 0
                     ? Semantics(
-                        label: '${chat.unread} unread messages',
+                        label: chat.unread == 1
+                            ? '1 unread message'
+                            : '${chat.unread} unread messages',
                         child: Badge.count(count: chat.unread, child: avatar),
+                      )
+                    : chat.manuallyUnread
+                    ? Semantics(
+                        label: 'Marked unread',
+                        child: Badge(child: avatar),
                       )
                     : avatar,
                 title: Text(
@@ -1113,6 +1120,7 @@ class _FriendConversationState extends State<FriendConversation>
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
       return;
     }
+    await widget.chatmail.clearManualUnread(widget.id);
     await widget.chatmail.markSeen([
       for (final message in messages)
         if (!message.outgoing &&

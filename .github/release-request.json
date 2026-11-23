@@ -1,5 +1,5 @@
 {
-  "version": "0.5.41",
-  "build": 50,
-  "notes": "- Softens the deciding-round banner in online Cats vs Dogs and gives the two-line rules footer more room.\n- Gives the Zompa launch logo a quick drop and bounce."
+  "version": "0.5.42",
+  "build": 51,
+  "notes": "- Cats vs Dogs puts fireworks behind the winner banner, adds three animated victory stars, and reveals Quit and Play another match after the finale.\n- Chat badges count distinct unread messages and keep game and call activity separate. Mark unread displays a dot."
 }

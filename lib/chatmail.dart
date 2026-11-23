@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'online_match.dart' show MatchEvent;
+
 typedef Json = Map<String, dynamic>;
 
 enum ChatmailIssue implements Exception {
@@ -295,33 +297,51 @@ class Chatmail {
     return _account!;
   }
 
-  Future<void> _trashWrite = Future.value();
+  Future<void> _chatSetWrite = Future.value();
 
-  File _trashFile(int account) =>
-      File('${accountsDirectory.parent.path}/chat-trash-$account.json');
+  File _chatSetFile(int account, String name) =>
+      File('${accountsDirectory.parent.path}/chat-$name-$account.json');
 
-  Future<Set<int>> _trashedChats(int account) async {
-    final file = _trashFile(account);
+  Future<Set<int>> _chatIdSet(File file) async {
     if (!await file.exists()) return {};
     return (jsonDecode(await file.readAsString()) as List).cast<int>().toSet();
   }
 
-  Future<void> _changeTrash(int account, Set<int> chats, {required bool add}) {
-    final operation = _trashWrite.then((_) async {
-      final ids = await _trashedChats(account);
+  Future<Set<int>> _trashedChats(int account) =>
+      _chatIdSet(_chatSetFile(account, 'trash'));
+
+  Future<void> _changeChatIdSet(
+    File file,
+    Set<int> chats, {
+    required bool add,
+  }) {
+    final operation = _chatSetWrite.then((_) async {
+      final ids = await _chatIdSet(file);
+      final previousSize = ids.length;
       if (add) {
         ids.addAll(chats);
       } else {
         ids.removeAll(chats);
       }
-      final file = _trashFile(account);
+      if (ids.length == previousSize) return;
       final staging = File('${file.path}.tmp');
       await staging.writeAsString(jsonEncode(ids.toList()), flush: true);
       await staging.rename(file.path);
       _changed();
     });
-    _trashWrite = operation.catchError((Object _) {});
+    _chatSetWrite = operation.catchError((Object _) {});
     return operation;
+  }
+
+  Future<void> _changeTrash(int account, Set<int> chats, {required bool add}) =>
+      _changeChatIdSet(_chatSetFile(account, 'trash'), chats, add: add);
+
+  Future<void> clearManualUnread(int chat) async {
+    if (_account case final account?) {
+      await _changeChatIdSet(_chatSetFile(account, 'unread'), {
+        chat,
+      }, add: false);
+    }
   }
 
   Future<void> restoreTrash(int? chat) async {
@@ -351,15 +371,19 @@ class Chatmail {
     final ids = trash
         ? hidden.toList().reversed.toList()
         : (await _call('get_chatlist_entries', [
-            account,
-            archived ? 3 : 2,
-            null,
-            null,
-          ]) as List).cast<int>().where((id) => !hidden.contains(id)).toList();
+                    account,
+                    archived ? 3 : 2,
+                    null,
+                    null,
+                  ])
+                  as List)
+              .cast<int>()
+              .where((id) => !hidden.contains(id))
+              .toList();
     if (ids.isEmpty) return const [];
     final result =
         await _call('get_chatlist_items_by_entries', [account, ids]) as Json;
-    return [
+    final rows = <int, Json>{
       for (final id in ids)
         if (result['$id'] case final Json chat
             when chat['kind'] == 'ChatListItem' &&
@@ -367,21 +391,84 @@ class Chatmail {
                 chat['isSelfTalk'] != true &&
                 chat['isDeviceTalk'] != true &&
                 chat['isEncrypted'] == true)
-          FriendChat(
-            id,
-            chat['name'] as String,
-            chat['summaryText2'] as String,
-            chat['freshMessageCounter'] as int,
-            photo: chat['avatarPath'] as String?,
-            archived: chat['isArchived'] == true,
-            muted: chat['isMuted'] == true,
-            // Unlike message timestamps, Chatmail's chat list uses milliseconds.
-            lastMessageAt: switch (chat['lastUpdated']) {
-              int milliseconds => milliseconds ~/ 1000,
-              _ => 0,
-            },
-          ),
+          id: chat,
+    };
+    final unread = await _chatUnreadCounts(account, rows);
+    final manuallyUnread = await _chatIdSet(_chatSetFile(account, 'unread'));
+    return [
+      for (final MapEntry(key: id, value: chat) in rows.entries)
+        FriendChat(
+          id,
+          chat['name'] as String,
+          chat['summaryText2'] as String,
+          unread[id] ?? 0,
+          manuallyUnread: manuallyUnread.contains(id),
+          photo: chat['avatarPath'] as String?,
+          archived: chat['isArchived'] == true,
+          muted: chat['isMuted'] == true,
+          // Unlike message timestamps, Chatmail's chat list uses milliseconds.
+          lastMessageAt: switch (chat['lastUpdated']) {
+            int milliseconds => milliseconds ~/ 1000,
+            _ => 0,
+          },
+        ),
     ];
+  }
+
+  Future<Map<int, int>> _chatUnreadCounts(
+    int account,
+    Map<int, Json> chats,
+  ) async {
+    final unread = <int, int>{};
+    final fresh = chats.entries.where(
+      (e) => (e.value['freshMessageCounter'] as int? ?? 0) > 0,
+    );
+    final unmuted = {
+      for (final entry in fresh)
+        if (entry.value['isMuted'] != true) entry.key,
+    };
+    if (unmuted.isNotEmpty) {
+      final freshIds = (await _call('get_fresh_msgs', [account]) as List)
+          .cast<int>()
+          .toSet()
+          .toList();
+      for (var start = 0; start < freshIds.length; start += 80) {
+        for (final message in await _messages(
+          account,
+          freshIds.skip(start).take(80).toList(),
+        )) {
+          if (unmuted.contains(message.chat) && message.isUnreadChatMessage) {
+            unread.update(
+              message.chat,
+              (count) => count + 1,
+              ifAbsent: () => 1,
+            );
+          }
+        }
+      }
+    }
+
+    // The account-wide fresh list intentionally omits muted conversations.
+    for (final MapEntry(key: chat, value: row) in fresh) {
+      if (row['isMuted'] != true) continue;
+      var remaining = row['freshMessageCounter'] as int;
+      final ids =
+          (await _call('get_message_ids', [account, chat, false, false])
+                  as List)
+              .cast<int>();
+      for (var end = ids.length; end > 0 && remaining > 0; end -= 80) {
+        final start = end > 80 ? end - 80 : 0;
+        final messages = await _messages(account, ids.sublist(start, end));
+        for (final message in messages.reversed) {
+          if (message.state != 10) continue;
+          if (message.isUnreadChatMessage) {
+            unread.update(chat, (count) => count + 1, ifAbsent: () => 1);
+          }
+          if (--remaining == 0) break;
+        }
+      }
+    }
+    return unread;
   }
 
   void _changed() {
@@ -392,6 +479,12 @@ class Chatmail {
     final account = _accountId;
     if (action == 'delete') {
       await _changeTrash(account, {chat}, add: true);
+      return;
+    }
+    if (action == 'unread') {
+      await _changeChatIdSet(_chatSetFile(account, 'unread'), {
+        chat,
+      }, add: true);
       return;
     }
     final (method, extra) = switch (action) {
@@ -410,11 +503,11 @@ class Chatmail {
         ],
       ),
       'read' => ('marknoticed_chat', []),
-      'unread' => ('markfresh_chat', []),
       'block' => ('block_chat', []),
       _ => throw ArgumentError.value(action),
     };
     await _call(method, [account, chat, ...extra]);
+    if (action == 'read') await clearManualUnread(chat);
     _changed();
   }
 
@@ -875,13 +968,15 @@ class FriendChat {
     this.photo,
     this.archived = false,
     this.muted = false,
+    this.manuallyUnread = false,
     this.lastMessageAt = 0,
   });
   final int id;
   final String name, preview;
   final int unread, lastMessageAt;
   final String? photo;
-  final bool archived, muted;
+  final bool archived, muted, manuallyUnread;
+  bool get hasUnread => unread > 0 || manuallyUnread;
 }
 
 class FriendThread {
@@ -954,6 +1049,13 @@ class FriendMessage {
   final String text, viewType;
   final String? file, filename, mime;
   final bool outgoing, info, encrypted;
+
+  bool get isUnreadChatMessage =>
+      state == 10 &&
+      !outgoing &&
+      !info &&
+      viewType != 'Call' &&
+      (!encrypted || MatchEvent.parse(text) == null);
 
   ChatMedia? get media {
     final type = mime?.toLowerCase() ?? '';

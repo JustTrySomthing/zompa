@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -36,7 +37,7 @@ class OnlineMatchPage extends StatefulWidget {
 }
 
 class _OnlineMatchPageState extends State<OnlineMatchPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   OnlineMatch? _match;
   GameRelease? _game;
   bool _preparing = false;
@@ -59,6 +60,27 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   Timer? _turnTimer;
   int? _displayTurn;
+  late final AnimationController _celebration;
+  (int, String)? _celebratedResult;
+
+  void _updateCelebration() {
+    final match = _match;
+    if (_displayTurn != null ||
+        match == null ||
+        match.board.winner == 0 ||
+        match.pending != null ||
+        match.quit ||
+        match.conflict) {
+      if (_celebration.isAnimating) _celebration.value = 1;
+      return;
+    }
+    final result = (match.round, match.moves);
+    if (_celebratedResult == result) return;
+    _celebratedResult = result;
+    if (!_boardOpen || MediaQuery.disableAnimationsOf(context)) return;
+    _celebration.duration = Duration(milliseconds: match.finished ? 2100 : 950);
+    _celebration.forward(from: 0);
+  }
 
   void _syncTurn(OnlineMatch? match) {
     if (match == null) return;
@@ -69,7 +91,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       _turnTimer?.cancel();
       _displayTurn = previous.board.turn;
       _turnTimer = Timer(const Duration(milliseconds: 740), () {
-        if (mounted) setState(() => _displayTurn = null);
+        if (!mounted) return;
+        setState(() => _displayTurn = null);
+        _updateCelebration();
       });
     } else if (previous?.round != match.round ||
         previous?.moves != match.moves) {
@@ -132,6 +156,10 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   @override
   void initState() {
     super.initState();
+    _celebration = AnimationController(vsync: this, value: 1)
+      ..addStatusListener((status) {
+        if (mounted && status == AnimationStatus.completed) setState(() {});
+      });
     _playing = widget.playOnOpen;
     _messages = widget.chatmail.incoming.listen((event) {
       unawaited(_checkRematch(event.$1, event.$2));
@@ -152,6 +180,14 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context) && _celebration.isAnimating) {
+      _celebration.value = 1;
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) unawaited(_load());
   }
@@ -164,6 +200,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     _events?.cancel();
     _messages?.cancel();
     _turnTimer?.cancel();
+    _celebration.dispose();
     super.dispose();
   }
 
@@ -204,6 +241,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               ? 'The match invitation is unavailable.'
               : null;
         });
+        _updateCelebration();
         if (match != null && match.active && !match.conflict) {
           if (widget.acceptOnOpen &&
               !_acceptedFromChat &&
@@ -220,12 +258,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         try {
           final thread = await widget.chatmail.thread(widget.chat);
           final unread = thread.messages.any(
-            (message) =>
-                !message.outgoing &&
-                !message.info &&
-                message.viewType != 'Call' &&
-                message.state == 10 &&
-                (!message.encrypted || MatchEvent.parse(message.text) == null),
+            (message) => message.isUnreadChatMessage,
           );
           if (mounted && !_chatOpen && _chatUnread != unread) {
             setState(() => _chatUnread = unread);
@@ -457,6 +490,13 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     return match.status;
   }
 
+  String _gameWinner(OnlineMatch match) {
+    final name = widget.friendName?.trim();
+    return (match.board.winner == 1) == match.mine
+        ? 'You win the game!'
+        : "${name == null || name.isEmpty ? 'Your friend' : name} wins the game!";
+  }
+
   Widget _turnHeading(
     BuildContext context,
     OnlineMatch match,
@@ -478,63 +518,87 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               : '$name wins Round ${match.round}')
         : (yours ? 'Your turn' : '$name’s turn');
 
+    final finale = winner != 0 && match.finished && !statusOnly;
     final cats = match.mine;
     final hasAnimalArt = game.build >= 6;
-    return Padding(
+    final heading = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: LayoutBuilder(
-        builder: (context, bounds) => FittedBox(
-          fit: BoxFit.scaleDown,
-          child: SizedBox(
-            width: bounds.maxWidth,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasAnimalArt)
-                  Image.asset(
-                    cats
-                        ? 'assets/games/cat-token.webp'
-                        : 'assets/games/dog-token.webp',
-                    width: 36,
-                    height: 36,
-                    semanticLabel: cats ? 'You play Cats' : 'You play Dogs',
-                  )
-                else
-                  Semantics(
-                    label: cats ? 'You play Yellow' : 'You play Purple',
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: cats
-                          ? const Color(0xffffcf50)
-                          : const Color(0xffa987ff),
+      child: Center(
+        child: LayoutBuilder(
+          builder: (context, bounds) => FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: bounds.maxWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!finale && hasAnimalArt)
+                    Image.asset(
+                      cats
+                          ? 'assets/games/cat-token.webp'
+                          : 'assets/games/dog-token.webp',
+                      width: 36,
+                      height: 36,
+                      semanticLabel: cats ? 'You play Cats' : 'You play Dogs',
+                    )
+                  else if (!finale)
+                    Semantics(
+                      label: cats ? 'You play Yellow' : 'You play Purple',
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: cats
+                            ? const Color(0xffffcf50)
+                            : const Color(0xffa987ff),
+                      ),
                     ),
-                  ),
-                const SizedBox(height: 5),
-                if (winner != 0 && !statusOnly)
-                  _winBanner(
-                    label,
-                    winner,
-                    muted: match.series && match.finished,
-                  )
-                else
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: const Color(0xfffff4fc),
-                            fontWeight: FontWeight.w700,
-                          ),
+                  if (!finale) const SizedBox(height: 5),
+                  if (finale)
+                    _winBanner(
+                      _gameWinner(match),
+                      winner,
+                      finale: true,
+                      stars: match.series ? 3 : 1,
+                    )
+                  else if (winner != 0 && !statusOnly)
+                    _winBanner(label, winner)
+                  else
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              color: const Color(0xfffff4fc),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+    if (winner == 0 || statusOnly) return heading;
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CustomPaint(
+            painter: _MatchFireworks(
+              progress: _celebration,
+              finale: finale,
+              accent: winner == 1
+                  ? const Color(0xffff9abb)
+                  : const Color(0xffa6ddff),
+            ),
+          ),
+          Center(child: heading),
+        ],
       ),
     );
   }
@@ -543,16 +607,12 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     String label,
     int winner, {
     bool finale = false,
-    bool muted = false,
+    int stars = 0,
   }) {
-    final accent = muted
-        ? const Color(0xff737373)
-        : winner == 1
+    final accent = winner == 1
         ? const Color(0xffff9abb)
         : const Color(0xffa6ddff);
-    final background = muted
-        ? const Color(0xff282828)
-        : const Color(0xff201a31);
+    const background = Color(0xff201a31);
     final banner = Semantics(
       liveRegion: true,
       header: true,
@@ -563,51 +623,50 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
           vertical: finale ? 24 : 7,
         ),
         decoration: BoxDecoration(
-          color: background,
-          gradient: muted
-              ? null
-              : LinearGradient(
-                  colors: [
-                    background,
-                    Color.alphaBlend(accent.withValues(alpha: .20), background),
-                    background,
-                  ],
-                ),
+          gradient: LinearGradient(
+            colors: [
+              background.withValues(alpha: .84),
+              Color.alphaBlend(
+                accent.withValues(alpha: .20),
+                background,
+              ).withValues(alpha: .84),
+              background.withValues(alpha: .84),
+            ],
+          ),
           border: Border.all(color: accent),
           borderRadius: BorderRadius.circular(finale ? 24 : 12),
           boxShadow: [
-            if (!muted)
-              BoxShadow(
-                color: accent.withValues(alpha: .35),
-                blurRadius: finale ? 28 : 12,
-              ),
+            BoxShadow(
+              color: accent.withValues(alpha: .35),
+              blurRadius: finale ? 28 : 12,
+            ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (finale) ...[
-              Icon(Icons.emoji_events_rounded, color: accent, size: 50),
+            if (stars > 0) ...[
+              AnimatedBuilder(
+                animation: _celebration,
+                builder: (context, _) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [for (var i = 0; i < stars; i++) _victoryStar(i)],
+                ),
+              ),
               const SizedBox(height: 8),
             ],
             Text(
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: muted
-                    ? const Color(0xffd2d2d2)
-                    : const Color(0xfffff4fc),
+                color: const Color(0xfffff4fc),
                 fontSize: finale ? 42 : 24,
                 height: 1.08,
                 letterSpacing: .5,
                 fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w900,
                 shadows: [
-                  if (!muted)
-                    Shadow(
-                      color: accent.withValues(alpha: .65),
-                      blurRadius: 16,
-                    ),
+                  Shadow(color: accent.withValues(alpha: .65), blurRadius: 16),
                 ],
               ),
             ),
@@ -624,7 +683,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             ),
           )
         : banner;
-    if (muted || MediaQuery.disableAnimationsOf(context)) return fitted;
+    if (MediaQuery.disableAnimationsOf(context)) return fitted;
     return TweenAnimationBuilder<double>(
       key: ValueKey(label),
       tween: Tween(begin: .86, end: 1),
@@ -632,6 +691,31 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       curve: Curves.easeOutBack,
       child: fitted,
       builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
+    );
+  }
+
+  Widget _victoryStar(int index) {
+    final progress = ((_celebration.value - .15 - index * .13) / .22).clamp(
+      0.0,
+      1.0,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: SizedBox(
+        width: 38,
+        height: 38,
+        child: Opacity(
+          opacity: progress,
+          child: Transform.scale(
+            scale: .48 + .52 * Curves.easeOutBack.transform(progress),
+            child: const Icon(
+              Icons.star_rounded,
+              color: Color(0xffffd86f),
+              size: 38,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -659,9 +743,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
           return Column(
             children: [
               SizedBox(height: topInset),
-              Expanded(
-                child: Center(child: _turnHeading(context, match, game)),
-              ),
+              Expanded(child: _turnHeading(context, match, game)),
               SizedBox(
                 width: boardHeight * aspect,
                 height: boardHeight,
@@ -747,17 +829,15 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
 
   Widget _resultActions(OnlineMatch match, {bool scrollDetails = false}) {
     final winner = match.board.winner;
-    final friend = widget.friendName?.trim();
-    final name = friend == null || friend.isEmpty ? 'Your friend' : friend;
-    final youWon = (winner == 1) == match.mine;
     final details = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (match.finished && winner != 0) ...[
+        if (!scrollDetails && match.finished && winner != 0) ...[
           _winBanner(
-            youWon ? 'You win the game!' : '$name wins the game!',
+            _gameWinner(match),
             winner,
             finale: true,
+            stars: match.series ? 3 : 1,
           ),
           const SizedBox(height: 16),
         ],
@@ -908,7 +988,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                             children: [
                               _arena(context, match, _game!),
                               if (showResult)
-                                _finishedActions(match)
+                                if (!match.finished ||
+                                    !_celebration.isAnimating)
+                                  _finishedActions(match)
+                                else
+                                  const SizedBox.shrink()
                               else if (match.paused ||
                                   pendingControl ||
                                   _error != null ||
@@ -1146,4 +1230,52 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     );
     return ChatAlertView(chat: widget.chat, matchId: widget.id, child: page);
   }
+}
+
+class _MatchFireworks extends CustomPainter {
+  _MatchFireworks({
+    required this.progress,
+    required this.finale,
+    required this.accent,
+  }) : super(repaint: progress);
+
+  final Animation<double> progress;
+  final bool finale;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final time = progress.value;
+    if (time >= 1 || size.isEmpty) return;
+    final paint = Paint()..strokeCap = StrokeCap.round;
+    final bursts = finale ? 7 : 3;
+    for (var burst = 0; burst < bursts; burst++) {
+      final age =
+          (time - (finale ? burst * .09 : burst * .12)) / (finale ? .44 : .73);
+      if (age < 0 || age >= 1) continue;
+      final x = size.width * (.12 + (burst * 37 % 77) / 100);
+      final y = size.height * (.25 + (burst % 3) * .22);
+      final origin = Offset(x, y);
+      final distance =
+          (.13 + (burst % 3) * .026) *
+          math.min(size.width, size.height * 4) *
+          Curves.easeOutCubic.transform(age);
+      for (var spark = 0; spark < 14; spark++) {
+        final angle = spark * math.pi / 7 + burst * .34;
+        final direction = Offset(math.cos(angle), math.sin(angle));
+        final end = origin + direction * (distance * (.72 + (spark % 4) * .1));
+        paint
+          ..strokeWidth = finale ? 2.6 : 2.1
+          ..color = (spark.isEven ? accent : const Color(0xffffdf86))
+              .withValues(alpha: (1 - age) * .92);
+        canvas.drawLine(end - direction * (4 + 7 * (1 - age)), end, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MatchFireworks oldDelegate) =>
+      progress != oldDelegate.progress ||
+      finale != oldDelegate.finale ||
+      accent != oldDelegate.accent;
 }
