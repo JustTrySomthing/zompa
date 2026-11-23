@@ -474,8 +474,8 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
         ? match.status
         : winner != 0
         ? (yours
-              ? 'You win Round ${match.round}!'
-              : '$name wins Round ${match.round}!')
+              ? 'You win Round ${match.round}'
+              : '$name wins Round ${match.round}')
         : (yours ? 'Your turn' : '$name’s turn');
 
     final cats = match.mine;
@@ -511,7 +511,11 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                   ),
                 const SizedBox(height: 5),
                 if (winner != 0 && !statusOnly)
-                  _winBanner(label, winner)
+                  _winBanner(
+                    label,
+                    winner,
+                    muted: match.series && match.finished,
+                  )
                 else
                   Semantics(
                     liveRegion: true,
@@ -535,10 +539,20 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
     );
   }
 
-  Widget _winBanner(String label, int winner, {bool finale = false}) {
-    final accent = winner == 1
+  Widget _winBanner(
+    String label,
+    int winner, {
+    bool finale = false,
+    bool muted = false,
+  }) {
+    final accent = muted
+        ? const Color(0xff737373)
+        : winner == 1
         ? const Color(0xffff9abb)
         : const Color(0xffa6ddff);
+    final background = muted
+        ? const Color(0xff282828)
+        : const Color(0xff201a31);
     final banner = Semantics(
       liveRegion: true,
       header: true,
@@ -549,23 +563,24 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
           vertical: finale ? 24 : 7,
         ),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xff201a31),
-              Color.alphaBlend(
-                accent.withValues(alpha: .20),
-                const Color(0xff201a31),
-              ),
-              const Color(0xff201a31),
-            ],
-          ),
+          color: background,
+          gradient: muted
+              ? null
+              : LinearGradient(
+                  colors: [
+                    background,
+                    Color.alphaBlend(accent.withValues(alpha: .20), background),
+                    background,
+                  ],
+                ),
           border: Border.all(color: accent),
           borderRadius: BorderRadius.circular(finale ? 24 : 12),
           boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: .35),
-              blurRadius: finale ? 28 : 12,
-            ),
+            if (!muted)
+              BoxShadow(
+                color: accent.withValues(alpha: .35),
+                blurRadius: finale ? 28 : 12,
+              ),
           ],
         ),
         child: Column(
@@ -579,14 +594,20 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: const Color(0xfffff4fc),
+                color: muted
+                    ? const Color(0xffd2d2d2)
+                    : const Color(0xfffff4fc),
                 fontSize: finale ? 42 : 24,
                 height: 1.08,
                 letterSpacing: .5,
                 fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w900,
                 shadows: [
-                  Shadow(color: accent.withValues(alpha: .65), blurRadius: 16),
+                  if (!muted)
+                    Shadow(
+                      color: accent.withValues(alpha: .65),
+                      blurRadius: 16,
+                    ),
                 ],
               ),
             ),
@@ -603,7 +624,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
             ),
           )
         : banner;
-    if (MediaQuery.disableAnimationsOf(context)) return fitted;
+    if (muted || MediaQuery.disableAnimationsOf(context)) return fitted;
     return TweenAnimationBuilder<double>(
       key: ValueKey(label),
       tween: Tween(begin: .86, end: 1),
@@ -657,32 +678,47 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
               ),
               Expanded(
                 child: footer
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'ROUND ${match.round}',
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(
-                                        color: const Color(0xfffff4fc),
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 2,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'First Player to win 3 Rounds, Wins the Game',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        color: const Color(0xffdbd1eb),
-                                      ),
-                                ),
-                              ],
+                    ? Transform.translate(
+                        // The themed board canvas has 70 units below the frame.
+                        offset: Offset(
+                          0,
+                          themedGame ? -35 * boardHeight / 665 : 0,
+                        ),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'ROUND ${match.round}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: const Color(0xfffff4fc),
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 2,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'First Player to win 3 Rounds,\nWins the Game',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: const Color(0xffdbd1eb),
+                                        ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

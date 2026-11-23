@@ -181,6 +181,7 @@ class BrandLaunch extends StatefulWidget {
 class _BrandLaunchState extends State<BrandLaunch>
     with SingleTickerProviderStateMixin {
   late final AnimationController _motion;
+  late final Animation<double> _markY;
   bool _finished = false;
 
   @override
@@ -189,10 +190,34 @@ class _BrandLaunchState extends State<BrandLaunch>
     _motion =
         AnimationController(
           vsync: this,
-          duration: const Duration(milliseconds: 1500),
+          duration: const Duration(milliseconds: 950),
         )..addStatusListener((status) {
           if (status == AnimationStatus.completed) _finish();
         });
+
+    _markY = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: -82.0,
+          end: -20.0,
+        ).chain(CurveTween(curve: Curves.easeInQuad)),
+        weight: 54,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: -20.0,
+          end: -36.0,
+        ).chain(CurveTween(curve: Curves.easeOutQuad)),
+        weight: 21,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: -36.0,
+          end: -23.0,
+        ).chain(CurveTween(curve: Curves.easeInOutQuad)),
+        weight: 25,
+      ),
+    ]).animate(CurvedAnimation(parent: _motion, curve: const Interval(0, .54)));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_finished) _motion.forward();
@@ -238,19 +263,14 @@ class _BrandLaunchState extends State<BrandLaunch>
                   .44,
                   curve: Curves.easeOutCubic,
                 ).transform(t);
-                final lift = const Interval(
-                  .19,
-                  .50,
-                  curve: Curves.easeOutCubic,
-                ).transform(t);
                 final reveal = const Interval(
-                  .24,
-                  .55,
+                  .08,
+                  .31,
                   curve: Curves.easeOutCubic,
                 ).transform(t);
                 final ring = const Interval(
-                  .07,
-                  .62,
+                  .29,
+                  .66,
                   curve: Curves.easeOutCubic,
                 ).transform(t);
                 final fade = const Interval(
@@ -284,7 +304,7 @@ class _BrandLaunchState extends State<BrandLaunch>
                               ),
                             ),
                           Transform.translate(
-                            offset: Offset(0, -23 * lift),
+                            offset: Offset(0, _markY.value),
                             child: Transform.rotate(
                               angle: -.12 * (1 - settle),
                               child: Transform.scale(
@@ -298,7 +318,7 @@ class _BrandLaunchState extends State<BrandLaunch>
                             ),
                           ),
                           Transform.translate(
-                            offset: Offset(0, 77 - 10 * reveal),
+                            offset: const Offset(0, 67),
                             child: Opacity(
                               opacity: reveal,
                               child: Image.asset(

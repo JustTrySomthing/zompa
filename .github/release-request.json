@@ -1,5 +1,5 @@
 {
-  "version": "0.5.40",
-  "build": 49,
-  "notes": "- Adds stylized round and match winner announcements in online Cats vs Dogs.\n- Uses theme colors for dialog and invitation actions, including buttons on accent-colored bubbles.\n- Restores game screenshot galleries and lowers the header logo slightly.\n- Keeps Quit and rematch actions visible on compact screens with large text."
+  "version": "0.5.41",
+  "build": 50,
+  "notes": "- Softens the deciding-round banner in online Cats vs Dogs and gives the two-line rules footer more room.\n- Gives the Zompa launch logo a quick drop and bounce."
 }
