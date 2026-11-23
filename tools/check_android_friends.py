@@ -9,7 +9,11 @@ import xml.etree.ElementTree as ET
 
 import cv2
 import numpy as np
-import zxingcpp
+
+try:
+    import zxingcpp
+except ModuleNotFoundError:
+    zxingcpp = None
 
 APP = "io.tablecircle.prototype"
 ACTIVITY = APP + "/.MainActivity"
@@ -141,8 +145,11 @@ class Phone:
             image = self.image()
             if image is None:
                 return None
-            code = zxingcpp.read_barcode(image, formats=zxingcpp.BarcodeFormat.QRCode)
-            return code.text if code else detector.detectAndDecode(image)[0]
+            if zxingcpp is not None:
+                code = zxingcpp.read_barcode(image, formats=zxingcpp.BarcodeFormat.QRCode)
+                if code:
+                    return code.text
+            return detector.detectAndDecode(image)[0]
 
         link = wait("a decodable invite QR", decode_invite, 45)
         self.press("Done")
