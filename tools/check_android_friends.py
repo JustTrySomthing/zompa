@@ -156,17 +156,29 @@ class Phone:
         self.shell("input", "tap", *wait(f"{self.name} online board", board_center, 75))
 
 
+def active_alerts(phone, tag):
+    dump = phone.shell("dumpsys", "notification").decode()
+    active = re.search(r"(?m)^  Notification List:\s*\n((?: {4}[^\n]*\n)*)", dump)
+    if active is None:
+        return []
+    record = re.compile(rf"^    NotificationRecord\(.*\bpkg={re.escape(APP)} .*\btag={re.escape(tag)} ")
+    return [line for line in active[1].splitlines() if record.match(line)]
+
+
 def alert_posted(phone, tag, *, ringing=False):
-    active = phone.shell("dumpsys", "notification").decode().split("Notification List:", 1)[-1]
-    return any(
-        "NotificationRecord(" in line and f"pkg={APP}" in line and f"tag={tag}" in line
-        and (not ringing or (
-            "channel=incoming_calls_ringtone" in line
-            and (flags := re.search(r"flags=0x([0-9a-fA-F]+)", line)) is not None
-            and bool(int(flags.group(1), 16) & 4)
-        ))
-        for line in active.splitlines()
-    )
+    for line in active_alerts(phone, tag):
+        if not ringing:
+            return True
+        # Android 15 prints flag names, while older versions print a bitmask.
+        flags = re.search(r"\bflags=(\S+)", line)
+        if "channel=incoming_calls_ringtone " not in line or flags is None:
+            continue
+        value = flags[1]
+        if "INSISTENT" in value.split("|") or (
+            re.fullmatch(r"0x[0-9a-fA-F]+", value) and int(value, 16) & 0x4
+        ):
+            return True
+    return False
 
 
 def sleep_phone(phone):
@@ -195,7 +207,13 @@ def check_locked_call(alice, bob):
         alice.press("Call")
         wait("an incoming-call notification while Bob’s screen is off",
              lambda: alert_posted(bob, "voice", ringing=True), 75)
+        wake_phone(bob)
+        bob.shell("cmd", "statusbar", "expand-notifications")
+        bob.press("Incoming Zompa call")
+        bob.see("Incoming call from Alice")
+        bob.press("Decline")
     except RuntimeError:
+        print(f"Bob’s active call notifications: {active_alerts(bob, 'voice')}", flush=True)
         for phone in (alice, bob):
             app_log = phone.shell("run-as", APP, "cat", "files/app-log.txt").decode(errors="replace")
             for line in app_log.splitlines()[-20:]:
@@ -211,7 +229,8 @@ def check_locked_call(alice, bob):
             bob.shell("input", "tap", *point)
         bob.press("Alice")
     wait("the incoming-call notification to clear", lambda: not alert_posted(bob, "voice"))
-    print("PASS: the restarted listener posted message and call alerts with the recipient’s screen off.", flush=True)
+    print("PASS: the restarted listener posted screen-off message and ringtone alerts, "
+          "and the call alert reopened the right incoming call.", flush=True)
 
 
 def check_voice(alice, bob):
@@ -302,7 +321,7 @@ def check_match(alice, bob):
     alice.press("Play")
     alice.press("Resume an Active Game")
     alice.see("Cats vs Dogs with Bob")
-    alice.press("Open game")
+    alice.press("Resume Game")
     alice.see("Waiting for your friend to accept.", 100)
 
     bob.press("Accept", 100)
