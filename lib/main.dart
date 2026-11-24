@@ -461,6 +461,10 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     if (installedGames.values.any((game) => game.screenshots.isEmpty)) {
       unawaited(_loadLibraryArtwork());
     }
+    // My Games should discover new versions without requiring Get Games/Refresh.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_checkGameUpdates());
+    });
   }
 
   @override
@@ -491,6 +495,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       }
       _wasInBackground = false;
       _refreshActiveGames();
+      unawaited(_checkGameUpdates());
     }
   }
 
@@ -616,6 +621,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 
   bool catalog = false;
   bool loadingCatalog = false;
+  DateTime? _lastGameCatalogCheck;
   bool downloadingGame = false;
   bool openingGameLink = false;
   String? catalogError;
@@ -661,6 +667,30 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 
   late final Map<String, GameRelease> installedGames = _readLibrary();
 
+  GameRelease? _gameUpdateFor(GameRelease installed) {
+    GameRelease? newest;
+    for (final game in releases) {
+      if (game.id == installed.id &&
+          game.build > installed.build &&
+          (newest == null || game.build > newest.build)) {
+        newest = game;
+      }
+    }
+    return newest;
+  }
+
+  Future<void> _checkGameUpdates() async {
+    if (installedGames.isEmpty || loadingCatalog) return;
+    final now = DateTime.now();
+    final last = _lastGameCatalogCheck;
+    // Avoid repeated network calls when switching tabs or resuming frequently.
+    if (last != null && now.difference(last) < const Duration(minutes: 5)) {
+      return;
+    }
+    _lastGameCatalogCheck = now;
+    await refreshCatalog();
+  }
+
   void _saveLibrary() => widget.write('installedGames', {
     for (final game in installedGames.values) game.id: game.toJson(),
   });
@@ -689,6 +719,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           .where((game) => (gamePreviewEnabled || game.minZompaBuild <= installedBuild))
           .toList();
       if (mounted) {
+        _lastGameCatalogCheck = DateTime.now();
         setState(() => releases = games);
         if (games.any((game) => game.screenshots.isEmpty)) {
           unawaited(_loadLibraryArtwork());
@@ -1301,6 +1332,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           FocusScope.of(context).unfocus();
           setState(() => tab = value);
           _refreshActiveGames();
+          if (value == 1) unawaited(_checkGameUpdates());
         },
       ),
     );
@@ -1361,6 +1393,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                 } else {
                   setState(() => catalog = false);
                   _refreshActiveGames();
+                  unawaited(_checkGameUpdates());
                 }
               },
             ),
@@ -1551,6 +1584,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     VoidCallback? remove,
   }) {
     final distribution = widget.distribution;
+    final newer = catalog ? null : _gameUpdateFor(game);
     final preview = game.screenshots.isNotEmpty
         ? game
         : [...releases, ..._libraryArtwork]
@@ -1646,7 +1680,17 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                     ],
                   ],
                 ),
-                if (hasScreenshots || button != null) ...[
+                if (newer != null) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    'Update available: version ${newer.version}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                if (hasScreenshots || button != null || newer != null) ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -1663,6 +1707,17 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                             preview,
                           ),
                         ),
+                      if (newer != null) ...[
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: downloadingGame
+                              ? null
+                              : () async {
+                                  await installGame(newer);
+                                },
+                          child: const Text('Update'),
+                        ),
+                      ],
                       if (button != null)
                         Expanded(
                           child: Align(
