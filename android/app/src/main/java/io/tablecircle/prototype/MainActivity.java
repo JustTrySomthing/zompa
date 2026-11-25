@@ -66,7 +66,7 @@ public final class MainActivity extends FlutterActivity {
     public void configureFlutterEngine(FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
-            "io.zompa.love", new LovePlayer.Factory(flutterEngine.getDartExecutor().getBinaryMessenger()));
+            "io.zompa.love", new LovePlayer.Factory(this, flutterEngine.getDartExecutor().getBinaryMessenger()));
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
             "io.zompa.chatVideo", playback.factory(false));
         flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(

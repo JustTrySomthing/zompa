@@ -78,6 +78,8 @@ python3 sdk/zomp.py check /tmp/My-Game.zomp --require-three-modes
 
 For `turns-v1`, declare `"minZompaBuild": 55` or higher, along with `"onlineProtocol": "turns-v1"`. Set `"localSaves": true` when using the session API to expose saved rounds in Active Games. Keep the game ID stable across updates, increment its build, and keep the game’s save format versioned.
 
+For a portrait-only game, set `"orientation": "portrait"` in the root package manifest. Zompa Android build 57 and newer requests portrait while the game is open and restores the previous orientation preference when it closes. Omit the field or use `"orientation": "auto"` to follow the device orientation preference. Android may ignore the request on large displays or in multi-window mode. Older Zompa versions ignore this field, so keep the canvas usable when resized.
+
 For private testing use a debug build of Zompa from this source with `--dart-define=ZOMPA_GAME_RELEASE_CHECK=true`. Install it on one or two test devices with Android Debug Bridge, then stage the same package on them:
 
 ```sh

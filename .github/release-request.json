@@ -1,5 +1,5 @@
 {
-  "version": "0.5.47",
-  "build": 56,
-  "notes": "Cats vs Dogs uses a shared layout across Single Player, Pass & Play, and Online 2 Player, with consistent turn and victory feedback and a centered pause panel."
+  "version": "0.5.48",
+  "build": 57,
+  "notes": "Games can request portrait orientation through their package manifest. Fortress Siege stays in portrait while open on supported Android devices. Zompa restores the prior orientation preference when leaving the game."
 }

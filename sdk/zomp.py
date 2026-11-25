@@ -104,6 +104,8 @@ def validate(package, *, require_three_modes=False):
         raise ValueError("Official games must declare solo, local and online.")
     if "localSaves" in manifest and type(manifest["localSaves"]) is not bool:
         raise ValueError("localSaves must be a boolean.")
+    if "orientation" in manifest and manifest["orientation"] not in ("auto", "portrait"):
+        raise ValueError("orientation must be auto or portrait.")
     if "minZompaBuild" in manifest and (
         type(manifest["minZompaBuild"]) is not int
         or not 1 <= manifest["minZompaBuild"] <= 2147483647

@@ -8,6 +8,8 @@ or make your own.
 
 [Browse the game catalog](https://github.com/JustTrySomthing/zompa-games)
 
+Portrait-only games can request a portrait layout while open. Zompa restores the previous orientation preference when you leave.
+
 ## What you can do today
 
 - **Receive background alerts.** Zompa opens to **Chats** and keeps a live connection for messages, calls, and game invites once your chat profile and notifications are enabled. **Settings → Setup** shows the alert and battery settings for delivery while the screen is off.

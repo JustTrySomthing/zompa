@@ -1,6 +1,8 @@
 package io.tablecircle.prototype;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -23,6 +25,7 @@ import io.flutter.plugin.platform.PlatformView;
 import io.flutter.plugin.platform.PlatformViewFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -46,6 +49,8 @@ final class LovePlayer implements PlatformView {
     private static final Pattern MATCH_STATE =
         Pattern.compile("[012]{42}:[12]:[012]:([01])(?::[0-3]:[0-3])?");
     private final FrameLayout container;
+    private final Factory factory;
+    private boolean holdsPortrait;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final MethodChannel channel;
     private volatile WebView web;
@@ -88,18 +93,33 @@ final class LovePlayer implements PlatformView {
     static final class Factory extends PlatformViewFactory {
         private final BinaryMessenger messenger;
 
-        Factory(BinaryMessenger messenger) {
+        private final Activity activity;
+        private int portraitPlayers;
+        private int previousOrientation;
+
+        Factory(Activity activity, BinaryMessenger messenger) {
             super(StandardMessageCodec.INSTANCE);
+            this.activity = activity;
             this.messenger = messenger;
         }
 
         @Override public PlatformView create(Context context, int id, Object args) {
-            return new LovePlayer(context, new MethodChannel(messenger, "io.zompa.love/" + id),
+            return new LovePlayer(this, context, new MethodChannel(messenger, "io.zompa.love/" + id),
                 args instanceof Map ? (Map<?, ?>) args : Collections.emptyMap());
+        }
+        private void acquirePortrait() {
+            if (portraitPlayers++ != 0) return;
+            previousOrientation = activity.getRequestedOrientation();
+            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
+
+        private void releasePortrait() {
+            if (--portraitPlayers == 0) activity.setRequestedOrientation(previousOrientation);
         }
     }
 
-    private LovePlayer(Context context, MethodChannel channel, Map<?, ?> args) {
+    private LovePlayer(Factory factory, Context context, MethodChannel channel, Map<?, ?> args) {
+        this.factory = factory;
         this.channel = channel;
         container = new FrameLayout(context);
         container.setBackgroundColor(0xff181423);
@@ -170,14 +190,18 @@ final class LovePlayer implements PlatformView {
         showMessage("Opening game…");
         new Thread(() -> {
             try {
-                File verified = verify(context, args);
-                String help = readInstructions(verified);
+                VerifiedPackage verified = verify(context, args);
+                String help = readInstructions(verified.file());
                 String identity = args.get("build") == null ? "import/" + args.get("id")
                     : "official/" + args.get("id");
                 String host = gameHost(identity);
                 main.post(() -> {
                     if (disposed) return;
-                    archive = verified;
+                    if (verified.portrait()) {
+                        factory.acquirePortrait();
+                        holdsPortrait = true;
+                    }
+                    archive = verified.file();
                     instructions = help;
                     originHost = host;
                     start(context, mode, save, build);
@@ -294,7 +318,24 @@ final class LovePlayer implements PlatformView {
             "text/html", "UTF-8", null);
     }
 
-    static File verify(Context context, Map<?, ?> args) throws Exception {
+    record VerifiedPackage(File file, boolean portrait) {}
+
+    private static JSONObject readManifest(ZipFile zip) throws IOException, JSONException {
+        ZipEntry manifest = zip.getEntry("zompa.json");
+        if (manifest == null) manifest = zip.getEntry("zompado.json");
+        if (manifest == null) return null;
+        if (manifest.getSize() < 1 || manifest.getSize() > 4096) {
+            throw new IOException("Invalid game manifest size");
+        }
+        try (var input = new DataInputStream(zip.getInputStream(manifest))) {
+            byte[] bytes = new byte[(int) manifest.getSize()];
+            input.readFully(bytes);
+            if (input.read() != -1) throw new IOException("Incorrect game manifest size");
+            return new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+        }
+    }
+
+    static VerifiedPackage verify(Context context, Map<?, ?> args) throws Exception {
         String id = args.get("id") instanceof String ? (String) args.get("id") : "";
         Object build = args.get("build");
         String expected = args.get("sha") instanceof String ? (String) args.get("sha") : "";
@@ -321,32 +362,31 @@ final class LovePlayer implements PlatformView {
         }
         if (!LoveImport.hex(hash.digest()).equals(expected)) throw new IOException("Game file changed");
         LoveImport.validate(file);
-        if (build != null) {
-            try (var zip = new ZipFile(file)) {
-                ZipEntry manifest = zip.getEntry("zompa.json");
-                if (manifest == null) manifest = zip.getEntry("zompado.json");
-                if (manifest == null || manifest.getSize() < 1 || manifest.getSize() > 4096) {
-                    throw new IOException("Missing game manifest");
-                }
-                var bytes = new ByteArrayOutputStream();
-                try (var input = zip.getInputStream(manifest)) {
-                    byte[] buffer = new byte[512];
-                    for (int count; (count = input.read(buffer)) != -1;) {
-                        if (bytes.size() + count > 4096) throw new IOException("Game manifest is too large");
-                        bytes.write(buffer, 0, count);
-                    }
-                }
-                var info = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-                if (info.optInt("schema") != 1 || !id.equals(info.optString("id"))
-                        || !build.equals(info.optInt("build")) || !"love-11.5".equals(info.optString("runtime"))
-                        || !"main.lua".equals(info.optString("entry"))
-                        || !java.util.Objects.equals(args.get("onlineProtocol"),
-                            info.optString("onlineProtocol", null))) {
-                    throw new IOException("Incompatible game manifest");
-                }
+        boolean portrait = false;
+        try (var zip = new ZipFile(file)) {
+            JSONObject info;
+            try {
+                info = readManifest(zip);
+            } catch (IOException | JSONException invalidManifest) {
+                // Legacy .love imports can have unrelated metadata at this path.
+                if (build != null) throw invalidManifest;
+                info = null;
+            }
+            boolean packageManifest = info != null && info.optInt("schema") == 1
+                && "love-11.5".equals(info.optString("runtime"))
+                && "main.lua".equals(info.optString("entry"));
+            if (build != null && (!packageManifest || !id.equals(info.optString("id"))
+                    || !build.equals(info.optInt("build"))
+                    || !java.util.Objects.equals(args.get("onlineProtocol"),
+                        info.optString("onlineProtocol", null)))) {
+                throw new IOException("Incompatible game manifest");
+            }
+            if (packageManifest) {
+                portrait = "portrait".equals(info.opt("orientation"))
+                    || (!info.has("orientation") && "fortress-badlands".equals(info.optString("id")));
             }
         }
-        return file;
+        return new VerifiedPackage(file, portrait);
     }
 
     @SuppressWarnings("deprecation")
@@ -558,6 +598,10 @@ final class LovePlayer implements PlatformView {
 
     @Override public void dispose() {
         disposed = true;
+        if (holdsPortrait) {
+            holdsPortrait = false;
+            factory.releasePortrait();
+        }
         if (leaving != null) finishLeave(false);
         channel.setMethodCallHandler(null);
         main.removeCallbacks(moves);
