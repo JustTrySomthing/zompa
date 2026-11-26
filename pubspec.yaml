@@ -1,7 +1,7 @@
 name: zompa
 description: Zompa, an Android-first game and chat app.
 publish_to: none
-version: 0.5.49+58
+version: 0.5.50+59
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:

@@ -63,7 +63,7 @@ class GameScreenshot {
   final String file, label;
 
   static List<GameScreenshot> parse(Object? value) {
-    if (value is! List || value.length > 3) return const [];
+    if (value is! List || value.length > 8) return const [];
     final images = <GameScreenshot>[];
     final seen = <String>{};
     for (final entry in value) {
@@ -73,7 +73,7 @@ class GameScreenshot {
         continue;
       final file = entry['file'] as String;
       final label = (entry['label'] as String).trim();
-      if (RegExp(r'^shot-[1-3]\.webp$').hasMatch(file) &&
+      if (RegExp(r'^shot-[1-8]\.webp$').hasMatch(file) &&
           label.isNotEmpty &&
           label.length <= 100 &&
           seen.add(file)) {
@@ -97,7 +97,7 @@ class GameRelease {
       localSaves = json['localSaves'] == true,
       minZompaBuild = (json['minZompaBuild'] as int?) ?? 1,
       onlineProtocol = json['onlineProtocol'] as String?,
-      screenshots = GameScreenshot.parse(json['screenshots']) {
+      screenshots = GameScreenshot.parse(json['gallery'] ?? json['screenshots']) {
     if (id.length > 64 ||
         !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
         json['format'] != 'zomp' ||

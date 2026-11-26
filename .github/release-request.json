@@ -1,5 +1,5 @@
 {
-  "version": "0.5.49",
-  "build": 58,
-  "notes": "Refreshing Get Games checks the current catalog. My Games displays and caches cover artwork for installed games, including Fortress Siege."
+  "version": "0.5.50",
+  "build": 59,
+  "notes": "Browse up to eight screenshots per game in Get Games and My Games."
 }
