@@ -1,5 +1,5 @@
 {
-  "version": "0.5.50",
-  "build": 59,
-  "notes": "Browse up to eight screenshots per game in Get Games and My Games."
+  "version": "0.5.51",
+  "build": 60,
+  "notes": "Report the usable game viewport after online banners and system insets."
 }

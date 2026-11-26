@@ -12,6 +12,17 @@ let isPaused = false;
 let gameRunning = false;
 let audio = [100, 100, 100];
 
+// The WebView already excludes the toolbar, online heading and system insets.
+function publishViewport() {
+  if (!runtime) return;
+  const width = document.documentElement.clientWidth;
+  const height = document.documentElement.clientHeight;
+  if (width > 0 && height > 0) {
+    runtime.ZompaFS.writeFile(bridgeDirectory + '/viewport', width + ':' + height);
+  }
+}
+window.addEventListener('resize', publishViewport);
+
 function applyAudio() {
   if (!runtime) return;
   const [volume, music, effects] = audio;
@@ -148,6 +159,7 @@ async function start() {
       }
       saveMounted = mode !== 'online' && Boolean(fs.filesystems.IDBFS);
       runtime = module;
+      publishViewport();
       applyAudio();
     }],
     postRun: [() => {
