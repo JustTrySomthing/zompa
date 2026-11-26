@@ -181,6 +181,7 @@ class AppRelease {
 class GithubDistribution {
   GithubDistribution(this.directory);
   final Directory directory;
+  final _coverLoads = <String, Future<Uint8List>>{};
 
   Future<List<GameRelease>> catalog({bool includeArchive = false}) async {
     final Map<String, dynamic> json;
@@ -191,7 +192,15 @@ class GithubDistribution {
         throw const FormatException('Unsupported release check catalog.');
       }
     } else {
-      json = await _manifest(gamesRepository, 'catalog-v2.json', schema: 2);
+      json = await _readManifest(
+        _freshUri(
+          'raw.githubusercontent.com',
+          '/$githubOwner/$gamesRepository/main/catalog-v2.json',
+        ),
+        schema: 2,
+        fresh: true,
+        repository: gamesRepository,
+      );
     }
     final entries = [
       ...(json['games'] as List),
@@ -217,7 +226,53 @@ class GithubDistribution {
         !game.screenshots.any((image) => image.file == file)) {
       throw const FormatException('Unknown game image.');
     }
-    const maxBytes = 350 * 1024;
+    if (file != 'cover.webp') return _fetchGameImage(game, file);
+
+    final cover = File(
+      '${gameFile(game).parent.path}/artwork/${game.build}-cover.webp',
+    );
+    return _coverLoads.putIfAbsent(cover.path, () async {
+      try {
+        return await _loadGameCover(game, cover);
+      } finally {
+        _coverLoads.remove(cover.path);
+      }
+    });
+  }
+
+  static const _maxGameImageBytes = 350 * 1024;
+
+  bool _isWebp(Uint8List bytes) =>
+      bytes.length >= 16 &&
+      bytes.length <= _maxGameImageBytes &&
+      String.fromCharCodes(bytes.take(4)) == 'RIFF' &&
+      String.fromCharCodes(bytes.skip(8).take(4)) == 'WEBP' &&
+      ByteData.sublistView(bytes).getUint32(4, Endian.little) + 8 ==
+          bytes.length;
+
+  Future<Uint8List> _loadGameCover(GameRelease game, File cover) async {
+    try {
+      final length = await cover.length();
+      if (length <= _maxGameImageBytes) {
+        final bytes = await cover.readAsBytes();
+        if (_isWebp(bytes)) return bytes;
+      }
+    } on FileSystemException {
+      // Fetch the cover if the cache is absent or unreadable.
+    }
+
+    final bytes = await _fetchGameImage(game, 'cover.webp');
+    if (!_isWebp(bytes)) throw const FormatException('Invalid game cover.');
+    try {
+      await cover.parent.create(recursive: true);
+      await cover.writeAsBytes(bytes, flush: true);
+    } on FileSystemException {
+      // The downloaded image can still be displayed if caching fails.
+    }
+    return bytes;
+  }
+
+  Future<Uint8List> _fetchGameImage(GameRelease game, String file) async {
     final uri = game.imageUrl(file);
     final client = _client();
     try {
@@ -226,12 +281,12 @@ class GithubDistribution {
         uri,
         gamesRepository,
       );
-      if (response.contentLength > maxBytes) {
+      if (response.contentLength > _maxGameImageBytes) {
         throw const FormatException('Game image is too large.');
       }
       final bytes = BytesBuilder(copy: false);
       await for (final chunk in response.timeout(const Duration(seconds: 15))) {
-        if (bytes.length + chunk.length > maxBytes) {
+        if (bytes.length + chunk.length > _maxGameImageBytes) {
           throw const FormatException('Game image is too large.');
         }
         bytes.add(chunk);
@@ -244,10 +299,9 @@ class GithubDistribution {
 
   Future<AppRelease> appRelease() async => AppRelease.fromJson(
     await _readManifest(
-      Uri.https(
+      _freshUri(
         'github.com',
         '/$githubOwner/$appRepository/releases/latest/download/update.json',
-        {'check': DateTime.now().microsecondsSinceEpoch.toString()},
       ),
       schema: 1,
       fresh: true,
@@ -255,15 +309,9 @@ class GithubDistribution {
     ),
   );
 
-  Future<Map<String, dynamic>> _manifest(
-    String repo,
-    String name, {
-    int schema = 1,
-  }) => _readManifest(
-    Uri.https('raw.githubusercontent.com', '/$githubOwner/$repo/main/$name'),
-    schema: schema,
-    repository: repo,
-  );
+  Uri _freshUri(String host, String path) => Uri.https(host, path, {
+    'check': DateTime.now().microsecondsSinceEpoch.toString(),
+  });
 
   Future<Map<String, dynamic>> _readManifest(
     Uri url, {

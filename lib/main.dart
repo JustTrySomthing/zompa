@@ -458,7 +458,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     _watchActiveMatches();
     _refreshActiveGames();
     _routeChatAlert();
-    if (installedGames.values.any((game) => game.screenshots.isEmpty)) {
+    if (installedGames.values.any(_missingArtwork)) {
       unawaited(_loadLibraryArtwork());
     }
     // My Games should discover new versions without requiring Get Games/Refresh.
@@ -629,6 +629,9 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   List<GameRelease> _libraryArtwork = const [];
   bool _loadingArtwork = false;
 
+  bool _missingArtwork(GameRelease game) =>
+      !game.hasCover || game.screenshots.isEmpty;
+
   Future<void> _loadLibraryArtwork() async {
     if (_loadingArtwork) return;
     _loadingArtwork = true;
@@ -721,7 +724,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       if (mounted) {
         _lastGameCatalogCheck = DateTime.now();
         setState(() => releases = games);
-        if (games.any((game) => game.screenshots.isEmpty)) {
+        if (games.any(_missingArtwork) ||
+            installedGames.values.any(_missingArtwork)) {
           unawaited(_loadLibraryArtwork());
         }
       }
@@ -751,7 +755,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         catalog = false;
       });
       _refreshActiveGames();
-      if (release.screenshots.isEmpty) unawaited(_loadLibraryArtwork());
+      if (_missingArtwork(release)) unawaited(_loadLibraryArtwork());
       return true;
     } catch (_) {
       if (mounted)
@@ -1576,6 +1580,24 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     );
   }
 
+  GameRelease? _artworkFor(
+    GameRelease game,
+    bool Function(GameRelease) hasArtwork,
+  ) {
+    if (hasArtwork(game)) return game;
+    GameRelease? best;
+    for (final candidate in [...releases, ..._libraryArtwork]) {
+      if (candidate.id == game.id &&
+          candidate.title == game.title &&
+          candidate.build <= game.build &&
+          hasArtwork(candidate) &&
+          (best == null || candidate.build > best.build)) {
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
   Widget gameCard(
     GameRelease game, {
     required String? button,
@@ -1585,23 +1607,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   }) {
     final distribution = widget.distribution;
     final newer = catalog ? null : _gameUpdateFor(game);
-    final preview = game.screenshots.isNotEmpty
-        ? game
-        : [...releases, ..._libraryArtwork]
-              .where(
-                (candidate) =>
-                    candidate.id == game.id &&
-                    candidate.title == game.title &&
-                    candidate.build <= game.build &&
-                    candidate.screenshots.isNotEmpty,
-              )
-              .fold<GameRelease?>(
-                null,
-                (latest, candidate) =>
-                    latest == null || candidate.build > latest.build
-                    ? candidate
-                    : latest,
-              );
+    final preview = _artworkFor(game, (game) => game.screenshots.isNotEmpty);
+    final cover = _artworkFor(game, (game) => game.hasCover);
     final bytes = game.asset.size;
     final size = bytes < 1024
         ? '$bytes B'
@@ -1615,18 +1622,18 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (game.id == 'drop-four' || (catalog && game.hasCover))
+          if (game.id == 'drop-four' || cover != null)
             SizedBox(
               height: 146,
               child: game.id == 'drop-four'
                   ? game.build >= 6
                         ? const CatsVsDogsCover()
                         : const GameCover()
-                  : catalog && game.hasCover && distribution != null
+                  : cover != null && distribution != null
                   ? CatalogGameImage(
-                      key: ValueKey(game.imageUrl('cover.webp')),
+                      key: ValueKey(cover.imageUrl('cover.webp')),
                       distribution: distribution,
-                      game: game,
+                      game: cover,
                       file: 'cover.webp',
                       fit: BoxFit.cover,
                       fallback: const GameCover(),

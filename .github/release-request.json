@@ -1,5 +1,5 @@
 {
-  "version": "0.5.48",
-  "build": 57,
-  "notes": "Games can request portrait orientation through their package manifest. Fortress Siege stays in portrait while open on supported Android devices. Zompa restores the prior orientation preference when leaving the game."
+  "version": "0.5.49",
+  "build": 58,
+  "notes": "Refreshing Get Games checks the current catalog. My Games displays and caches cover artwork for installed games, including Fortress Siege."
 }
