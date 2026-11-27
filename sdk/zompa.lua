@@ -71,6 +71,8 @@ function sdk.submitOnlineMove(move)
     return true
 end
 
+local cachedTurns, cachedRevision, cachedPageCount
+
 -- Read the complete turn log on either transport. The inviter is player 1.
 -- Each call returns a new table because games may consume or trim the list.
 function sdk.readTurns()
@@ -83,6 +85,11 @@ function sdk.readTurns()
         player, allowed, count = header:match("^([12]):([01]):(%d+)$")
         if not count then return nil end
         count = tonumber(count)
+        local revision = readHost("match-revision", 24)
+        if revision and revision == cachedRevision and count == cachedPageCount then
+            for i, move in ipairs(cachedTurns) do turns[i] = move end
+            return turns, tonumber(player), allowed == "1"
+        end
         for page = 0, count - 1 do
             local data = readHost("match-page-" .. page, 32896)
             if not data or #data > 32895 or data:sub(1, 1) == "," or data:sub(-1) == ","
@@ -95,7 +102,14 @@ function sdk.readTurns()
             end
             if size == 0 or size > 128 or (page + 1 < count and size ~= 128) then return nil end
         end
+        if revision then
+            cachedTurns, cachedRevision, cachedPageCount = {}, revision, count
+            for i, move in ipairs(turns) do cachedTurns[i] = move end
+        else
+            cachedTurns, cachedRevision, cachedPageCount = nil, nil, nil
+        end
     else
+        cachedTurns, cachedRevision, cachedPageCount = nil, nil, nil
         local state = readHost("match", 132001)
         if not state then return nil end
         local history

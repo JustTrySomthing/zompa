@@ -8,6 +8,9 @@ let runtime;
 let pendingMatch;
 let pagedMatch;
 const stagedMatchPages = new Map();
+const committedMatchPages = new Map();
+let matchRevision = 0;
+let publishedPageCount = 0;
 let opponentName = '';
 let genericTurns = false;
 let isPaused = false;
@@ -70,12 +73,22 @@ function publishMatchPages() {
   if (!runtime || pagedMatch === undefined) return;
   const fs = runtime.ZompaFS;
   const count = Number(pagedMatch.slice(4));
-  for (const [index, page] of stagedMatchPages) {
-    if (index < count) fs.writeFile(`${bridgeDirectory}/match-page-${index}`, page);
+  let historyChanged = count !== publishedPageCount;
+  for (const [index, page] of committedMatchPages) {
+    if (index < count) {
+      fs.writeFile(`${bridgeDirectory}/match-page-${index}`, page);
+      historyChanged = true;
+    }
   }
+  for (let index = count; index < publishedPageCount; index++) {
+    fs.unlink(`${bridgeDirectory}/match-page-${index}`);
+  }
+  publishedPageCount = count;
+  if (historyChanged) matchRevision++;
+  fs.writeFile(`${bridgeDirectory}/match-revision`, String(matchRevision));
   fs.writeFile(`${bridgeDirectory}/match-pages`, pagedMatch);
   fs.writeFile(`${bridgeDirectory}/opponent`, opponentName);
-  stagedMatchPages.clear();
+  committedMatchPages.clear();
 }
 
 window.zompaGame = Object.freeze({
@@ -88,6 +101,10 @@ window.zompaGame = Object.freeze({
       runtime.ZompaFS.writeFile(`${bridgeDirectory}/opponent`, opponentName);
     }
   },
+  setOpponentName(name) {
+    opponentName = name;
+    if (runtime) runtime.ZompaFS.writeFile(`${bridgeDirectory}/opponent`, name);
+  },
   stageMatchPage(index, page) {
     stagedMatchPages.set(index, page);
   },
@@ -95,6 +112,8 @@ window.zompaGame = Object.freeze({
     opponentName = name;
     genericTurns = true;
     pagedMatch = head;
+    for (const [index, page] of stagedMatchPages) committedMatchPages.set(index, page);
+    stagedMatchPages.clear();
     publishMatchPages();
   },
   hasAdvancedSettings() {

@@ -54,6 +54,9 @@ class LoveGameViewState extends State<LoveGameView>
   MethodChannel? _channel;
   String _audio = '100:100:100';
   List<String> _sentPages = const [];
+  bool _syncingPages = false;
+  bool _pagesDirty = false;
+  bool _pageSyncFailed = false;
 
   @override
   void initState() {
@@ -77,7 +80,8 @@ class LoveGameViewState extends State<LoveGameView>
   @override
   void didUpdateWidget(LoveGameView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.match != oldWidget.match ||
+    if (_pageSyncFailed ||
+        widget.match != oldWidget.match ||
         !listEquals(widget.matchPages, oldWidget.matchPages)) {
       _syncMatch();
     }
@@ -96,6 +100,7 @@ class LoveGameViewState extends State<LoveGameView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _send('pause', widget.paused || state != AppLifecycleState.resumed);
+    if (state == AppLifecycleState.resumed && _pageSyncFailed) _syncMatch();
   }
 
   Future<bool> hasAdvancedSettings() async {
@@ -126,19 +131,50 @@ class LoveGameViewState extends State<LoveGameView>
 
   void _syncMatch() {
     final match = widget.match;
-    if (match == null || _channel == null) return;
-    final pages = widget.matchPages;
-    if (pages == null) {
+    final channel = _channel;
+    if (match == null || channel == null) return;
+    if (widget.matchPages == null) {
       _send('match', match);
       return;
     }
-    for (var i = 0; i < pages.length; i++) {
-      if (i >= _sentPages.length || _sentPages[i] != pages[i]) {
-        _send('matchPage', [i, pages[i]]);
+    _pagesDirty = true;
+    if (!_syncingPages) unawaited(_syncTurnPages(channel));
+  }
+
+  Future<void> _syncTurnPages(MethodChannel channel) async {
+    _syncingPages = true;
+    try {
+      while (mounted && _channel == channel && _pagesDirty) {
+        _pagesDirty = false;
+        final pages = widget.matchPages!;
+        final head = '${widget.match}:${pages.length}';
+        final retry = !_pageSyncFailed;
+        try {
+          await channel.invokeMethod<void>('discardMatchPages');
+          for (var i = 0; i < pages.length; i++) {
+            if (_pageSyncFailed ||
+                i >= _sentPages.length ||
+                _sentPages[i] != pages[i]) {
+              await channel.invokeMethod<void>('matchPage', [i, pages[i]]);
+            }
+          }
+          await channel.invokeMethod<void>('matchHead', head);
+          if (_channel == channel) {
+            _sentPages = pages;
+            _pageSyncFailed = false;
+          }
+        } on PlatformException {
+          _pageSyncFailed = true;
+          _pagesDirty = _pagesDirty || retry;
+        } on MissingPluginException {
+          _pageSyncFailed = true;
+          _pagesDirty = _pagesDirty || retry;
+        }
       }
+    } finally {
+      _syncingPages = false;
+      if (mounted && _pagesDirty && _channel != channel) _syncMatch();
     }
-    _send('matchHead', '$match:${pages.length}');
-    _sentPages = pages;
   }
 
   void _send(String method, Object argument) {
@@ -184,6 +220,7 @@ class LoveGameViewState extends State<LoveGameView>
         final channel = MethodChannel('io.zompa.love/$id');
         _channel = channel;
         _sentPages = const [];
+        _pageSyncFailed = false;
         channel.setMethodCallHandler((call) async {
           if (mounted &&
               !widget.paused &&

@@ -63,7 +63,7 @@ final class LovePlayer implements PlatformView {
     private boolean online;
     private final boolean genericTurns;
     private final boolean longTurns;
-    private final ArrayList<String> matchPages = new ArrayList<>();
+    private final OnlineTurnPages matchPages = new OnlineTurnPages();
     private String opponentName;
     private MethodChannel.Result leaving;
     private String match;
@@ -140,32 +140,36 @@ final class LovePlayer implements PlatformView {
             switch (call.method) {
                 case "opponentName":
                     opponentName = safeOpponentName(call.arguments);
-                    if (longTurns) sendMatchHead();
-                    else sendMatch();
+                    if (longTurns) {
+                        if (web != null) web.evaluateJavascript("window.zompaGame?.setOpponentName("
+                                + JSONObject.quote(opponentName) + ")", null);
+                    } else sendMatch();
+                    result.success(null);
+                    break;
+                case "discardMatchPages":
+                    matchPages.discard();
                     result.success(null);
                     break;
                 case "matchPage":
                     if (longTurns && call.arguments instanceof java.util.List<?> page && page.size() == 2
-                            && page.get(0) instanceof Integer index && index >= 0 && index <= matchPages.size()
-                            && page.get(1) instanceof String contents && !contents.isEmpty()
-                            && contents.length() <= 32895 && contents.matches("[A-Za-z0-9_,-]+")) {
-                        if (index == matchPages.size()) matchPages.add(contents);
-                        else matchPages.set(index, contents);
-                        sendMatchPage(index);
-                    }
-                    result.success(null);
+                            && page.get(0) instanceof Integer index
+                            && page.get(1) instanceof String contents && matchPages.stage(index, contents)) {
+                        result.success(null);
+                    } else result.error("TURN_PAGE", "Invalid turn page.", null);
                     break;
                 case "matchHead":
                     if (longTurns && call.arguments instanceof String head && head.matches("[12]:[01]:[0-9]{1,9}")) {
-                        int count = Integer.parseInt(head.substring(4));
-                        if (count <= matchPages.size()) {
-                            matchPages.subList(count, matchPages.size()).clear();
+                        var changed = matchPages.commit(Integer.parseInt(head.substring(4)));
+                        if (changed != null) {
                             match = head;
                             moveAllowed = head.charAt(2) == '1';
+                            for (int index : changed) sendMatchPage(index);
                             sendMatchHead();
+                            result.success(null);
+                            break;
                         }
                     }
-                    result.success(null);
+                    result.error("TURN_PAGE", "Incomplete turn history.", null);
                     break;
                 case "match":
                     String state = call.arguments();
