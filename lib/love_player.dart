@@ -91,6 +91,18 @@ class LoveGameViewState extends State<LoveGameView>
     _send('pause', widget.paused || state != AppLifecycleState.resumed);
   }
 
+  Future<bool> hasAdvancedSettings() async {
+    try {
+      return await _channel?.invokeMethod<bool>('hasAdvancedSettings') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  void openAdvancedSettings() => _send('openAdvancedSettings', true);
+
   Future<String?> instructions() async {
     try {
       return await _channel?.invokeMethod<String>('instructions');

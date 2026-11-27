@@ -15,6 +15,8 @@ class GameToolbar extends StatefulWidget implements PreferredSizeWidget {
     this.paused = false,
     this.onPause,
     required this.onHelp,
+    this.hasAdvancedSettings,
+    this.onAdvancedSettings,
   });
 
   final String title;
@@ -23,6 +25,8 @@ class GameToolbar extends StatefulWidget implements PreferredSizeWidget {
   final bool chatOpen, unread, paused;
   final VoidCallback? onMessage, onPause;
   final VoidCallback onHelp;
+  final Future<bool> Function()? hasAdvancedSettings;
+  final VoidCallback? onAdvancedSettings;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -56,6 +60,45 @@ class _GameToolbarState extends State<GameToolbar> {
     super.dispose();
   }
 
+  Future<void> _showSettings() async {
+    final hasAdvanced = await widget.hasAdvancedSettings?.call() ?? false;
+    if (!mounted) return;
+    final openAdvanced = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Game Settings', style: Theme.of(context).textTheme.titleLarge),
+              ListTile(
+                leading: const Icon(Icons.volume_up_outlined),
+                title: const Text('Sound'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => GameAudioButton.show(context),
+              ),
+              if (hasAdvanced)
+                ListTile(
+                  leading: const Icon(Icons.tune),
+                  title: const Text('Advanced Settings'),
+                  trailing: const Icon(Icons.chevron_right),
+                  enabled: !widget.paused,
+                  onTap: widget.paused
+                      ? null
+                      : () => Navigator.pop(context, true),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (mounted && openAdvanced == true) widget.onAdvancedSettings?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     final calls = _calls;
@@ -87,11 +130,15 @@ class _GameToolbarState extends State<GameToolbar> {
           onPressed: widget.onHelp,
           icon: const Icon(Icons.help_outline),
         ),
-        const GameAudioButton(),
         IconButton(
           tooltip: widget.paused ? 'Resume' : 'Pause',
           onPressed: widget.onPause,
           icon: Icon(widget.paused ? Icons.play_arrow : Icons.pause),
+        ),
+        IconButton(
+          tooltip: 'Game Settings',
+          onPressed: _showSettings,
+          icon: const Icon(Icons.settings_outlined),
         ),
       ],
     );

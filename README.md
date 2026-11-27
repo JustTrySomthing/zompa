@@ -19,7 +19,7 @@ Portrait-only games can request a portrait layout while open. Zompa restores the
 
 [Submit a game or update its catalog artwork](https://github.com/JustTrySomthing/zompa-games#submit-a-game).
 
-Downloaded games require Android 10 or later and a sandboxed WebView renderer. Open **Settings → Game audio** to adjust volume, mute the game, or control whether its volume lowers during a call. The circled speaker mutes all game sound. SDK games also support separate music and effects controls. [Game SDK and toolbar behavior](sdk/README.md).
+Downloaded games require Android 10 or later and a sandboxed WebView renderer. Open **Settings → Game audio** to adjust volume, mute the game, or control whether its volume lowers during a call. The circled speaker mutes all game sound. While playing, open **Game Settings → Sound** from the toolbar gear. SDK games also support separate music and effects controls and can provide their own Advanced Settings screen. [Game SDK and toolbar behavior](sdk/README.md).
 
 After Android stops the process, Zompa checks for new activity on Android’s schedule. A call alert lets you answer if the call is still ringing. Reopen the app after using Android’s **Force stop**. **Settings → Setup** and **Help** cover alerts and permissions.
 

@@ -1,5 +1,5 @@
 {
-  "version": "0.5.51",
-  "build": 60,
-  "notes": "Report the usable game viewport after online banners and system insets."
+  "version": "0.5.52",
+  "build": 61,
+  "notes": "Add a Game Settings gear with Sound and SDK support for game-provided Advanced Settings."
 }

@@ -37,6 +37,16 @@ local function readHost(name, limit)
     return value
 end
 
+-- Advertise an in-game Advanced Settings screen to the host toolbar.
+function sdk.enableAdvancedSettings()
+    local file = io.open("/zompado/advanced-settings", "wb")
+    if file then file:write("1"); file:close() end
+end
+
+function sdk.settingsRequest()
+    return tonumber(readHost("settings-request", 12))
+end
+
 function sdk.mode()
     local mode = readHost("mode", 8)
     if not mode then return "solo", false end

@@ -1001,6 +1001,9 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
                 onMessage: _toggleChat,
                 chatOpen: _chatOpen,
                 unread: _chatUnread,
+                hasAdvancedSettings: () async =>
+                    await _helpPlayer.currentState?.hasAdvancedSettings() ?? false,
+                onAdvancedSettings: () => _helpPlayer.currentState?.openAdvancedSettings(),
                 paused: match!.pausedByMe,
                 onPause:
                     _sending ||

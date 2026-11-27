@@ -129,6 +129,9 @@ class _GamePlayPageState extends State<GamePlayPage> {
               if (mounted) setState(() => _reading = false);
             }
           },
+          hasAdvancedSettings: () async =>
+              await _player.currentState?.hasAdvancedSettings() ?? false,
+          onAdvancedSettings: () => _player.currentState?.openAdvancedSettings(),
           paused: _paused,
           onPause: _leaving ? null : () => setState(() => _paused = !_paused),
         ),

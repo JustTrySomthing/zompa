@@ -11,6 +11,7 @@ let genericTurns = false;
 let isPaused = false;
 let gameRunning = false;
 let audio = [100, 100, 100];
+let settingsRequest = 0;
 
 // The WebView already excludes the toolbar, online heading and system insets.
 function publishViewport() {
@@ -71,6 +72,13 @@ window.zompaGame = Object.freeze({
       runtime.ZompaFS.writeFile(`${bridgeDirectory}/match`, state);
       runtime.ZompaFS.writeFile(`${bridgeDirectory}/opponent`, opponentName);
     }
+  },
+  hasAdvancedSettings() {
+    return runtime?.ZompaFS.analyzePath(bridgeDirectory + '/advanced-settings').exists === true;
+  },
+  openAdvancedSettings() {
+    if (!this.hasAdvancedSettings()) return;
+    runtime.ZompaFS.writeFile(bridgeDirectory + '/settings-request', String(++settingsRequest));
   },
   setAudio(settings) {
     if (typeof settings !== 'string' || !/^(100|[1-9]?[0-9]):(100|[1-9]?[0-9]):(100|[1-9]?[0-9])$/.test(settings)) return;

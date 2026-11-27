@@ -160,6 +160,15 @@ final class LovePlayer implements PlatformView {
                 case "instructions":
                     result.success(instructions);
                     break;
+                case "hasAdvancedSettings":
+                    if (web == null) result.success(false);
+                    else web.evaluateJavascript("window.zompaGame?.hasAdvancedSettings()", value ->
+                        result.success("true".equals(value)));
+                    break;
+                case "openAdvancedSettings":
+                    if (web != null) web.evaluateJavascript("window.zompaGame?.openAdvancedSettings()", null);
+                    result.success(null);
+                    break;
                 case "audio":
                     setAudio(call.arguments());
                     result.success(null);

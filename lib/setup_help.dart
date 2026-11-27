@@ -324,7 +324,7 @@ const _topics = [
       ),
       (
         'How do I change game sounds?',
-        'Open Settings → Game audio or tap the speaker icon while playing. Game volume starts at 20% until you change it. Tap the circled speaker to mute all game audio without changing your volume levels. Music and sound effects also have separate mute buttons. Zompa lowers game volume during voice calls by default and restores it when the call ends. Separate Music and Sound effects sliders work with games that use the Zompa SDK.',
+        'Open Settings → Game audio or open Game Settings → Sound from the gear while playing. Game volume starts at 20% until you change it. Tap the circled speaker to mute all game audio without changing your volume levels. Music and sound effects also have separate mute buttons. Zompa lowers game volume during voice calls by default and restores it when the call ends. Separate Music and Sound effects sliders work with games that use the Zompa SDK.',
       ),
       (
         'How do I remove a downloaded game?',

@@ -91,3 +91,11 @@ Reopen Zompa and install your package in **Games → Get Games**. In this debug 
 ## Publishing check
 
 For the reference game, the games repository builds the candidate `.zomp` once. The publishing check uses that exact package in the Zompa Android player. It plays a human and computer turn in Single Player, plays both sides and checks resume in Pass & Play, and uses two Android installs to accept an invitation and exchange moves through Chatmail in Online 2 Player. A failed check blocks publishing the package and updating Get Games. For a new game, add the adjacent Android scenario described in the [games repository](https://github.com/JustTrySomthing/zompa-games#publish-a-game-to-get-games).
+
+### Advanced Settings
+
+Call `zompa.enableAdvancedSettings()` from `love.load` to add **Advanced Settings**
+below **Sound** in the host's game settings. Poll `zompa.settingsRequest()` in
+`love.update`. When it returns a new non-nil request number, open your own
+settings screen. Games control editing, persistence, and online synchronization
+of their own options. The toolbar entry requires Zompa Android build 61 or later.
