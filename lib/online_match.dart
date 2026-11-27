@@ -63,14 +63,18 @@ extension OnlineMatchHistory on Chatmail {
     };
     if (byChat.isEmpty) return [];
     final histories = <(int, String), List<FriendMessage>>{};
-    for (final message in await recentMatchMessages(matchMarker)) {
-      if (message.info ||
-          (!message.outgoing && !message.encrypted) ||
-          !byChat.containsKey(message.chat)) {
-        continue;
-      }
-      if (MatchEvent.parse(message.text) case final event?) {
-        (histories[(message.chat, event.id)] ??= []).add(message);
+    // Global Chatmail search can omit the invitation in a long match.
+    // Conversation-scoped searches return the complete retained history.
+    for (final chat in byChat.keys) {
+      for (final message in await matchHistory(chat, matchMarker)) {
+        if (message.info ||
+            (!message.outgoing && !message.encrypted) ||
+            message.chat != chat) {
+          continue;
+        }
+        if (MatchEvent.parse(message.text) case final event?) {
+          (histories[(chat, event.id)] ??= []).add(message);
+        }
       }
     }
     return [
@@ -236,6 +240,7 @@ class MatchEvent {
     this.column,
     this.payload,
     this.turnProtocol = false,
+    this.longTurns = false,
     this.outcome,
     this.revision,
     this.rematchOf,
@@ -247,6 +252,7 @@ class MatchEvent {
     GameLink game, {
     String? rematchOf,
     bool turnProtocol = false,
+    bool longTurns = false,
   }) {
     final random = Random.secure();
     final id = List.generate(
@@ -258,8 +264,9 @@ class MatchEvent {
       'invite',
       game: game,
       rematchOf: rematchOf,
-      series: !turnProtocol && game.build >= 11,
-      turnProtocol: turnProtocol,
+      series: !turnProtocol && !longTurns && game.build >= 11,
+      turnProtocol: turnProtocol || longTurns,
+      longTurns: longTurns,
     );
   }
 
@@ -269,13 +276,18 @@ class MatchEvent {
   final String? previous, rematchOf;
   final int? column, revision, outcome;
   final String? payload;
-  final bool turnProtocol;
+  final bool turnProtocol, longTurns;
+  String? get onlineProtocol => longTurns
+      ? 'turns-v2'
+      : turnProtocol
+      ? 'turns-v1'
+      : null;
   final bool series;
   final int round;
 
   static bool supportsGame(GameRelease game) =>
       game.modes.contains('online') &&
-      (game.onlineProtocol == 'turns-v1' || game.id == 'drop-four');
+      (game.onlineProtocol != null || game.id == 'drop-four');
 
   // A bounded ASCII move can encode JSON, text, or a compact game-specific token.
   static bool validPayload(String value) =>
@@ -314,7 +326,7 @@ class MatchEvent {
       if (column != null) 'column': column,
       if (payload != null) 'payload': payload,
       if (outcome != null) 'outcome': outcome,
-      if (turnProtocol) 'protocol': 'turns-v1',
+      if (onlineProtocol case final protocol?) 'protocol': protocol,
       if (revision != null) 'rev': revision,
       if (series) 'series': true,
       if (kind == 'next' || round > 1) 'round': round,
@@ -334,7 +346,8 @@ class MatchEvent {
           case 'invite':
             if (data['game'] case final String link) {
               final game = GameLink.parse(link);
-              final turnProtocol = data['protocol'] == 'turns-v1';
+              final longTurns = data['protocol'] == 'turns-v2';
+              final turnProtocol = longTurns || data['protocol'] == 'turns-v1';
               if (game != null && (turnProtocol || game.id == 'drop-four')) {
                 final rematchOf = data['rematchOf'];
                 return MatchEvent._(
@@ -346,6 +359,7 @@ class MatchEvent {
                       game.build >= 11 &&
                       data['series'] == true,
                   turnProtocol: turnProtocol,
+                  longTurns: longTurns,
                   rematchOf:
                       rematchOf is String &&
                           rematchOf != id &&
@@ -443,6 +457,17 @@ class OnlineMatch {
 
   String sdkSnapshot({required bool canMove}) =>
       '${mine ? 1 : 2}:${canMove ? 1 : 0}:${turnHistory.join(",")}';
+  // 128 maximum-size tokens plus commas fit in a 32,895-byte page.
+  List<String> sdkTurnPages() {
+    const pageSize = 128;
+    return [
+      for (var start = 0; start < turnHistory.length; start += pageSize)
+        turnHistory
+            .getRange(start, min(start + pageSize, turnHistory.length))
+            .join(','),
+    ];
+  }
+
   bool series = false;
   int round = 1;
   final scores = [0, 0];
@@ -548,7 +573,7 @@ class OnlineMatch {
           r.event.game.toString() != first.event.game.toString() ||
           r.event.rematchOf != first.event.rematchOf ||
           r.event.series != first.event.series ||
-          r.event.turnProtocol != first.event.turnProtocol,
+          r.event.onlineProtocol != first.event.onlineProtocol,
     )) {
       match.conflict = true;
     }
@@ -613,7 +638,7 @@ class OnlineMatch {
       }
       while (!match.boardComplete &&
           match.pending == null &&
-          match.turnHistory.length < 512) {
+          (match.invite.longTurns || match.turnHistory.length < 512)) {
         final outgoing = (match.turn == 1) == match.mine;
         final candidates = byHead[match.turnHead]
             ?.where((record) => record.message.outgoing == outgoing)
@@ -638,7 +663,9 @@ class OnlineMatch {
         match.turnOutcome = event.outcome;
         match.turnHead = sha256.convert(utf8.encode(event.wire)).toString();
       }
-      if (match.turnHistory.length == 512 && !match.boardComplete) {
+      if (!match.invite.longTurns &&
+          match.turnHistory.length == 512 &&
+          !match.boardComplete) {
         match.turnOutcome = 0;
       }
     }

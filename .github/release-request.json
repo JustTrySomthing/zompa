@@ -1,5 +1,5 @@
 {
-  "version": "0.5.52",
-  "build": 61,
-  "notes": "Add a Game Settings gear with Sound and SDK support for game-provided Advanced Settings."
+  "version": "0.5.53",
+  "build": 62,
+  "notes": "Add SDK 5 and paged online turn history for turns-v2 games, so long matches finish by their game rules."
 }

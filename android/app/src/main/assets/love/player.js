@@ -6,6 +6,8 @@ const status = document.getElementById('status');
 const bridgeDirectory = '/zompado';
 let runtime;
 let pendingMatch;
+let pagedMatch;
+const stagedMatchPages = new Map();
 let opponentName = '';
 let genericTurns = false;
 let isPaused = false;
@@ -63,6 +65,19 @@ function autosave() {
   if (gameRunning && !exiting) flushSaves().catch(console.error);
 }
 
+// The header is published last, in the same JavaScript callback as the page writes.
+function publishMatchPages() {
+  if (!runtime || pagedMatch === undefined) return;
+  const fs = runtime.ZompaFS;
+  const count = Number(pagedMatch.slice(4));
+  for (const [index, page] of stagedMatchPages) {
+    if (index < count) fs.writeFile(`${bridgeDirectory}/match-page-${index}`, page);
+  }
+  fs.writeFile(`${bridgeDirectory}/match-pages`, pagedMatch);
+  fs.writeFile(`${bridgeDirectory}/opponent`, opponentName);
+  stagedMatchPages.clear();
+}
+
 window.zompaGame = Object.freeze({
   setMatch(state, turns, name) {
     opponentName = typeof name === 'string' ? name : '';
@@ -72,6 +87,15 @@ window.zompaGame = Object.freeze({
       runtime.ZompaFS.writeFile(`${bridgeDirectory}/match`, state);
       runtime.ZompaFS.writeFile(`${bridgeDirectory}/opponent`, opponentName);
     }
+  },
+  stageMatchPage(index, page) {
+    stagedMatchPages.set(index, page);
+  },
+  commitMatchPages(head, name) {
+    opponentName = name;
+    genericTurns = true;
+    pagedMatch = head;
+    publishMatchPages();
   },
   hasAdvancedSettings() {
     return runtime?.ZompaFS.analyzePath(bridgeDirectory + '/advanced-settings').exists === true;
@@ -167,6 +191,7 @@ async function start() {
       }
       saveMounted = mode !== 'online' && Boolean(fs.filesystems.IDBFS);
       runtime = module;
+      publishMatchPages();
       publishViewport();
       applyAudio();
     }],

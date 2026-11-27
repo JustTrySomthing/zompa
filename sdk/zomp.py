@@ -112,10 +112,10 @@ def validate(package, *, require_three_modes=False):
     ):
         raise ValueError("minZompaBuild must be a positive 32-bit integer.")
     if "onlineProtocol" in manifest and (
-        manifest["onlineProtocol"] != "turns-v1" or "online" not in modes
-        or manifest.get("minZompaBuild", 1) < 55
+        manifest["onlineProtocol"] not in ("turns-v1", "turns-v2") or "online" not in modes
+        or manifest.get("minZompaBuild", 1) < (62 if manifest["onlineProtocol"] == "turns-v2" else 55)
     ):
-        raise ValueError("onlineProtocol must be turns-v1 and requires the online mode and minZompaBuild 55 or higher.")
+        raise ValueError("Online turn games require online mode and minZompaBuild 55 for turns-v1 or 62 for turns-v2.")
     return manifest
 
 

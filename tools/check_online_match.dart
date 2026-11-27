@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 import '../lib/chatmail.dart';
 import '../lib/game_link.dart';
 import '../lib/online_match.dart';
@@ -275,5 +279,61 @@ void main() {
   );
   print(
     'PASS: game-specific turn tokens, delivery, ordering, conflict, and result.',
+  );
+  const total = 4097;
+  final long = MatchEvent.invite(secondGame, longTurns: true);
+  check(
+    MatchEvent.parse(long.wire)?.onlineProtocol == 'turns-v2',
+    'Long protocol survives invitation parsing',
+  );
+  final history = <FriendMessage>[];
+  var head = '0' * 64;
+  for (var i = 0; i < total; i++) {
+    final event = long.turn(
+      head,
+      i.toString().padLeft(256, 'x'),
+      outcome: i == total - 1 ? 1 : null,
+    );
+    history.add(message(event, outgoing: i.isEven));
+    head = sha256.convert(utf8.encode(event.wire)).toString();
+  }
+  OnlineMatch longReplay(int count, {bool mine = true}) =>
+      OnlineMatch.replay(long.id, [
+        message(long, outgoing: mine),
+        message(long.accept(), outgoing: !mine),
+        message(long.control('resume', 1), outgoing: mine),
+        if (mine)
+          ...history.take(count)
+        else
+          for (final event in history.take(count))
+            message(MatchEvent.parse(event.text)!, outgoing: !event.outgoing),
+      ])!;
+  for (final count in [512, 513, 4096]) {
+    final open = longReplay(count);
+    check(
+      open.turnHistory.length == count && !open.boardComplete,
+      'The host must keep a turns-v2 match open at $count',
+    );
+    final pages = open.sdkTurnPages();
+    check(
+      pages.every((page) => page.length <= 32895) &&
+          pages.join(',') == open.turnHistory.join(','),
+      'A maximum-size history must be split without losing entries',
+    );
+    check(
+      longReplay(count, mine: false).turnHead == open.turnHead,
+      'Both players must reconstruct the same match after reopening',
+    );
+  }
+  final longFinished = longReplay(total);
+  check(
+    longFinished.boardComplete &&
+        longFinished.winner == 1 &&
+        longFinished.turnHistory.length == total &&
+        longFinished.turnHead == head,
+    'The game can report its winner beyond 4096 entries',
+  );
+  print(
+    'PASS: 4097 maximum-size entries, bounded pages, reconnect for both sides, and game-reported outcome.',
   );
 }

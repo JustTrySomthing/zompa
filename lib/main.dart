@@ -1135,7 +1135,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       if (link == null) return;
       final chat = await chatmail.openContact(contact.id);
       if (!mounted) return;
-      final invite = MatchEvent.invite(link, turnProtocol: game.onlineProtocol == 'turns-v1');
+      final invite = MatchEvent.invite(
+        link,
+        turnProtocol: game.onlineProtocol == 'turns-v1',
+        longTurns: game.onlineProtocol == 'turns-v2',
+      );
       final moved = await chatmail.sendMatchOpening(chat, invite);
       if (!mounted) return;
       if (moved != null) _gameNotice(matchMovedNotice(moved));

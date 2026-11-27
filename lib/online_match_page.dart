@@ -380,6 +380,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       match.invite.game!,
       rematchOf: match.invite.id,
       turnProtocol: match.invite.turnProtocol,
+      longTurns: match.invite.longTurns,
     );
     try {
       await _sendInvitation(invitation);
@@ -432,8 +433,7 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       final candidate = await widget.prepareGame(link);
       final game =
           candidate != null &&
-              (candidate.onlineProtocol == 'turns-v1') ==
-                  (_match?.invite.turnProtocol == true)
+              candidate.onlineProtocol == _match?.invite.onlineProtocol
           ? candidate
           : null;
       if (mounted) {
@@ -760,14 +760,17 @@ class _OnlineMatchPageState extends State<OnlineMatchPage>
       final opponent = name == null || name.isEmpty
           ? null
           : String.fromCharCodes(name.runes.take(80));
+      final canMove =
+          match.myTurn && !_sending && !_chatOpen && _error == null;
       final player = LoveGameView.official(
         key: _helpPlayer,
         game: game,
         mode: 'online',
         paused: match.paused && !match.boardComplete,
-        match: match.sdkSnapshot(
-          canMove: match.myTurn && !_sending && !_chatOpen && _error == null,
-        ),
+        match: match.invite.longTurns
+            ? '${match.mine ? 1 : 2}:${canMove ? 1 : 0}'
+            : match.sdkSnapshot(canMove: canMove),
+        matchPages: match.invite.longTurns ? match.sdkTurnPages() : null,
         opponentName: opponent,
         onTurn: _submitTurn,
       );

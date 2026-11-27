@@ -33,6 +33,8 @@ jobs:
       - name: Build the ARM64 package
         run: |
           flutter pub get --enforce-lockfile
+          dart tools/check_online_match.dart
+          node tools/check_turn_pages.cjs
           flutter build apk --release --target-platform android-arm64 --no-pub
           apk=build/app/outputs/flutter-apk/app-release.apk
           unzip -p "$apk" lib/arm64-v8a/libchatmail_rpc.so > "$RUNNER_TEMP/packed-chatmail-rpc"

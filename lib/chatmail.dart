@@ -757,7 +757,7 @@ class Chatmail {
   Future<List<FriendMessage>> matchHistory(int chat, String id) =>
       _search(chat, id);
 
-  Future<List<FriendMessage>> _search(int? chat, String id) async {
+  Future<List<FriendMessage>> _search(int chat, String id) async {
     final account = _accountId;
     final ids = (await _call('search_messages', [account, id, chat]) as List)
         .cast<int>();
@@ -774,9 +774,6 @@ class Chatmail {
     }
     return records;
   }
-
-  Future<List<FriendMessage>> recentMatchMessages(String marker) =>
-      _search(null, marker);
 
   Future<List<FriendMessage>> recentUnreadAlerts() async {
     final account = _accountId;

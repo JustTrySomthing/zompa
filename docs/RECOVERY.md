@@ -31,6 +31,8 @@ Cats vs Dogs retains the `drop-four` game ID for saves and older match links. St
 
 The match invitation opens a waiting screen for the sender. The recipient’s Accept action sends a preparation status, gets the required game from the catalog if needed, then signals readiness. The inviter selects Play Now to open both boards. Pause and resume are tracked per player. Quit ends the match for both. The online match list is available from My Games and the Play menu.
 
+Online packages using SDK 5 can declare `turns-v2` with minimum host build 62. The Android bridge delivers bounded turn-history pages, and the game reports the result. Existing `turns-v1` invitations stay on their original game build and protocol. See the [SDK guide](../sdk/README.md) for long-history testing.
+
 ## Previous builds
 
 The [signed 0.5.19 preview, build 28](https://github.com/JustTrySomthing/zompa/actions/runs/44803403814/artifacts/14663605112) was built from `d8ad902`. The game toolbar provides pause, resume, quit, and audio. During online matches it adds message and phone controls, a slide-down chat panel, and brief previews for incoming messages. Resume Game in My Games opens the active board directly. See the [Android game-flow check](https://github.com/JustTrySomthing/zompa/actions/runs/44803404116) and [two-device check](https://github.com/JustTrySomthing/zompa/actions/runs/44803403829). The APK SHA-256 is `3491d7b9e037cfeba4c66608775de1c741aaf3aa5fa3bca02331aeb524444672`.

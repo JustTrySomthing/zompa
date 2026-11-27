@@ -1,5 +1,5 @@
 -- Zompa game SDK v4. This module also runs in desktop LÖVE for development.
-local sdk = {version = 4}
+local sdk = {version = 5}
 local slots = "zompado-saves"
 
 local function savePath(slot)
@@ -71,15 +71,38 @@ function sdk.submitOnlineMove(move)
     return true
 end
 
--- Read the generic turn log. Player 1 is the inviter and moves first.
+-- Read the complete turn log on either transport. The inviter is player 1.
+-- Each call returns a new table because games may consume or trim the list.
 function sdk.readTurns()
     if sdk.mode() ~= "online" then return nil end
-    local state = readHost("match", 132001)
-    if not state then return nil end
-    local player, allowed, history = state:match("^([12]):([01]):([A-Za-z0-9_,-]*)$")
-    if not player then return nil end
+    local header = readHost("match-pages", 32)
+    local player, allowed
     local turns = {}
-    for move in history:gmatch("[^,]+") do turns[#turns + 1] = move end
+    if header then
+        local count
+        player, allowed, count = header:match("^([12]):([01]):(%d+)$")
+        if not count then return nil end
+        count = tonumber(count)
+        for page = 0, count - 1 do
+            local data = readHost("match-page-" .. page, 32896)
+            if not data or #data > 32895 or data:sub(1, 1) == "," or data:sub(-1) == ","
+                    or data:find(",,", 1, true) then return nil end
+            local size = 0
+            for move in data:gmatch("[^,]+") do
+                if #move > 256 or not move:match("^[A-Za-z0-9_-]+$") then return nil end
+                size = size + 1
+                turns[#turns + 1] = move
+            end
+            if size == 0 or size > 128 or (page + 1 < count and size ~= 128) then return nil end
+        end
+    else
+        local state = readHost("match", 132001)
+        if not state then return nil end
+        local history
+        player, allowed, history = state:match("^([12]):([01]):([A-Za-z0-9_,-]*)$")
+        if not player then return nil end
+        for move in history:gmatch("[^,]+") do turns[#turns + 1] = move end
+    end
     return turns, tonumber(player), allowed == "1"
 end
 

@@ -10,6 +10,8 @@ or make your own.
 
 Portrait-only games can request a portrait layout while open. Zompa restores the previous orientation preference when you leave.
 
+New online games can use the [Zompa SDK’s paged turn history](sdk/README.md). A turns-v2 match ends when the game reports its result. Both players need Zompa 0.5.53 or later and the same turns-v2 game package.
+
 ## What you can do today
 
 - **Receive background alerts.** Zompa opens to **Chats** and keeps a live connection for messages, calls, and game invites once your chat profile and notifications are enabled. **Settings → Setup** shows the alert and battery settings for delivery while the screen is off.

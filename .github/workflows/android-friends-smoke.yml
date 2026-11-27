@@ -161,8 +161,11 @@ jobs:
             [[ "$build" =~ ^[1-9][0-9]*$ && "$name" =~ ^[A-Za-z0-9.-]+\.zomp$ ]]
             [[ "$sha" =~ ^[a-f0-9]{64}$ ]]
             printf '%s  %s\n' "$sha" "$fixture/$name" | sha256sum --check
-            if [[ $(jq -r '.games[0].onlineProtocol // ""' "$fixture/catalog-v2.json") == turns-v1 ]]; then
+            protocol=$(jq -r '.games[0].onlineProtocol // ""' "$fixture/catalog-v2.json")
+            if [[ "$protocol" == turns-v2 ]]; then
               unzip -p "$fixture/$name" zompa.lua | cmp - sdk/zompa.lua
+            fi
+            if [[ "$protocol" == turns-v[12] ]]; then
               export ZOMPA_GENERIC_TURNS=1
             fi
             stage() {

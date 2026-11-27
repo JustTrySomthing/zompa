@@ -16,6 +16,7 @@ class LoveGameView extends StatefulWidget {
     this.mode = 'solo',
     this.fresh = false,
     this.match,
+    this.matchPages,
     this.onMove,
     this.onTurn,
     this.opponentName,
@@ -30,6 +31,7 @@ class LoveGameView extends StatefulWidget {
       mode = 'solo',
       fresh = false,
       match = null,
+      matchPages = null,
       onMove = null,
       onTurn = null,
       opponentName = null;
@@ -38,6 +40,7 @@ class LoveGameView extends StatefulWidget {
   final String mode;
   final bool fresh;
   final String? match, opponentName;
+  final List<String>? matchPages;
   final ValueChanged<int>? onMove;
   final ValueChanged<String>? onTurn;
   final bool paused;
@@ -50,6 +53,7 @@ class LoveGameViewState extends State<LoveGameView>
     with WidgetsBindingObserver {
   MethodChannel? _channel;
   String _audio = '100:100:100';
+  List<String> _sentPages = const [];
 
   @override
   void initState() {
@@ -73,7 +77,10 @@ class LoveGameViewState extends State<LoveGameView>
   @override
   void didUpdateWidget(LoveGameView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.match != oldWidget.match) _syncMatch();
+    if (widget.match != oldWidget.match ||
+        !listEquals(widget.matchPages, oldWidget.matchPages)) {
+      _syncMatch();
+    }
     if (widget.opponentName != oldWidget.opponentName) {
       _send('opponentName', widget.opponentName ?? '');
     }
@@ -118,7 +125,20 @@ class LoveGameViewState extends State<LoveGameView>
   }
 
   void _syncMatch() {
-    if (widget.match case final match?) _send('match', match);
+    final match = widget.match;
+    if (match == null || _channel == null) return;
+    final pages = widget.matchPages;
+    if (pages == null) {
+      _send('match', match);
+      return;
+    }
+    for (var i = 0; i < pages.length; i++) {
+      if (i >= _sentPages.length || _sentPages[i] != pages[i]) {
+        _send('matchPage', [i, pages[i]]);
+      }
+    }
+    _send('matchHead', '$match:${pages.length}');
+    _sentPages = pages;
   }
 
   void _send(String method, Object argument) {
@@ -163,6 +183,7 @@ class LoveGameViewState extends State<LoveGameView>
         if (!mounted) return;
         final channel = MethodChannel('io.zompa.love/$id');
         _channel = channel;
+        _sentPages = const [];
         channel.setMethodCallHandler((call) async {
           if (mounted &&
               !widget.paused &&

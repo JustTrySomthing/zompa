@@ -62,6 +62,8 @@ final class LovePlayer implements PlatformView {
     private String instructions;
     private boolean online;
     private final boolean genericTurns;
+    private final boolean longTurns;
+    private final ArrayList<String> matchPages = new ArrayList<>();
     private String opponentName;
     private MethodChannel.Result leaving;
     private String match;
@@ -126,7 +128,8 @@ final class LovePlayer implements PlatformView {
         String mode = "online".equals(args.get("mode")) ? "online"
             : "local".equals(args.get("mode")) ? "local" : "solo";
         online = mode.equals("online");
-        genericTurns = online && "turns-v1".equals(args.get("onlineProtocol"));
+        longTurns = online && "turns-v2".equals(args.get("onlineProtocol"));
+        genericTurns = longTurns || (online && "turns-v1".equals(args.get("onlineProtocol")));
         opponentName = safeOpponentName(args.get("opponentName"));
         int build = "drop-four".equals(args.get("id")) && args.get("build") instanceof Integer
             ? (Integer) args.get("build") : 0;
@@ -137,12 +140,36 @@ final class LovePlayer implements PlatformView {
             switch (call.method) {
                 case "opponentName":
                     opponentName = safeOpponentName(call.arguments);
-                    sendMatch();
+                    if (longTurns) sendMatchHead();
+                    else sendMatch();
+                    result.success(null);
+                    break;
+                case "matchPage":
+                    if (longTurns && call.arguments instanceof java.util.List<?> page && page.size() == 2
+                            && page.get(0) instanceof Integer index && index >= 0 && index <= matchPages.size()
+                            && page.get(1) instanceof String contents && !contents.isEmpty()
+                            && contents.length() <= 32895 && contents.matches("[A-Za-z0-9_,-]+")) {
+                        if (index == matchPages.size()) matchPages.add(contents);
+                        else matchPages.set(index, contents);
+                        sendMatchPage(index);
+                    }
+                    result.success(null);
+                    break;
+                case "matchHead":
+                    if (longTurns && call.arguments instanceof String head && head.matches("[12]:[01]:[0-9]{1,9}")) {
+                        int count = Integer.parseInt(head.substring(4));
+                        if (count <= matchPages.size()) {
+                            matchPages.subList(count, matchPages.size()).clear();
+                            match = head;
+                            moveAllowed = head.charAt(2) == '1';
+                            sendMatchHead();
+                        }
+                    }
                     result.success(null);
                     break;
                 case "match":
                     String state = call.arguments();
-                    if (online && state != null) {
+                    if (online && !longTurns && state != null) {
                         var parsed = MATCH_STATE.matcher(state);
                         if (genericTurns && state.length() <= 132000
                                 && state.matches("[12]:[01]:[A-Za-z0-9_,-]*")) {
@@ -583,7 +610,25 @@ final class LovePlayer implements PlatformView {
 
     private void sendMatch() {
         if (web == null || match == null) return;
+        if (longTurns) {
+            for (int i = 0; i < matchPages.size(); i++) sendMatchPage(i);
+            sendMatchHead();
+            return;
+        }
         web.evaluateJavascript("window.zompaGame?.setMatch(" + JSONObject.quote(match) + ", " + genericTurns + ", " + JSONObject.quote(opponentName) + ")", null);
+        updatePolling();
+    }
+
+    private void sendMatchPage(int index) {
+        if (web == null) return;
+        web.evaluateJavascript("window.zompaGame?.stageMatchPage(" + index + ", "
+                + JSONObject.quote(matchPages.get(index)) + ")", null);
+    }
+
+    private void sendMatchHead() {
+        if (web == null || match == null) return;
+        web.evaluateJavascript("window.zompaGame?.commitMatchPages(" + JSONObject.quote(match)
+                + ", " + JSONObject.quote(opponentName) + ")", null);
         updatePolling();
     }
 

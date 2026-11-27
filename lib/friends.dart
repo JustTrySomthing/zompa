@@ -1578,7 +1578,11 @@ class _FriendConversationState extends State<FriendConversation>
       if (!mounted || link == null) return;
       final game = GameLink.parse(link);
       if (game == null || _thread?.canSend != true) return;
-      final invite = MatchEvent.invite(game, turnProtocol: selected.onlineProtocol == 'turns-v1');
+      final invite = MatchEvent.invite(
+        game,
+        turnProtocol: selected.onlineProtocol == 'turns-v1',
+        longTurns: selected.onlineProtocol == 'turns-v2',
+      );
       if (await _send(gameLink: invite.wire) && mounted) {
         _openMatch(invite.id);
       }

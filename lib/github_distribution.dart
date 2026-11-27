@@ -97,7 +97,9 @@ class GameRelease {
       localSaves = json['localSaves'] == true,
       minZompaBuild = (json['minZompaBuild'] as int?) ?? 1,
       onlineProtocol = json['onlineProtocol'] as String?,
-      screenshots = GameScreenshot.parse(json['gallery'] ?? json['screenshots']) {
+      screenshots = GameScreenshot.parse(
+        json['gallery'] ?? json['screenshots'],
+      ) {
     if (id.length > 64 ||
         !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(id) ||
         json['format'] != 'zomp' ||
@@ -110,8 +112,8 @@ class GameRelease {
         minZompaBuild < 1 ||
         minZompaBuild > 2147483647 ||
         (onlineProtocol != null &&
-            (onlineProtocol != 'turns-v1' ||
-                minZompaBuild < 55 ||
+            ((onlineProtocol != 'turns-v1' && onlineProtocol != 'turns-v2') ||
+                minZompaBuild < (onlineProtocol == 'turns-v2' ? 62 : 55) ||
                 !modes.contains('online'))) ||
         !modes.contains('solo')) {
       throw const FormatException('Invalid game catalog entry.');
