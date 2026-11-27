@@ -1,6 +1,6 @@
 # Zompa game SDK
 
-The Zompa Lua SDK targets LÖVE 11.5. Put [zompa.lua](zompa.lua) in the game root and load it with `require("zompa")`. Start with [Cats vs Dogs](https://github.com/JustTrySomthing/zompa-games/tree/main/drop-four/1.3.14), the reference game for all three official modes. [Tap Counter](template) is a small desktop example for learning the Lua helpers. Set a unique identity in `conf.lua` when developing locally with LÖVE.
+The Zompa Lua SDK targets LÖVE 11.5. Put [zompa.lua](zompa.lua) in the game root and load it with `require("zompa")`. Start with [Cats vs Dogs](https://github.com/JustTrySomthing/zompa-games/tree/main/drop-four/1.3.14), the reference game for all three official modes. [Fortress Siege 1.4.0](https://github.com/JustTrySomthing/zompa-games/tree/main/fortress-badlands/1.4.0) shows the turns-v2 online flow. [Tap Counter](template) is a small desktop example for learning the Lua helpers. Set a unique identity in `conf.lua` when developing locally with LÖVE.
 
 Run the sample during development with LÖVE 11.5.
 

@@ -1,4 +1,4 @@
--- Zompa game SDK v4. This module also runs in desktop LÖVE for development.
+-- Zompa game SDK v5. This module also runs in desktop LÖVE for development.
 local sdk = {version = 5}
 local slots = "zompado-saves"
 
