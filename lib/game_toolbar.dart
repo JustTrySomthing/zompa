@@ -246,13 +246,14 @@ class GamePausePanel extends StatelessWidget {
     super.key,
     this.detail,
     this.onResume,
+    this.onNewGame,
     this.onQuit,
     this.quitLabel = 'Quit match',
     this.extraActions = const [],
   });
 
   final String? detail;
-  final VoidCallback? onResume, onQuit;
+  final VoidCallback? onResume, onNewGame, onQuit;
   final String quitLabel;
   final List<Widget> extraActions;
 
@@ -296,6 +297,11 @@ class GamePausePanel extends StatelessWidget {
                         FilledButton(
                           onPressed: onResume,
                           child: const Text('Resume'),
+                        ),
+                      if (onNewGame != null)
+                        OutlinedButton(
+                          onPressed: onNewGame,
+                          child: const Text('New Game'),
                         ),
                       if (onQuit != null)
                         TextButton(onPressed: onQuit, child: Text(quitLabel)),

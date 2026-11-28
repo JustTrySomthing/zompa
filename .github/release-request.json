@@ -1,5 +1,5 @@
 {
-  "version": "0.5.55",
-  "build": 64,
-  "notes": "Get Games reads larger catalogs and retains access to earlier game builds."
+  "version": "0.5.56",
+  "build": 65,
+  "notes": "Start a new solo or Pass & Play game from the pause menu, with confirmation before replacing the current match."
 }

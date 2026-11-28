@@ -32,7 +32,8 @@ class GamePlayPage extends StatefulWidget {
 }
 
 class _GamePlayPageState extends State<GamePlayPage> {
-  final _player = GlobalKey<LoveGameViewState>();
+  var _player = GlobalKey<LoveGameViewState>();
+  late bool _fresh = widget.fresh;
   bool _paused = false;
   bool _leaving = false;
   bool _reading = false;
@@ -65,6 +66,48 @@ class _GamePlayPageState extends State<GamePlayPage> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _newGame() async {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          scrollable: true,
+          title: const Text('Start a new game?'),
+          content: const Text('This will replace your current match progress.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Start new game'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+      // Finish the old player's save before reopening the same mode fresh.
+      // Fresh launch clears only that slot, after the new runtime loads it.
+      await _player.currentState?.leave(quit: false);
+      if (!mounted) return;
+      setState(() {
+        _player = GlobalKey<LoveGameViewState>();
+        _fresh = true;
+        _paused = false;
+      });
+    } on PlatformException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Couldn’t start a new game. Try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _leaving = false);
     }
   }
 
@@ -144,7 +187,7 @@ class _GamePlayPageState extends State<GamePlayPage> {
                 child: widget.game != null
                     ? LoveGameView.official(
                         key: _player,
-                        fresh: widget.fresh,
+                        fresh: _fresh,
                         game: widget.game!,
                         mode: widget.mode,
                         paused: _paused || _reading,
@@ -160,6 +203,7 @@ class _GamePlayPageState extends State<GamePlayPage> {
                   onResume: _leaving
                       ? null
                       : () => setState(() => _paused = false),
+                  onNewGame: _hasLocalSaves && !_leaving ? _newGame : null,
                   onQuit: _leaving ? null : _quit,
                   quitLabel: _isCatsVsDogs ? 'Quit match' : 'Quit game',
                 ),

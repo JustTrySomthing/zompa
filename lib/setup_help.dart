@@ -340,7 +340,7 @@ const _topics = [
       ),
       (
         'How do I pause or leave a game?',
-        'Tap Pause to take a break and Resume to continue. Tap the Back arrow to leave and return later from Active Games. Choose Quit match from the pause menu in Cats vs Dogs or End Game beside the round in Active Games to discard it. In an online match, the player who paused can resume, and quitting ends the match for both players.',
+        'Tap Pause to take a break and Resume to continue. For games with local saves, New Game starts a fresh round in the same mode after you confirm. Tap the Back arrow to leave and return later from Active Games. Choose Quit match from the pause menu in Cats vs Dogs or End Game beside the round in Active Games to discard it. In an online match, the player who paused can resume, and quitting ends the match for both players.',
       ),
       (
         'Can I talk to my friend while playing?',
