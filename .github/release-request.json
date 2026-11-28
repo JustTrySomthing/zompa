@@ -1,5 +1,5 @@
 {
-  "version": "0.5.54",
-  "build": 63,
-  "notes": "Keep committed online histories intact during interrupted updates and avoid rereading unchanged history pages."
+  "version": "0.5.55",
+  "build": 64,
+  "notes": "Get Games reads larger catalogs and retains access to earlier game builds."
 }

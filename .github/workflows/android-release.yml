@@ -34,6 +34,7 @@ jobs:
         run: |
           flutter pub get --enforce-lockfile
           dart tools/check_online_match.dart
+          dart tools/check_game_catalog.dart
           node tools/check_turn_pages.cjs
           javac -d "$RUNNER_TEMP/turn-pages" android/app/src/main/java/io/tablecircle/prototype/OnlineTurnPages.java tools/CheckOnlineTurnPages.java
           java -cp "$RUNNER_TEMP/turn-pages" io.tablecircle.prototype.CheckOnlineTurnPages

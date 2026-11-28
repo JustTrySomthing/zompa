@@ -308,6 +308,7 @@ class GithubDistribution {
       schema: 1,
       fresh: true,
       repository: appRepository,
+      maxBytes: 128 * 1024,
     ),
   );
 
@@ -320,6 +321,7 @@ class GithubDistribution {
     required int schema,
     bool fresh = false,
     required String repository,
+    int? maxBytes,
   }) async {
     final client = _client();
     try {
@@ -329,17 +331,23 @@ class GithubDistribution {
         repository,
         fresh: fresh,
       );
-      final bytes = <int>[];
-      await for (final chunk in response.timeout(const Duration(seconds: 20))) {
-        if (bytes.length + chunk.length > 128 * 1024) {
-          throw const FormatException('Release metadata is too large.');
-        }
-        bytes.addAll(chunk);
+      var chunks = response.timeout(const Duration(seconds: 20));
+      if (maxBytes != null) {
+        var received = 0;
+        chunks = chunks.map((chunk) {
+          received += chunk.length;
+          if (received > maxBytes) {
+            throw const FormatException('Release metadata is too large.');
+          }
+          return chunk;
+        });
       }
-      final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      if (json['schema'] != schema)
+      final manifest =
+          (await chunks.transform(utf8.decoder).transform(json.decoder).single)
+              as Map<String, dynamic>;
+      if (manifest['schema'] != schema)
         throw const FormatException('Unsupported release feed.');
-      return json;
+      return manifest;
     } finally {
       client.close(force: true);
     }
